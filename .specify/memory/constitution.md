@@ -1,50 +1,135 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+SYNC IMPACT REPORT
+==================
+Version Change: 0.0.0 → 1.0.0
+Change Type: Initial ratification
+Modified Principles: N/A (initial version)
+Added Sections: All sections (initial creation)
+Removed Sections: None
+
+Template Status:
+✅ plan-template.md - Reviewed, constitution check gates compatible
+✅ spec-template.md - Reviewed, user story requirements align
+✅ tasks-template.md - Reviewed, microservices task patterns supported
+✅ agent-file-template.md - Reviewed, no agent-specific references needed
+✅ checklist-template.md - Reviewed, compatible with principles
+
+Follow-up TODOs: None
+-->
+
+# Point-of-Sale System Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Microservice Autonomy
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Each microservice MUST be independently deployable, testable, and maintainable. Services own their data, expose well-defined APIs, and communicate asynchronously where possible. No shared databases between services except via defined contracts.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+**Rationale**: Enables team autonomy, independent scaling, technology flexibility, and fault isolation in a distributed retail environment where uptime is critical.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. API-First Design
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+All service interfaces MUST be designed and documented before implementation. API contracts include request/response schemas, error codes, versioning, and SLAs. Changes follow backward-compatibility rules or explicit versioning.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+**Rationale**: Web app frontend and potential future clients (mobile, kiosk) depend on stable, predictable service contracts. Breaking changes without versioning cause system-wide failures.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Test-First Development (NON-NEGOTIABLE)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Tests MUST be written before implementation code. Sequence: Write test → Verify test fails → Implement → Verify test passes → Refactor. All features require:
+- Unit tests for business logic
+- Contract tests for API boundaries
+- Integration tests for service interactions
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+**Rationale**: Point-of-sale systems handle financial transactions and inventory. Test-first ensures correctness, prevents regressions, and provides safety for refactoring in a high-stakes domain.
+
+### IV. Observability & Monitoring
+
+Every service MUST emit structured logs, metrics, and traces. Implement health checks, readiness probes, and circuit breakers. Log all business-critical operations (transactions, inventory changes, user actions).
+
+**Rationale**: Production debugging in distributed systems is impossible without observability. Transaction reconciliation and compliance audits require complete operation history.
+
+### V. Security by Design
+
+Authentication and authorization MUST be enforced at service boundaries. Sensitive data (payment info, customer PII) MUST be encrypted at rest and in transit. Follow principle of least privilege. Log security events.
+
+**Rationale**: POS systems process payment information subject to PCI-DSS compliance. Security violations result in financial liability, regulatory penalties, and customer trust loss.
+
+### VI. Simplicity & YAGNI
+
+Build only what is required now. Avoid premature optimization, speculative features, and unnecessary abstractions. Prefer boring, proven technologies. Complexity MUST be explicitly justified.
+
+**Rationale**: Over-engineering increases development time, bug surface, and maintenance burden. Business requirements in retail change frequently; adaptability beats prediction.
+
+## Architecture Constraints
+
+### Service Communication
+
+- **Synchronous**: REST/HTTP for request-response patterns (user-facing operations)
+- **Asynchronous**: Message queues for events (inventory updates, notifications)
+- **Service Discovery**: Services register/discover via environment-based configuration or service mesh
+- **Timeouts**: All external calls MUST have timeouts and retry logic
+
+### Data Management
+
+- **Database per Service**: Each microservice owns its schema
+- **Data Consistency**: Use eventual consistency with compensation patterns where appropriate
+- **Transactions**: Distributed transactions via saga pattern or two-phase commit only when absolutely necessary
+- **Caching**: Cache at service level; document invalidation strategy
+
+### Frontend-Backend Contract
+
+- **Web App**: Single-page application consuming backend APIs
+- **API Gateway**: Optional gateway for routing, authentication, rate limiting
+- **Error Handling**: Backend returns structured error responses; frontend displays user-friendly messages
+
+## Development Workflow
+
+### Feature Development Lifecycle
+
+1. **Specification Phase**: Document user stories, acceptance criteria, API contracts
+2. **Design Phase**: Create data models, service boundaries, integration points
+3. **Test Phase**: Write tests first (contract → integration → unit)
+4. **Implementation Phase**: Write code to pass tests
+5. **Review Phase**: Code review verifies constitution compliance
+6. **Deployment Phase**: Deploy to staging → validate → production
+
+### Code Review Requirements
+
+- All code MUST pass automated tests and linting before review
+- Reviewers MUST verify constitution compliance (test coverage, API contracts, security)
+- Architecture changes require design document review
+- Breaking API changes require migration plan and version bump
+
+### Quality Gates
+
+- **Merge Requirement**: All tests passing, coverage ≥80%, no critical security issues
+- **Deployment Requirement**: Staging validation complete, rollback plan documented
+- **Production Monitoring**: Alerts configured, on-call rotation staffed
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes all other development practices. All pull requests, design decisions, and code reviews MUST verify compliance with these principles.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+### Amendment Process
+
+- Amendments require documented justification and team consensus
+- MAJOR version increment for breaking changes (principle removal/redefinition)
+- MINOR version increment for new principles or expanded guidance
+- PATCH version increment for clarifications or non-semantic refinements
+- All amendments MUST include migration plan for existing code
+
+### Complexity Justification
+
+Any violation of principles MUST be explicitly justified with:
+- Specific technical constraint that prevents compliance
+- Simpler alternatives considered and rejected (with reasons)
+- Mitigation plan to minimize impact
+- Timeline for remediation if temporary
+
+### Compliance Review
+
+- Constitution compliance reviewed in every sprint retrospective
+- Violations documented and addressed as technical debt
+- Development guidelines in `.specify/templates/agent-file-template.md` auto-generated from feature plans and this constitution
+
+**Version**: 1.0.0 | **Ratified**: 2025-11-22 | **Last Amended**: 2025-11-22

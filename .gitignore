@@ -1,0 +1,72 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+vendor/
+*.prof
+
+# Frontend (Node.js/Next.js)
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment variables
+.env
+.env*.local
+.env.production
+.env.development
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Testing
+coverage/
+*.test
+.nyc_output
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Docker
+.docker/
+
+# Logs
+logs/
+*.log
