@@ -53,36 +53,36 @@ fi
 
 echo ""
 
-# # Check if Docker is running
-# if ! docker info > /dev/null 2>&1; then
-#     echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
-#     echo "    Services will attempt to start but may fail without database connectivity."
-#     echo ""
-# fi
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
+    echo "    Services will attempt to start but may fail without database connectivity."
+    echo ""
+fi
 
-# # Start Docker services if available
-# if docker info > /dev/null 2>&1; then
-#     echo "📦 Starting Docker services (PostgreSQL & Redis)..."
-#     cd "$PROJECT_ROOT"
-#     docker-compose up -d
-#     echo "✅ Docker services started"
-#     echo ""
+# Start Docker services if available
+if docker info > /dev/null 2>&1; then
+    echo "📦 Starting Docker services (PostgreSQL & Redis)..."
+    cd "$PROJECT_ROOT"
+    docker-compose up -d
+    echo "✅ Docker services started"
+    echo ""
     
-#     # Wait for PostgreSQL to be ready
-#     echo "⏳ Waiting for PostgreSQL to be ready..."
-#     for i in {1..30}; do
-#         if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
-#             echo "✅ PostgreSQL is ready"
-#             break
-#         fi
-#         if [ $i -eq 30 ]; then
-#             echo "❌ PostgreSQL did not become ready in time"
-#             exit 1
-#         fi
-#         sleep 1
-#     done
-#     echo ""
-# fi
+    # Wait for PostgreSQL to be ready
+    echo "⏳ Waiting for PostgreSQL to be ready..."
+    for i in {1..30}; do
+        if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
+            echo "✅ PostgreSQL is ready"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "❌ PostgreSQL did not become ready in time"
+            exit 1
+        fi
+        sleep 1
+    done
+    echo ""
+fi
 
 # Build all services
 echo "🔨 Building services..."
@@ -137,12 +137,12 @@ start_service_with_env "User Service" "$PROJECT_ROOT/backend/user-service" "user
 # Wait a moment for services to start
 sleep 2
 
-# # Start frontend
-# echo ""
-# echo "🎨 Starting frontend..."
-# cd "$PROJECT_ROOT/frontend"
-# npm run dev > /tmp/frontend.log 2>&1 &
-# echo "✅ Frontend started on port 3000 (PID: $!)"
+# Start frontend
+echo ""
+echo "🎨 Starting frontend..."
+cd "$PROJECT_ROOT/frontend"
+npm run dev > /tmp/frontend.log 2>&1 &
+echo "✅ Frontend started on port 3000 (PID: $!)"
 
 echo ""
 echo "=========================================="

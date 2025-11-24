@@ -39,24 +39,24 @@ if [ -n "$PID" ]; then
 fi
 
 # Clean up log files (optional)
-# echo ""
-# read -p "Remove log files? (y/N): " -n 1 -r
-# echo
-# if [[ $REPLY =~ ^[Yy]$ ]]; then
-#     rm -f /tmp/api-gateway.log /tmp/auth-service.log /tmp/user-service.log /tmp/tenant-service.log /tmp/frontend.log
-#     echo "✅ Log files removed"
-# fi
+echo ""
+read -p "Remove log files? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm -f /tmp/api-gateway.log /tmp/auth-service.log /tmp/user-service.log /tmp/tenant-service.log /tmp/frontend.log
+    echo "✅ Log files removed"
+fi
 
 # Stop Docker services
-# if docker info > /dev/null 2>&1; then
-#     echo ""
-#     echo "📦 Stopping Docker services..."
-#     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-#     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-#     cd "$PROJECT_ROOT"
-#     docker-compose down
-#     echo "✅ Docker services stopped"
-# fi
+if docker info > /dev/null 2>&1; then
+    echo ""
+    echo "📦 Stopping Docker services..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    cd "$PROJECT_ROOT"
+    docker-compose down
+    echo "✅ Docker services stopped"
+fi
 
 echo ""
 echo "✨ All services stopped successfully!"
