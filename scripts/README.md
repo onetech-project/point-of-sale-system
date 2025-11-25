@@ -64,7 +64,7 @@ Starts all backend services using their `.env` configuration files.
 - `/tmp/tenant-service.log`
 
 ### `stop-all.sh`
-Stops all running services.
+Stops all running services and optionally cleans up log files.
 
 **Usage:**
 ```bash
@@ -72,9 +72,29 @@ Stops all running services.
 ```
 
 **What it does:**
-1. Stops services using stored PIDs from `/tmp/pos-services.pid`
-2. Falls back to stopping by port (8080, 8082, 8083, 8084, 8085, 3000)
-3. Cleans up PID file
+1. Loads port configuration from root `.env` file
+2. Stops services using stored PIDs from `/tmp/pos-services.pid`
+3. Falls back to stopping by port (uses environment variables or defaults)
+4. Stops Next.js processes by name
+5. Removes Next.js lock file
+6. Prompts to remove log files (with 10-second timeout)
+7. Shows summary of stopped services
+
+**Ports stopped (from .env or defaults):**
+- API Gateway: `${API_GATEWAY_PORT:-8080}`
+- Auth Service: `${AUTH_SERVICE_PORT:-8082}`
+- User Service: `${USER_SERVICE_PORT:-8083}`
+- Tenant Service: `${TENANT_SERVICE_PORT:-8084}`
+- Notification Service: `${NOTIFICATION_SERVICE_PORT:-8085}`
+- Frontend: `${FRONTEND_PORT:-3000}`
+
+**Log files managed:**
+- `/tmp/api-gateway.log`
+- `/tmp/auth-service.log`
+- `/tmp/user-service.log`
+- `/tmp/tenant-service.log`
+- `/tmp/notification-service.log`
+- `/tmp/frontend.log`
 
 ## Typical Workflow
 
