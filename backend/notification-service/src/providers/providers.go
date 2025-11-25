@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/smtp"
 	"os"
-	"strings"
 
 	"github.com/jordan-wright/email"
 )

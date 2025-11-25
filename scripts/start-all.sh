@@ -31,6 +31,7 @@ services_to_check=(
     "backend/auth-service/.env"
     "backend/tenant-service/.env"
     "backend/user-service/.env"
+    "backend/notification-service/.env"
 )
 
 missing_files=false
@@ -90,6 +91,7 @@ cd "$PROJECT_ROOT/api-gateway" && go build -o api-gateway main.go &
 cd "$PROJECT_ROOT/backend/auth-service" && go build -o auth-service main.go &
 cd "$PROJECT_ROOT/backend/tenant-service" && go build -o tenant-service main.go &
 cd "$PROJECT_ROOT/backend/user-service" && go build -o user-service main.go &
+cd "$PROJECT_ROOT/backend/notification-service" && go build -o notification-service main.go &
 wait
 echo "✅ All services built"
 echo ""
@@ -134,6 +136,9 @@ start_service_with_env "Auth Service" "$PROJECT_ROOT/backend/auth-service" "auth
 # Start User Service
 start_service_with_env "User Service" "$PROJECT_ROOT/backend/user-service" "user-service" "/tmp/user-service.log"
 
+# Start Notification Service
+start_service_with_env "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log"
+
 # Wait a moment for services to start
 sleep 2
 
@@ -141,31 +146,45 @@ sleep 2
 echo ""
 echo "🎨 Starting frontend..."
 cd "$PROJECT_ROOT/frontend"
+
+# Load frontend .env if it exists
+if [ -f ".env.local" ]; then
+    export $(grep -v '^#' .env.local | xargs)
+fi
+
+# Clear PORT variable to use Next.js default (3000)
+unset PORT
+
 npm run dev > /tmp/frontend.log 2>&1 &
-echo "✅ Frontend started on port 3000 (PID: $!)"
+frontend_pid=$!
+echo $frontend_pid >> /tmp/pos-services.pid
+echo "✅ Frontend started (PID: $frontend_pid)"
 
 echo ""
 echo "=========================================="
 echo "✨ All services started successfully!"
 echo ""
 echo "📍 Service URLs:"
-echo "   API Gateway:      http://localhost:${API_GATEWAY_PORT:-8080}"
-echo "   Tenant Service:   http://localhost:${TENANT_SERVICE_PORT:-8084}"
-echo "   Auth Service:     http://localhost:${AUTH_SERVICE_PORT:-8082}"
-echo "   User Service:     http://localhost:${USER_SERVICE_PORT:-8083}"
-echo "   Frontend:         http://localhost:${FRONTEND_PORT:-3000}"
+echo "   API Gateway:          http://localhost:${API_GATEWAY_PORT:-8080}"
+echo "   Auth Service:         http://localhost:${AUTH_SERVICE_PORT:-8082}"
+echo "   User Service:         http://localhost:${USER_SERVICE_PORT:-8083}"
+echo "   Tenant Service:       http://localhost:${TENANT_SERVICE_PORT:-8084}"
+echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}"
+echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
 echo "   curl http://localhost:${API_GATEWAY_PORT:-8080}/health"
-echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
 echo "   curl http://localhost:${AUTH_SERVICE_PORT:-8082}/health"
 echo "   curl http://localhost:${USER_SERVICE_PORT:-8083}/health"
+echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
+echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
-echo "   tail -f /tmp/tenant-service.log"
 echo "   tail -f /tmp/auth-service.log"
 echo "   tail -f /tmp/user-service.log"
+echo "   tail -f /tmp/tenant-service.log"
+echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"
