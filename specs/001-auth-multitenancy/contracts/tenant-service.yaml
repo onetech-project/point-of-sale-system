@@ -1,0 +1,392 @@
+openapi: 3.0.3
+info:
+  title: Tenant Service API
+  description: |
+    Tenant management service for multi-tenant POS system.
+    Handles tenant registration, configuration, and lifecycle management.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8003
+    description: Local development
+  - url: https://api.example.com/tenants
+    description: Production
+
+tags:
+  - name: Tenants
+    description: Tenant management operations
+  - name: Registration
+    description: Tenant registration (public)
+
+paths:
+  /register:
+    post:
+      tags:
+        - Registration
+      summary: Register new tenant
+      description: |
+        Create new tenant account with business owner.
+        This is a public endpoint (no authentication required).
+        Creates both tenant and first owner user in single transaction.
+      operationId: registerTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTenantRequest'
+      responses:
+        '201':
+          description: Tenant registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterTenantResponse'
+        '400':
+          description: Invalid request (e.g., business name already exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants/{tenantId}:
+    get:
+      tags:
+        - Tenants
+      summary: Get tenant details
+      description: |
+        Retrieve tenant information.
+        Users can only access their own tenant.
+      operationId: getTenant
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tenant ID (must match authenticated user's tenant)
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '403':
+          description: Forbidden - cannot access other tenant's data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Tenants
+      summary: Update tenant settings
+      description: |
+        Update tenant configuration.
+        Requires owner role.
+      operationId: updateTenant
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '403':
+          description: Forbidden - owner role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants/{tenantId}/status:
+    patch:
+      tags:
+        - Tenants
+      summary: Update tenant status
+      description: |
+        Change tenant status (suspend/activate/delete).
+        Requires owner role or system admin.
+      operationId: updateTenantStatus
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [active, suspended, deleted]
+                reason:
+                  type: string
+                  description: Reason for status change (for audit)
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants/check-slug:
+    post:
+      tags:
+        - Tenants
+      summary: Check slug availability
+      description: |
+        Check if a slug is available for use.
+        Public endpoint for registration form validation.
+      operationId: checkSlug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - slug
+              properties:
+                slug:
+                  type: string
+                  pattern: ^[a-z0-9][a-z0-9\-]*[a-z0-9]$
+                  minLength: 3
+                  maxLength: 50
+      responses:
+        '200':
+          description: Slug availability
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  suggestion:
+                    type: string
+                    description: Alternative slug if unavailable
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+
+  schemas:
+    RegisterTenantRequest:
+      type: object
+      required:
+        - businessName
+        - ownerEmail
+        - ownerPassword
+      properties:
+        businessName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Acme Coffee Shop
+          description: Business name (must be unique among active tenants)
+        slug:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9\-]*[a-z0-9]$
+          minLength: 3
+          maxLength: 50
+          example: acme-coffee-shop
+          description: URL-safe slug (auto-generated from business name if not provided)
+        ownerEmail:
+          type: string
+          format: email
+          example: owner@acmecoffee.com
+          description: Business owner's email
+        ownerPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: SecurePass123
+          description: Business owner's password
+        ownerProfile:
+          type: object
+          properties:
+            firstName:
+              type: string
+              example: John
+            lastName:
+              type: string
+              example: Doe
+        ownerLocale:
+          type: string
+          enum: [en, id]
+          default: en
+          example: en
+          description: Owner's preferred language (English or Indonesian)
+
+    RegisterTenantResponse:
+      type: object
+      properties:
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+        owner:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+              example: owner
+        message:
+          type: string
+          example: Tenant registered successfully
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        businessName:
+          type: string
+          example: Acme Coffee Shop
+        slug:
+          type: string
+          example: acme-coffee-shop
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+          example: active
+        settings:
+          type: object
+          properties:
+            sessionTimeout:
+              type: integer
+              example: 15
+              description: Session timeout in minutes
+            maxUsers:
+              type: integer
+              example: 50
+              description: Maximum users allowed (0 = unlimited)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        businessName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        settings:
+          type: object
+          properties:
+            sessionTimeout:
+              type: integer
+              minimum: 5
+              maximum: 120
+              description: Session timeout in minutes (5-120)
+            maxUsers:
+              type: integer
+              minimum: 0
+              description: Maximum users allowed (0 = unlimited)
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: DUPLICATE_BUSINESS_NAME
+            message:
+              type: string
+              example: A business with this name already exists
+            details:
+              type: object
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        timestamp:
+          type: string
+          format: date-time
+        dependencies:
+          type: object
+          properties:
+            postgresql:
+              type: string
+              enum: [ok, down]

@@ -1,0 +1,453 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: |
+    Authentication service for user authentication and multi-tenancy.
+    Handles login, logout, session management, and password operations.
+  version: 1.0.0
+  contact:
+    name: POS Development Team
+
+servers:
+  - url: http://localhost:8001
+    description: Local development
+  - url: https://api.example.com/auth
+    description: Production
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: Session
+    description: Session management operations
+  - name: Password
+    description: Password management operations
+
+paths:
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: |
+        Authenticate user with email and password. Returns JWT token in HTTP-only cookie.
+        Rate limited to 5 attempts per 15 minutes per email/tenant combination.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: JWT token in HTTP-only cookie
+              schema:
+                type: string
+                example: auth_token=eyJhbGc...; HttpOnly; Secure; SameSite=Strict; Max-Age=900
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many login attempts
+          headers:
+            Retry-After:
+              description: Seconds until rate limit reset
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logout:
+    post:
+      tags:
+        - Session
+      summary: User logout
+      description: Terminate user session and invalidate JWT token
+      operationId: logout
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          headers:
+            Set-Cookie:
+              description: Clears auth cookie
+              schema:
+                type: string
+                example: auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logout successful
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /refresh:
+    post:
+      tags:
+        - Session
+      summary: Refresh session
+      description: Extend session expiration by validating current token and issuing new one
+      operationId: refreshSession
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session refreshed
+          headers:
+            Set-Cookie:
+              description: New JWT token in HTTP-only cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+        '401':
+          description: Unauthorized - session expired or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /session:
+    get:
+      tags:
+        - Session
+      summary: Get current session info
+      description: Retrieve information about the current authenticated session
+      operationId: getSession
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+        '401':
+          description: Unauthorized - no active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /password/reset-request:
+    post:
+      tags:
+        - Password
+      summary: Request password reset
+      description: |
+        Send password reset email to user. Email must exist in the specified tenant.
+        Rate limited to prevent abuse.
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Reset email sent (always returns success even if email not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: If the email exists, a reset link has been sent
+        '429':
+          description: Too many reset requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /password/reset:
+    post:
+      tags:
+        - Password
+      summary: Reset password with token
+      description: Reset user password using token from reset email
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset successful
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /password/change:
+    post:
+      tags:
+        - Password
+      summary: Change password (authenticated)
+      description: Change password for authenticated user (requires current password)
+      operationId: changePassword
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password changed successfully
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check service health and dependencies
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: JWT token stored in HTTP-only cookie
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+        - tenantId
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+          description: User's email address (case-insensitive)
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: SecurePass123
+          description: User's password
+        tenantId:
+          type: string
+          format: uuid
+          example: 507f1f77-bcf8-6cd7-9943-9011abcdef01
+          description: Tenant identifier (UUID)
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        session:
+          $ref: '#/components/schemas/SessionInfo'
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        role:
+          type: string
+          enum: [owner, manager, cashier]
+          example: manager
+        profile:
+          type: object
+          properties:
+            firstName:
+              type: string
+              example: John
+            lastName:
+              type: string
+              example: Doe
+        locale:
+          type: string
+          enum: [en, id]
+          default: en
+          example: en
+          description: User's preferred language
+        lastLoginAt:
+          type: string
+          format: date-time
+          example: 2025-11-22T15:30:00Z
+
+    SessionInfo:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        userId:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        tenantId:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        expiresAt:
+          type: string
+          format: date-time
+          example: 2025-11-22T15:45:00Z
+          description: Session expiration time (15 minutes from creation)
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+        - tenantId
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        tenantId:
+          type: string
+          format: uuid
+          example: 507f1f77bcf86cd799439011
+
+    PasswordResetConfirm:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          example: a3f8b2e1c9d4f7a6b5e8c2d1f9a7b4e3
+          description: Reset token from email
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: NewSecurePass123
+
+    PasswordChangeRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          example: OldPass123
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: NewSecurePass123
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_CREDENTIALS
+            message:
+              type: string
+              example: Invalid email or password
+            details:
+              type: object
+              additionalProperties: true
+              description: Additional error context
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-11-22T15:30:00Z
+        dependencies:
+          type: object
+          properties:
+            postgresql:
+              type: string
+              enum: [ok, down]
+              example: ok
+            redis:
+              type: string
+              enum: [ok, down]
+              example: ok

@@ -1,0 +1,445 @@
+# Tasks: User Authentication and Multi-Tenancy with Language Switcher
+
+**Input**: Design documents from `/specs/001-auth-multitenancy/`
+**Prerequisites**: plan.md (✓), spec.md (✓), research.md (✓), data-model.md (✓), contracts/ (✓)
+
+**Tests**: Tests are included as required by the constitution (test-first development)
+
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
+- Include exact file paths in descriptions
+
+---
+
+## Phase 1: Setup (Shared Infrastructure)
+
+**Purpose**: Project initialization and basic structure
+
+- [X] T001 Create project directory structure per plan.md (backend/, frontend/, api-gateway/)
+- [X] T002 Initialize Go modules for backend services (auth-service, user-service, tenant-service) in backend/
+- [X] T003 Initialize Next.js 13+ project with App Router in frontend/
+- [X] T004 Initialize Go module for API Gateway in api-gateway/
+- [X] T005 [P] Setup Docker Compose configuration for PostgreSQL and Redis in docker-compose.yml
+- [X] T006 [P] Configure PostgreSQL connection pool in backend/src/config/database.go
+- [X] T007 [P] Configure Redis client in backend/src/config/redis.go
+- [X] T008 [P] Setup database migration framework (golang-migrate) in backend/migrations/
+- [X] T009 [P] Install Echo v4 framework dependencies in all Go services
+- [X] T010 [P] Install bcrypt, JWT, and PostgreSQL driver dependencies in Go services
+- [X] T011 [P] Setup i18next and react-i18next in frontend/package.json
+- [X] T012 [P] Configure ESLint and Prettier for frontend in frontend/.eslintrc.json
+- [X] T013 [P] Setup Jest and React Testing Library in frontend/jest.config.js
+- [X] T014 [P] Configure Go test framework and testify in backend services
+
+---
+
+## Phase 2: Foundational (Blocking Prerequisites)
+
+**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
+
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+
+- [X] T015 Create PostgreSQL database schema for tenants table in backend/migrations/001_create_tenants.up.sql
+- [X] T016 Create PostgreSQL database schema for users table in backend/migrations/002_create_users.up.sql
+- [X] T017 Create PostgreSQL database schema for sessions table in backend/migrations/003_create_sessions.up.sql
+- [X] T018 Create PostgreSQL database schema for invitations table in backend/migrations/004_create_invitations.up.sql
+- [X] T019 [P] Create Row-Level Security policies for tenants table in backend/migrations/005_create_rls_tenants.up.sql
+- [X] T020 [P] Create Row-Level Security policies for users table in backend/migrations/006_create_rls_users.up.sql
+- [X] T021 [P] Create Row-Level Security policies for sessions table in backend/migrations/007_create_rls_sessions.up.sql
+- [X] T022 [P] Create Row-Level Security policies for invitations table in backend/migrations/008_create_rls_invitations.up.sql
+- [X] T023 Run all database migrations to initialize schema
+- [X] T024 [P] Implement JWT middleware for token validation in api-gateway/middleware/auth.go
+- [X] T025 [P] Implement tenant context injection middleware in api-gateway/middleware/tenant_scope.go
+- [X] T026 [P] Implement rate limiting middleware with Redis in api-gateway/middleware/rate_limit.go
+- [X] T027 [P] Implement CORS middleware in api-gateway/middleware/cors.go
+- [X] T028 [P] Implement structured logging middleware in api-gateway/middleware/logging.go
+- [X] T029 [P] Setup API Gateway routing structure in api-gateway/main.go
+- [X] T030 [P] Configure health check endpoints for all services in backend/*/api/health.go
+- [X] T031 [P] Setup error handling and response utilities in backend/src/utils/response.go
+- [X] T032 [P] Create base repository pattern for tenant-scoped queries in backend/src/repository/base.go
+- [X] T033 [P] Setup i18n backend translation loader in backend/src/i18n/loader.go
+- [X] T034 [P] Create English translations file in backend/src/i18n/locales/en.json
+- [X] T035 [P] Create Indonesian translations file in backend/src/i18n/locales/id.json
+- [X] T036 [P] Setup i18n frontend configuration in frontend/src/i18n/config.js
+- [X] T037 [P] Create English frontend translations in frontend/src/i18n/locales/en/common.json
+- [X] T038 [P] Create Indonesian frontend translations in frontend/src/i18n/locales/id/common.json
+- [X] T039 [P] Implement LanguageSwitcher component in frontend/src/components/common/LanguageSwitcher.jsx
+- [X] T040 [P] Setup authentication context provider in frontend/src/store/auth.js
+- [X] T041 [P] Setup locale context provider in frontend/src/store/locale.js
+- [X] T042 [P] Create API client wrapper with cookie handling in frontend/src/services/api.js
+
+**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+
+---
+
+## Phase 3: User Story 1 - Business Owner Account Creation (Priority: P1) 🎯 MVP
+
+**Goal**: Enable business owners to sign up and create isolated tenant accounts with owner credentials
+
+**Independent Test**: Complete signup process and verify new isolated tenant space is created with owner as first user
+
+### Tests for User Story 1 (Test-First Development)
+
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+
+- [ ] T043 [P] [US1] Contract test for POST /tenants/register endpoint in backend/tenant-service/tests/contract/register_test.go
+- [ ] T044 [P] [US1] Integration test for tenant registration flow in backend/tenant-service/tests/integration/register_integration_test.go
+- [ ] T045 [P] [US1] Unit test for tenant slug generation in backend/tenant-service/tests/unit/slug_test.go
+- [ ] T046 [P] [US1] Frontend component test for Signup page in frontend/src/pages/__tests__/Signup.test.jsx
+
+### Implementation for User Story 1
+
+- [X] T047 [P] [US1] Create Tenant model struct in backend/tenant-service/src/models/tenant.go
+- [X] T048 [P] [US1] Create User model struct (basic fields) in backend/user-service/src/models/user.go
+- [X] T049 [US1] Implement TenantRepository with Create and FindBySlug methods in backend/tenant-service/src/repository/tenant_repository.go
+- [X] T050 [US1] Implement UserRepository with Create and FindByEmail methods in backend/user-service/src/repository/user_repository.go
+- [X] T051 [US1] Implement password hashing utility with bcrypt in backend/src/utils/password.go
+- [X] T052 [US1] Implement slug generation utility in backend/src/utils/slug.go
+- [X] T053 [US1] Implement TenantService with RegisterTenant method in backend/tenant-service/src/services/tenant_service.go
+- [X] T054 [US1] Implement tenant registration validation in backend/tenant-service/src/services/validation.go
+- [X] T055 [US1] Implement POST /register handler in backend/tenant-service/src/api/register_handler.go
+- [X] T056 [US1] Wire up /register route in tenant service in backend/tenant-service/main.go
+- [X] T057 [US1] Configure API Gateway proxy route for /api/tenants/* to tenant service in api-gateway/main.go
+- [X] T058 [US1] Create English auth translations in frontend/src/i18n/locales/en/auth.json
+- [X] T059 [US1] Create Indonesian auth translations in frontend/src/i18n/locales/id/auth.json
+- [X] T060 [US1] Create Signup page component in frontend/src/pages/Signup.jsx
+- [X] T061 [US1] Implement form validation for signup in frontend/src/utils/validation.js
+- [X] T062 [US1] Create auth service with registerTenant function in frontend/src/services/auth.js
+- [X] T063 [US1] Add tenant registration API integration in frontend/src/services/auth.js
+- [X] T064 [US1] Add logging for tenant registration events in backend/tenant-service/src/api/register_handler.go
+- [X] T065 [US1] Add error handling and localized error messages in backend/tenant-service/src/api/register_handler.go
+
+**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+
+---
+
+## Phase 4: User Story 2 - User Login to Tenant Account (Priority: P1)
+
+**Goal**: Enable users to authenticate with email/password and establish secure sessions scoped to their tenant
+
+**Independent Test**: User with valid credentials logs in and verifies access only to their tenant's resources
+
+### Tests for User Story 2 (Test-First Development)
+
+- [ ] T066 [P] [US2] Contract test for POST /auth/login endpoint in backend/auth-service/tests/contract/login_test.go
+- [ ] T067 [P] [US2] Contract test for GET /auth/session endpoint in backend/auth-service/tests/contract/session_test.go
+- [ ] T068 [P] [US2] Integration test for login flow with Redis session in backend/auth-service/tests/integration/login_integration_test.go
+- [ ] T069 [P] [US2] Integration test for tenant isolation enforcement in backend/auth-service/tests/integration/tenant_isolation_test.go
+- [ ] T070 [P] [US2] Unit test for password comparison in backend/auth-service/tests/unit/password_test.go
+- [ ] T071 [P] [US2] Unit test for JWT token generation and validation in backend/auth-service/tests/unit/jwt_test.go
+- [ ] T072 [P] [US2] Frontend component test for Login page in frontend/src/pages/__tests__/Login.test.jsx
+
+### Implementation for User Story 2
+
+- [X] T073 [P] [US2] Create Session model struct in backend/auth-service/src/models/session.go
+- [X] T074 [US2] Implement SessionRepository with Create, FindByID, and Delete methods in backend/auth-service/src/repository/session_repository.go
+- [X] T075 [US2] Implement Redis session manager in backend/auth-service/src/services/session_manager.go
+- [X] T076 [US2] Implement JWT token generation and signing in backend/auth-service/src/services/jwt_service.go
+- [X] T077 [US2] Implement JWT token validation and parsing in backend/auth-service/src/services/jwt_service.go
+- [X] T078 [US2] Implement AuthService with Login method in backend/auth-service/src/services/auth_service.go
+- [X] T079 [US2] Implement rate limiting check for login attempts in backend/auth-service/src/services/rate_limiter.go
+- [X] T080 [US2] Implement POST /login handler in backend/auth-service/src/api/login_handler.go
+- [X] T081 [US2] Implement GET /session handler in backend/auth-service/src/api/session_handler.go
+- [X] T082 [US2] Wire up /login and /session routes in auth service in backend/auth-service/main.go
+- [X] T083 [US2] Configure API Gateway proxy route for /api/auth/* to auth service in api-gateway/main.go
+- [X] T084 [US2] Create Login page component in frontend/src/pages/Login.jsx
+- [X] T085 [US2] Implement login function in auth service in frontend/src/services/auth.js
+- [X] T086 [US2] Implement session validation function in auth service in frontend/src/services/auth.js
+- [X] T087 [US2] Update auth context with login/logout actions in frontend/src/store/auth.js
+- [X] T088 [US2] Create protected route wrapper component in frontend/src/components/auth/ProtectedRoute.jsx
+- [X] T089 [US2] Add logging for authentication attempts in backend/auth-service/src/api/login_handler.go
+- [X] T090 [US2] Add tenant isolation validation to all database queries in backend/src/repository/base.go
+
+**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+
+---
+
+## Phase 5: User Story 5 - Session Management and Logout (Priority: P2)
+
+**Goal**: Enable users to securely end sessions and automatically expire inactive sessions
+
+**Independent Test**: User logs in, logs out, and verifies session is terminated requiring re-authentication
+
+### Tests for User Story 5 (Test-First Development)
+
+- [ ] T091 [P] [US5] Contract test for POST /auth/logout endpoint in backend/auth-service/tests/contract/logout_test.go
+- [ ] T092 [P] [US5] Integration test for logout flow in backend/auth-service/tests/integration/logout_integration_test.go
+- [ ] T093 [P] [US5] Integration test for session expiration in backend/auth-service/tests/integration/session_expiration_test.go
+- [ ] T094 [P] [US5] Frontend component test for logout functionality in frontend/src/components/__tests__/Logout.test.jsx
+
+### Implementation for User Story 5
+
+- [ ] T095 [US5] Implement session termination in SessionManager in backend/auth-service/src/services/session_manager.go
+- [ ] T096 [US5] Implement session TTL renewal on activity in backend/auth-service/src/services/session_manager.go
+- [ ] T097 [US5] Implement POST /logout handler in backend/auth-service/src/api/logout_handler.go
+- [ ] T098 [US5] Wire up /logout route in auth service in backend/auth-service/main.go
+- [ ] T099 [US5] Implement logout function in auth service in frontend/src/services/auth.js
+- [ ] T100 [US5] Create logout button component in frontend/src/components/auth/LogoutButton.jsx
+- [ ] T101 [US5] Update auth context with session expiration handling in frontend/src/store/auth.js
+- [ ] T102 [US5] Implement session expiration detection in API client in frontend/src/services/api.js
+- [ ] T103 [US5] Add automatic redirect to login on session expiration in frontend/src/pages/_app.jsx
+- [ ] T104 [US5] Add logging for logout and session termination events in backend/auth-service/src/api/logout_handler.go
+
+**Checkpoint**: At this point, User Stories 1, 2, and 5 should all work independently
+
+---
+
+## Phase 6: User Story 3 - Business Owner Adds Team Members (Priority: P2)
+
+**Goal**: Enable business owners to invite team members who can create accounts linked to their tenant
+
+**Independent Test**: Owner sends invitation, team member accepts and logs in with access only to their tenant
+
+### Tests for User Story 3 (Test-First Development)
+
+- [ ] T105 [P] [US3] Contract test for POST /invitations endpoint in backend/user-service/tests/contract/invite_test.go
+- [ ] T106 [P] [US3] Contract test for GET /invitations endpoint in backend/user-service/tests/contract/list_invitations_test.go
+- [ ] T107 [P] [US3] Contract test for POST /invitations/{token}/accept endpoint in backend/user-service/tests/contract/accept_invitation_test.go
+- [ ] T108 [P] [US3] Integration test for invitation flow in backend/user-service/tests/integration/invitation_integration_test.go
+- [ ] T109 [P] [US3] Frontend component test for team member invitation in frontend/src/components/__tests__/InviteUser.test.jsx
+
+### Implementation for User Story 3
+
+- [ ] T110 [P] [US3] Create Invitation model struct in backend/user-service/src/models/invitation.go
+- [ ] T111 [US3] Implement InvitationRepository with Create, FindByToken, and Update methods in backend/user-service/src/repository/invitation_repository.go
+- [X] T112 [US3] Implement secure token generation utility in backend/src/utils/token.go
+- [ ] T113 [US3] Implement InvitationService with SendInvitation method in backend/user-service/src/services/invitation_service.go
+- [ ] T114 [US3] Implement invitation validation (check existing users, pending invites) in backend/user-service/src/services/invitation_service.go
+- [ ] T115 [US3] Implement POST /invitations handler in backend/user-service/src/api/invitation_handler.go
+- [ ] T116 [US3] Implement GET /invitations handler in backend/user-service/src/api/invitation_handler.go
+- [ ] T117 [US3] Implement POST /invitations/{token}/accept handler in backend/user-service/src/api/invitation_handler.go
+- [ ] T118 [US3] Wire up invitation routes in user service in backend/user-service/main.go
+- [ ] T119 [US3] Configure API Gateway proxy route for /api/invitations/* to user service in api-gateway/main.go
+- [ ] T120 [US3] Create invitation form component in frontend/src/components/team/InviteUserForm.jsx
+- [ ] T121 [US3] Create invitation list component in frontend/src/components/team/InvitationList.jsx
+- [ ] T122 [US3] Create accept invitation page in frontend/src/pages/AcceptInvitation.jsx
+- [ ] T123 [US3] Implement sendInvitation function in user service in frontend/src/services/user.js
+- [ ] T124 [US3] Implement acceptInvitation function in user service in frontend/src/services/user.js
+- [ ] T125 [US3] Add logging for invitation operations in backend/user-service/src/api/invitation_handler.go
+
+**Checkpoint**: At this point, User Stories 1, 2, 3, and 5 should all work independently
+
+---
+
+## Phase 7: User Story 4 - User Role-Based Access (Priority: P3)
+
+**Goal**: Enable role-based permissions (owner, manager, cashier) with automatic enforcement
+
+**Independent Test**: Assign different roles to users and verify each role has appropriate access restrictions
+
+### Tests for User Story 4 (Test-First Development)
+
+- [ ] T126 [P] [US4] Integration test for owner role permissions in backend/user-service/tests/integration/role_owner_test.go
+- [ ] T127 [P] [US4] Integration test for manager role permissions in backend/user-service/tests/integration/role_manager_test.go
+- [ ] T128 [P] [US4] Integration test for cashier role permissions in backend/user-service/tests/integration/role_cashier_test.go
+- [ ] T129 [P] [US4] Unit test for role permission checks in backend/user-service/tests/unit/permissions_test.go
+
+### Implementation for User Story 4
+
+- [ ] T130 [P] [US4] Create Role model and permission definitions in backend/user-service/src/models/role.go
+- [ ] T131 [US4] Implement role-based access control middleware in api-gateway/middleware/rbac.go
+- [ ] T132 [US4] Implement permission checker utility in backend/src/utils/permissions.go
+- [ ] T133 [US4] Add role validation to user operations in backend/user-service/src/services/user_service.go
+- [ ] T134 [US4] Update invitation service to validate role assignment in backend/user-service/src/services/invitation_service.go
+- [ ] T135 [US4] Apply RBAC middleware to protected routes in api-gateway/main.go
+- [ ] T136 [US4] Create role-based UI component visibility in frontend/src/components/common/RoleGuard.jsx
+- [ ] T137 [US4] Update navigation menu with role-based visibility in frontend/src/components/layout/Navigation.jsx
+- [ ] T138 [US4] Add role information to auth context in frontend/src/store/auth.js
+- [ ] T139 [US4] Add logging for authorization decisions in api-gateway/middleware/rbac.go
+
+**Checkpoint**: All user stories should now be independently functional
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
+
+**Purpose**: Improvements that affect multiple user stories
+
+- [ ] T140 [P] Add comprehensive API documentation in docs/api.md
+- [ ] T141 [P] Create developer quickstart validation script in scripts/validate_quickstart.sh
+- [ ] T142 [P] Add database cleanup job for expired sessions in backend/src/jobs/cleanup_sessions.go
+- [ ] T143 [P] Add database cleanup job for old invitations in backend/src/jobs/cleanup_invitations.go
+- [ ] T144 [P] Implement audit log queries and reports in backend/src/services/audit_service.go
+- [ ] T145 [P] Add performance monitoring metrics collection in api-gateway/middleware/metrics.go
+- [ ] T146 [P] Create request tracing with correlation IDs in api-gateway/middleware/tracing.go
+- [ ] T147 [P] Add tenant isolation audit script in scripts/audit_tenant_isolation.sh
+- [ ] T148 [P] Optimize database indexes based on query patterns
+- [ ] T149 [P] Add caching for frequently accessed data in Redis
+- [ ] T150 [P] Create user documentation for authentication flows in docs/user_guide.md
+- [ ] T151 [P] Add security headers middleware in api-gateway/middleware/security.go
+- [ ] T152 [P] Create Docker Compose production configuration in docker-compose.prod.yml
+- [ ] T153 [P] Add environment variable validation on startup in backend/src/config/validator.go
+- [ ] T154 [P] Create frontend error boundary component in frontend/src/components/ErrorBoundary.jsx
+- [ ] T155 [P] Add accessibility improvements to all form components
+- [ ] T156 [P] Implement loading states and skeletons in frontend components
+- [ ] T157 [P] Add E2E test for complete user journey in frontend/tests/e2e/user_journey.spec.js
+- [ ] T158 Run complete quickstart.md validation from clean state
+- [ ] T159 Security review and penetration testing of authentication flows
+- [ ] T160 Performance testing with 100+ concurrent tenants and users
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: No dependencies - can start immediately
+- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
+- **User Stories (Phase 3-7)**: All depend on Foundational phase completion
+  - User Story 1 (P1): Can start after Foundational - No dependencies on other stories
+  - User Story 2 (P1): Can start after Foundational - Requires User Story 1 (needs Tenant and User models)
+  - User Story 5 (P2): Can start after Foundational - Requires User Story 2 (extends session management)
+  - User Story 3 (P2): Can start after Foundational - Requires User Story 1 (needs User model for invitations)
+  - User Story 4 (P3): Can start after Foundational - Requires User Story 2 (extends authentication with RBAC)
+- **Polish (Phase 8)**: Depends on all desired user stories being complete
+
+### Critical Path
+
+```
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US5)
+                                         ↓
+                                    Phase 6 (US3)
+                                         ↓
+                                    Phase 7 (US4) → Phase 8 (Polish)
+```
+
+### User Story Dependencies
+
+- **User Story 1 (P1 - Tenant Registration)**: Independent after Foundational phase
+- **User Story 2 (P1 - Login)**: Depends on US1 (needs User and Tenant models)
+- **User Story 5 (P2 - Logout/Session)**: Depends on US2 (extends session management)
+- **User Story 3 (P2 - Team Members)**: Depends on US1 (needs User model); can run parallel to US5
+- **User Story 4 (P3 - RBAC)**: Depends on US2 (extends authentication); can start after US2 completes
+
+### Within Each User Story
+
+- Tests MUST be written and FAIL before implementation
+- Models before services
+- Services before handlers
+- Handlers before API routes
+- Backend before frontend integration
+- Story complete before moving to next priority
+
+### Parallel Opportunities
+
+**Phase 1 (Setup)**: Tasks T005-T014 can run in parallel (different configuration files)
+
+**Phase 2 (Foundational)**: 
+- Migration tasks T015-T018 must run sequentially
+- RLS policies T019-T022 can run in parallel after migrations complete
+- Middleware tasks T024-T028 can run in parallel
+- Service setup tasks T030-T042 can run in parallel
+
+**User Story 1**:
+- Tests T043-T046 can run in parallel
+- Models T047-T048 can run in parallel
+- Translation files T058-T059 can run in parallel
+
+**User Story 2**:
+- Tests T066-T072 can run in parallel
+- JWT service methods T076-T077 can be in same file (sequential)
+
+**User Story 3**:
+- Tests T105-T109 can run in parallel
+- Frontend components T120-T122 can run in parallel
+
+**User Story 4**:
+- Tests T126-T129 can run in parallel
+
+**Phase 8 (Polish)**: Tasks T140-T157 can run in parallel (different concerns)
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# Launch all tests for User Story 1 together:
+Task T043: Contract test for POST /tenants/register endpoint
+Task T044: Integration test for tenant registration flow
+Task T045: Unit test for tenant slug generation
+Task T046: Frontend component test for Signup page
+
+# After tests fail, launch models in parallel:
+Task T047: Create Tenant model struct
+Task T048: Create User model struct (basic fields)
+
+# After models, launch translation files in parallel:
+Task T058: Create English auth translations
+Task T059: Create Indonesian auth translations
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Stories 1 & 2 Only)
+
+1. Complete Phase 1: Setup (Tasks T001-T014)
+2. Complete Phase 2: Foundational (Tasks T015-T042) - CRITICAL
+3. Complete Phase 3: User Story 1 (Tasks T043-T065)
+4. Complete Phase 4: User Story 2 (Tasks T066-T090)
+5. **STOP and VALIDATE**: Test both stories independently
+6. Deploy/demo MVP (business owner can register and login)
+
+**Estimated MVP Completion**: ~90 tasks for core authentication and tenant creation
+
+### Incremental Delivery
+
+1. **Foundation** (Setup + Foundational) → ~42 tasks
+2. **+ US1** (Tenant Registration) → +23 tasks → Deploy/Demo (MVP!)
+3. **+ US2** (Login/Auth) → +25 tasks → Deploy/Demo (Core auth complete)
+4. **+ US5** (Session Management) → +14 tasks → Deploy/Demo (Secure sessions)
+5. **+ US3** (Team Members) → +21 tasks → Deploy/Demo (Multi-user)
+6. **+ US4** (RBAC) → +14 tasks → Deploy/Demo (Full permission system)
+7. **+ Polish** → +21 tasks → Production-ready
+
+**Total Tasks**: 160 tasks
+
+### Parallel Team Strategy
+
+With 3 developers after Foundational phase completes:
+
+1. **Developer A**: User Story 1 (Tenant Registration) - Tasks T043-T065
+2. **Developer B**: Start User Story 3 (Invitations) setup - Can prepare models and tests
+3. **Developer C**: Start User Story 5 (Session) setup - Can prepare Redis session tests
+
+Once US1 completes, Developer B can integrate invitation with tenant.
+Once US2 completes, Developer C can implement logout on top of login.
+
+---
+
+## Notes
+
+- **[P]** tasks = different files, no dependencies
+- **[Story]** label maps task to specific user story for traceability
+- Each user story should be independently completable and testable
+- Verify tests fail before implementing (red-green-refactor)
+- Commit after each task or logical group
+- Stop at any checkpoint to validate story independently
+- All database queries MUST include tenant_id filter (tenant isolation critical)
+- HTTP-only cookies for JWT tokens (security requirement)
+- Rate limiting enforced on login endpoint (5 attempts per 15 minutes)
+- All authentication events must be logged for audit trail
+- i18n support (EN/ID) required for all user-facing text
+- Session timeout: 15 minutes sliding window
+- Password hashing: bcrypt with cost factor 12
+
+---
+
+## Success Metrics
+
+After completing all tasks, the system should achieve:
+
+- ✅ Business owners can register in < 3 minutes (SC-001)
+- ✅ Users can login in < 10 seconds (SC-002)
+- ✅ 100% tenant isolation with zero cross-tenant leaks (SC-003)
+- ✅ Support 100+ concurrent tenants with 10+ active users each (SC-004)
+- ✅ Rate limiting: max 5 failed login attempts per 15 minutes (SC-005)
+- ✅ Password reset in < 5 minutes (SC-006)
+- ✅ 95% first-login success rate (SC-007)
+- ✅ Zero unauthorized access incidents (SC-008)
+- ✅ Team onboarding in < 10 minutes (SC-009)
+- ✅ 100% RBAC accuracy (SC-010)
