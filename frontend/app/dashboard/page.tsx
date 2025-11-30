@@ -1,22 +1,55 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import Modal from '@/components/ui/Modal';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(15 * 60); // 15 minutes in seconds
 
   useEffect(() => {
-    // Only redirect if loading is complete and user is not authenticated
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Show loading state while checking authentication
+  // Session timeout warning (show at 2 minutes remaining)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      setSessionTimeLeft((prev) => {
+        const newTime = prev - 1;
+        
+        // Show warning when 2 minutes left
+        if (newTime === 120 && !showSessionWarning) {
+          setShowSessionWarning(true);
+        }
+        
+        // Auto logout when time runs out
+        if (newTime <= 0) {
+          router.push('/login?session_expired=true');
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, showSessionWarning, router]);
+
+  const handleExtendSession = () => {
+    setShowSessionWarning(false);
+    setSessionTimeLeft(15 * 60); // Reset to 15 minutes
+    // In a real app, you'd make an API call to refresh the session
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -28,25 +61,51 @@ export default function DashboardPage() {
     );
   }
 
-  // Don't render anything while redirecting to login
   if (!isAuthenticated) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Dashboard Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Welcome back, {user?.firstName || user?.email}!
+    <DashboardLayout>
+      {/* Session Warning Modal */}
+      <Modal
+        isOpen={showSessionWarning}
+        onClose={() => setShowSessionWarning(false)}
+        title="Session Expiring Soon"
+        size="sm"
+      >
+        <div className="text-center py-4">
+          <svg className="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Your session is about to expire</h3>
+          <p className="mt-2 text-sm text-gray-600">
+            You will be logged out in {Math.floor(sessionTimeLeft / 60)} minutes unless you extend your session.
           </p>
+          <div className="mt-6 flex flex-col space-y-3">
+            <button
+              onClick={handleExtendSession}
+              className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Extend Session
+            </button>
+            <button
+              onClick={() => router.push('/login')}
+              className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Logout Now
+            </button>
+          </div>
         </div>
-      </div>
+      </Modal>
 
-      {/* Dashboard Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Dashboard Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Welcome back, {user?.firstName || user?.email}!
+        </p>
+      </div>
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
@@ -113,25 +172,32 @@ export default function DashboardPage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors">
+              <Link 
+                href="/users/invite"
+                className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
                 <svg className="h-6 w-6 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
-                <span className="text-gray-700 font-medium">New Sale</span>
-              </button>
+                <span className="text-gray-700 font-medium">Invite Team Member</span>
+              </Link>
+
+              <Link
+                href="/profile"
+                className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
+                <svg className="h-6 w-6 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span className="text-gray-700 font-medium">View Profile</span>
+              </Link>
 
               <button className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors">
                 <svg className="h-6 w-6 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-gray-700 font-medium">Add Product</span>
-              </button>
-
-              <button className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors">
-                <svg className="h-6 w-6 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <span className="text-gray-700 font-medium">Add Customer</span>
+                <span className="text-gray-700 font-medium">Settings</span>
               </button>
             </div>
           </div>
@@ -148,11 +214,10 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900">No activity yet</h3>
-              <p className="mt-1 text-sm text-gray-500">Get started by making your first sale.</p>
+              <p className="mt-1 text-sm text-gray-500">Get started by inviting team members or setting up your profile.</p>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </DashboardLayout>
   );
 }

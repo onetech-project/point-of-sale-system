@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 import userService, { Invitation } from '@/services/user';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 export default function InviteUserPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -101,15 +102,14 @@ export default function InviteUserPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Invite Team Member</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Send an invitation to add a new team member to your organization
-          </p>
-        </div>
+    <DashboardLayout>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Invite Team Member</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Send an invitation to add a new team member to your organization
+        </p>
+      </div>
 
         {/* Invitation Form */}
         <div className="bg-white rounded-lg shadow mb-6">
@@ -251,7 +251,6 @@ export default function InviteUserPage() {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </DashboardLayout>
   );
 }
