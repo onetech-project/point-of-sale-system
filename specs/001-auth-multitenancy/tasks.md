@@ -32,32 +32,32 @@ This project uses web application architecture:
 
 ### Test Framework Setup (Must Complete First)
 
-- [ ] T001 Setup Go test framework with testify in backend/go.mod (add github.com/stretchr/testify dependency)
-- [ ] T002 Setup Jest + React Testing Library in frontend/package.json (test dependencies)
-- [ ] T003 Configure Jest for frontend in frontend/jest.config.js (with jsdom, tsx support)
-- [ ] T004 Create Jest setup file in frontend/jest.setup.js (import @testing-library/jest-dom)
-- [ ] T005 Configure Go test coverage reporting in .github/workflows/test.yml or Makefile
-- [ ] T006 Verify test frameworks work: Create sample test in backend/tests/sample_test.go and frontend/tests/sample.test.ts
+- [x] T001 Setup Go test framework with testify in backend/go.mod (add github.com/stretchr/testify dependency)
+- [x] T002 Setup Jest + React Testing Library in frontend/package.json (test dependencies)
+- [x] T003 Configure Jest for frontend in frontend/jest.config.js (with jsdom, tsx support)
+- [x] T004 Create Jest setup file in frontend/jest.setup.js (import @testing-library/jest-dom)
+- [x] T005 Configure Go test coverage reporting in .github/workflows/test.yml or Makefile
+- [x] T006 Verify test frameworks work: Create sample test in backend/tests/sample_test.go and frontend/tests/sample.test.ts
 
 ### Project Structure (After Test Frameworks Ready)
 
-- [ ] T007 Create backend directory structure per plan.md (src/models, src/services, src/api, src/database, src/utils, tests/)
-- [ ] T008 Create frontend directory structure per plan.md (src/components, src/pages, src/services, src/hooks, src/contexts, src/types, src/utils, src/styles, tests/)
-- [ ] T009 Initialize backend Go modules in backend/auth-service/go.mod
-- [ ] T010 Initialize backend Go modules in backend/user-service/go.mod
-- [ ] T011 Initialize backend Go modules in backend/tenant-service/go.mod
-- [ ] T012 Initialize API Gateway Go module in api-gateway/go.mod
-- [ ] T013 Initialize frontend Next.js project with TypeScript in frontend/package.json
-- [ ] T014 [P] Configure ESLint and Prettier for frontend in frontend/.eslintrc.js and frontend/.prettierrc
-- [ ] T015 [P] Configure Go linting with golangci-lint in .golangci.yml
-- [ ] T016 Setup Docker Compose for local development in docker-compose.yml (PostgreSQL, Redis)
-- [ ] T017 Create environment variable templates in .env.example (backend, frontend, gateway)
-- [ ] T018 Setup i18n with react-i18next in frontend/src/i18n/config.ts
-- [ ] T019 Create translation files in frontend/public/locales/en/common.json
-- [ ] T020 Create translation files in frontend/public/locales/id/common.json
-- [ ] T021 Configure Git hooks for pre-commit linting in .husky/pre-commit
-- [ ] T022 Setup database migrations framework with golang-migrate in backend/migrations/
-- [ ] T023 Create Swagger/OpenAPI documentation generator config in backend/config/swagger.config.go
+- [x] T007 Create backend directory structure per plan.md (src/models, src/services, src/api, src/database, src/utils, tests/)
+- [x] T008 Create frontend directory structure per plan.md (src/components, src/pages, src/services, src/hooks, src/contexts, src/types, src/utils, src/styles, tests/)
+- [x] T009 Initialize backend Go modules in backend/auth-service/go.mod
+- [x] T010 Initialize backend Go modules in backend/user-service/go.mod
+- [x] T011 Initialize backend Go modules in backend/tenant-service/go.mod
+- [x] T012 Initialize API Gateway Go module in api-gateway/go.mod
+- [x] T013 Initialize frontend Next.js project with TypeScript in frontend/package.json
+- [x] T014 [P] Configure ESLint and Prettier for frontend in frontend/.eslintrc.js and frontend/.prettierrc
+- [x] T015 [P] Configure Go linting with golangci-lint in .golangci.yml
+- [x] T016 Setup Docker Compose for local development in docker-compose.yml (PostgreSQL, Redis)
+- [x] T017 Create environment variable templates in .env.example (backend, frontend, gateway)
+- [x] T018 Setup i18n with react-i18next in frontend/src/i18n/config.ts
+- [x] T019 Create translation files in frontend/public/locales/en/common.json
+- [x] T020 Create translation files in frontend/public/locales/id/common.json
+- [x] T021 Configure Git hooks for pre-commit linting in .husky/pre-commit
+- [x] T022 Setup database migrations framework with golang-migrate in backend/migrations/
+- [x] T023 Create Swagger/OpenAPI documentation generator config in backend/config/swagger.config.go
 
 **Checkpoint**: Test frameworks verified and project structure ready
 
@@ -71,69 +71,69 @@ This project uses web application architecture:
 
 ### Tailwind CSS Setup (MUST Complete Before UI Components)
 
-- [ ] T024 Install Tailwind CSS dependencies in frontend/ (tailwindcss, postcss, autoprefixer)
-- [ ] T025 Setup Tailwind CSS with PostCSS in frontend/postcss.config.js
-- [ ] T026 Configure Tailwind design system in frontend/tailwind.config.js (colors, spacing, breakpoints, content paths)
-- [ ] T027 Create global styles with Tailwind directives in frontend/src/styles/globals.css (@tailwind base, components, utilities)
-- [ ] T028 Import globals.css in frontend/pages/_app.js
-- [ ] T029 Verify Tailwind build works: Run `npm run dev` and check styling applies
+- [x] T024 Install Tailwind CSS dependencies in frontend/ (tailwindcss, postcss, autoprefixer)
+- [x] T025 Setup Tailwind CSS with PostCSS in frontend/postcss.config.js
+- [x] T026 Configure Tailwind design system in frontend/tailwind.config.js (colors, spacing, breakpoints, content paths)
+- [x] T027 Create global styles with Tailwind directives in frontend/src/styles/globals.css (@tailwind base, components, utilities)
+- [x] T028 Import globals.css in frontend/pages/_app.js
+- [x] T029 Verify Tailwind build works: Run `npm run dev` and check styling applies
 
 ### Database & Backend Infrastructure
 
-- [ ] T030 Create PostgreSQL database schema migration 001_create_tenants in backend/migrations/000001_create_tenants.up.sql
-- [ ] T031 Create PostgreSQL database schema migration 002_create_users in backend/migrations/000002_create_users.up.sql
-- [ ] T032 Create PostgreSQL database schema migration 003_create_sessions in backend/migrations/000003_create_sessions.up.sql
-- [ ] T033 Create PostgreSQL database schema migration 004_create_invitations in backend/migrations/000004_create_invitations.up.sql
-- [ ] T034 Create PostgreSQL database schema migration 005_create_password_reset_tokens in backend/migrations/000005_create_password_reset_tokens.up.sql
-- [ ] T035 [P] Setup database connection pool with row-level security in backend/src/database/connection.go
-- [ ] T036 [P] Setup Redis client connection in backend/src/database/redis.go
+- [x] T030 Create PostgreSQL database schema migration 001_create_tenants in backend/migrations/000001_create_tenants.up.sql
+- [x] T031 Create PostgreSQL database schema migration 002_create_users in backend/migrations/000002_create_users.up.sql
+- [x] T032 Create PostgreSQL database schema migration 003_create_sessions in backend/migrations/000003_create_sessions.up.sql
+- [x] T033 Create PostgreSQL database schema migration 004_create_invitations in backend/migrations/000004_create_invitations.up.sql
+- [x] T034 Create PostgreSQL database schema migration 005_create_password_reset_tokens in backend/migrations/000005_create_password_reset_tokens.up.sql
+- [x] T035 [P] Setup database connection pool with row-level security in backend/src/database/connection.go
+- [x] T036 [P] Setup Redis client connection in backend/src/database/redis.go
 
 ### Notification Service & Event Infrastructure
 
-- [ ] T298 Create PostgreSQL database schema migration 006_create_notifications in backend/migrations/000006_create_notifications.up.sql
-- [ ] T299 [P] Setup Kafka client and event publisher in backend/src/queue/kafka_publisher.go
-- [ ] T300 [P] Implement event publisher helper methods (PublishUserRegistered, PublishUserLogin, PublishPasswordResetRequested, PublishPasswordChanged) in backend/src/queue/event_helpers.go
-- [ ] T301 [P] Configure notification service Kafka consumer in backend/notification-service/src/queue/kafka.go (verify existing implementation)
-- [ ] T302 [P] Create email template for user registration/welcome in backend/notification-service/templates/registration-email.html
-- [ ] T303 [P] Create email template for login alert in backend/notification-service/templates/login-alert-email.html
-- [ ] T304 [P] Create email template for password reset in backend/notification-service/templates/password-reset-email.html (relocated from T274)
-- [ ] T305 [P] Create email template for password changed confirmation in backend/notification-service/templates/password-changed-email.html
-- [ ] T306 [P] Update notification service with all template handlers in backend/notification-service/src/services/notification_service.go
-- [ ] T307 [P] Add Docker Compose configuration for Kafka and Zookeeper in docker-compose.yml
+- [x] T298 Create PostgreSQL database schema migration 006_create_notifications in backend/migrations/000006_create_notifications.up.sql
+- [x] T299 [P] Setup Kafka client and event publisher in backend/src/queue/kafka_publisher.go
+- [x] T300 [P] Implement event publisher helper methods (PublishUserRegistered, PublishUserLogin, PublishPasswordResetRequested, PublishPasswordChanged) in backend/src/queue/event_helpers.go
+- [x] T301 [P] Configure notification service Kafka consumer in backend/notification-service/src/queue/kafka.go (verify existing implementation)
+- [x] T302 [P] Create email template for user registration/welcome in backend/notification-service/templates/registration-email.html
+- [x] T303 [P] Create email template for login alert in backend/notification-service/templates/login-alert-email.html
+- [x] T304 [P] Create email template for password reset in backend/notification-service/templates/password-reset-email.html (relocated from T274)
+- [x] T305 [P] Create email template for password changed confirmation in backend/notification-service/templates/password-changed-email.html
+- [x] T306 [P] Update notification service with all template handlers in backend/notification-service/src/services/notification_service.go
+- [x] T307 [P] Add Docker Compose configuration for Kafka and Zookeeper in docker-compose.yml
 - [ ] T308 [P] Unit test for Kafka event publisher in backend/tests/unit/queue/kafka_publisher_test.go
 - [ ] T309 [P] Integration test for notification service event consumption in backend/tests/integration/notification_service_test.go
 
 ### Backend Utilities
 
-- [ ] T037 [P] Implement JWT token utilities (generate, validate, decode) in backend/src/utils/token.utils.go
-- [ ] T038 [P] Implement bcrypt password utilities (hash, compare) in backend/src/utils/password.utils.go
-- [ ] T039 [P] Implement validation utilities (email, password, business name) in backend/src/utils/validation.utils.go
-- [ ] T040 [P] Implement structured logging utilities in backend/src/utils/logger.utils.go
+- [x] T037 [P] Implement JWT token utilities (generate, validate, decode) in backend/src/utils/token.utils.go
+- [x] T038 [P] Implement bcrypt password utilities (hash, compare) in backend/src/utils/password.utils.go
+- [x] T039 [P] Implement validation utilities (email, password, business name) in backend/src/utils/validation.utils.go
+- [x] T040 [P] Implement structured logging utilities in backend/src/utils/logger.utils.go
 
 ### API Gateway Middleware
 
-- [ ] T041 [P] Create API Gateway JWT validation middleware in api-gateway/src/middleware/auth.middleware.go
-- [ ] T042 [P] Create API Gateway tenant context injection middleware in api-gateway/src/middleware/tenant.middleware.go
-- [ ] T043 [P] Create API Gateway rate limiting middleware with Redis in api-gateway/src/middleware/rate-limit.middleware.go
-- [ ] T044 [P] Create API Gateway error handling middleware in api-gateway/src/middleware/error.middleware.go
-- [ ] T045 [P] Create API Gateway CORS middleware in api-gateway/src/middleware/cors.middleware.go
-- [ ] T046 [P] Create API Gateway security headers middleware in api-gateway/src/middleware/security.middleware.go
-- [ ] T047 [P] Setup API Gateway service routing configuration in api-gateway/src/config/routes.go
+- [x] T041 [P] Create API Gateway JWT validation middleware in api-gateway/src/middleware/auth.middleware.go
+- [x] T042 [P] Create API Gateway tenant context injection middleware in api-gateway/src/middleware/tenant.middleware.go
+- [x] T043 [P] Create API Gateway rate limiting middleware with Redis in api-gateway/src/middleware/rate-limit.middleware.go
+- [x] T044 [P] Create API Gateway error handling middleware in api-gateway/src/middleware/error.middleware.go
+- [x] T045 [P] Create API Gateway CORS middleware in api-gateway/src/middleware/cors.middleware.go
+- [x] T046 [P] Create API Gateway security headers middleware in api-gateway/src/middleware/security.middleware.go
+- [x] T047 [P] Setup API Gateway service routing configuration in api-gateway/src/config/routes.go
 
 ### Frontend Infrastructure (Depends on T024-T029 Tailwind Setup)
 
-- [ ] T048 [P] Implement frontend API client with Axios and interceptors in frontend/src/services/api.service.ts
-- [ ] T049 [P] Create authentication context provider in frontend/src/contexts/AuthContext.tsx
-- [ ] T050 [P] Create toast notification context provider in frontend/src/contexts/ToastContext.tsx
-- [ ] T051 [P] Create useAuth custom hook in frontend/src/hooks/useAuth.ts
-- [ ] T052 [P] Create useForm custom hook in frontend/src/hooks/useForm.ts
-- [ ] T053 [P] Create useToast custom hook in frontend/src/hooks/useToast.ts
-- [ ] T054 [P] Implement form validation utilities in frontend/src/utils/validators.ts
-- [ ] T055 [P] Implement data formatting utilities in frontend/src/utils/formatters.ts
-- [ ] T056 [P] Implement local storage utilities in frontend/src/utils/storage.ts
-- [ ] T057 [P] Create TypeScript types for authentication in frontend/src/types/auth.types.ts
-- [ ] T058 [P] Create TypeScript types for users in frontend/src/types/user.types.ts
-- [ ] T059 [P] Create TypeScript types for API responses in frontend/src/types/api.types.ts
+- [x] T048 [P] Implement frontend API client with Axios and interceptors in frontend/src/services/api.service.ts
+- [x] T049 [P] Create authentication context provider in frontend/src/contexts/AuthContext.tsx
+- [x] T050 [P] Create toast notification context provider in frontend/src/contexts/ToastContext.tsx
+- [x] T051 [P] Create useAuth custom hook in frontend/src/hooks/useAuth.ts
+- [x] T052 [P] Create useForm custom hook in frontend/src/hooks/useForm.ts
+- [x] T053 [P] Create useToast custom hook in frontend/src/hooks/useToast.ts
+- [x] T054 [P] Implement form validation utilities in frontend/src/utils/validators.ts
+- [x] T055 [P] Implement data formatting utilities in frontend/src/utils/formatters.ts
+- [x] T056 [P] Implement local storage utilities in frontend/src/utils/storage.ts
+- [x] T057 [P] Create TypeScript types for authentication in frontend/src/types/auth.types.ts
+- [x] T058 [P] Create TypeScript types for users in frontend/src/types/user.types.ts
+- [x] T059 [P] Create TypeScript types for API responses in frontend/src/types/api.types.ts
 
 **Checkpoint**: Foundation ready (including Tailwind CSS verified) - user story implementation can now begin in parallel
 
@@ -147,43 +147,43 @@ This project uses web application architecture:
 
 ### UI Component Library (Required for US1)
 
-- [ ] T049 [P] [US1] Create Button component with Tailwind styling in frontend/src/components/ui/Button.tsx
-- [ ] T050 [P] [US1] Create Input component with Tailwind styling in frontend/src/components/ui/Input.tsx
-- [ ] T051 [P] [US1] Create Card component with Tailwind styling in frontend/src/components/ui/Card.tsx
-- [ ] T052 [P] [US1] Create LoadingSpinner component with Tailwind styling in frontend/src/components/ui/LoadingSpinner.tsx
-- [ ] T053 [P] [US1] Create Toast component with Tailwind styling in frontend/src/components/ui/Toast.tsx
-- [ ] T054 [P] [US1] Create FormField component with validation display in frontend/src/components/forms/FormField.tsx
-- [ ] T055 [P] [US1] Create AuthLayout component with responsive design in frontend/src/components/layout/AuthLayout.tsx
-- [ ] T056 [P] [US1] Unit test for Button component in frontend/tests/unit/components/ui/Button.test.tsx
-- [ ] T057 [P] [US1] Unit test for Input component in frontend/tests/unit/components/ui/Input.test.tsx
-- [ ] T058 [P] [US1] Unit test for FormField component in frontend/tests/unit/components/forms/FormField.test.tsx
+- [x] T049 [P] [US1] Create Button component with Tailwind styling in frontend/src/components/ui/Button.tsx
+- [x] T050 [P] [US1] Create Input component with Tailwind styling in frontend/src/components/ui/Input.tsx
+- [x] T051 [P] [US1] Create Card component with Tailwind styling in frontend/src/components/ui/Card.tsx
+- [x] T052 [P] [US1] Create LoadingSpinner component with Tailwind styling in frontend/src/components/ui/LoadingSpinner.tsx
+- [x] T053 [P] [US1] Create Toast component with Tailwind styling in frontend/src/components/ui/Toast.tsx
+- [x] T054 [P] [US1] Create FormField component with validation display in frontend/src/components/forms/FormField.tsx
+- [x] T055 [P] [US1] Create AuthLayout component with responsive design in frontend/src/components/layout/AuthLayout.tsx
+- [x] T056 [P] [US1] Unit test for Button component in frontend/tests/unit/components/ui/Button.test.tsx
+- [x] T057 [P] [US1] Unit test for Input component in frontend/tests/unit/components/ui/Input.test.tsx
+- [x] T058 [P] [US1] Unit test for FormField component in frontend/tests/unit/components/forms/FormField.test.tsx
 
 ### Backend Unit Tests for US1
 
-- [ ] T059 [P] [US1] Unit test for password hashing utility in backend/tests/unit/utils/password_test.go
+- [x] T059 [P] [US1] Unit test for password hashing utility in backend/tests/unit/utils/password_test.go
 - [ ] T060 [P] [US1] Unit test for email validation utility in backend/tests/unit/utils/validation_test.go
 - [ ] T061 [P] [US1] Unit test for JWT token generation utility in backend/tests/unit/utils/token_test.go
 
 ### Backend Implementation for US1
 
-- [ ] T062 [P] [US1] Create Tenant model in backend/src/models/Tenant.go
-- [ ] T063 [P] [US1] Create User model in backend/src/models/User.go
-- [ ] T064 [US1] Implement TenantService.Register in backend/tenant-service/src/services/TenantService.go
-- [ ] T065 [US1] Implement UserService.CreateOwner in backend/user-service/src/services/UserService.go
-- [ ] T066 [US1] Implement POST /api/tenants/register handler in backend/tenant-service/src/api/handlers.go
-- [ ] T310 [US1] **Publish user.registered event to Kafka after successful registration** in backend/tenant-service/src/api/handlers.go (after T066)
+- [x] T062 [P] [US1] Create Tenant model in backend/src/models/Tenant.go
+- [x] T063 [P] [US1] Create User model in backend/src/models/User.go
+- [x] T064 [US1] Implement TenantService.Register in backend/tenant-service/src/services/TenantService.go
+- [x] T065 [US1] Implement UserService.CreateOwner in backend/user-service/src/services/UserService.go
+- [x] T066 [US1] Implement POST /api/tenants/register handler in backend/tenant-service/src/api/handlers.go
+- [x] T310 [US1] **Publish user.registered event to Kafka after successful registration** in backend/tenant-service/src/api/handlers.go (after T066)
 - [ ] T067 [US1] Unit test for TenantService.Register in backend/tests/unit/services/TenantService_test.go
 - [ ] T068 [US1] Unit test for UserService.CreateOwner in backend/tests/unit/services/UserService_test.go
-- [ ] T069 [US1] Add tenant registration route to API Gateway in api-gateway/src/routes.go
-- [ ] T070 [US1] Add structured logging for registration events in backend/tenant-service/src/api/handlers.go
+- [x] T069 [US1] Add tenant registration route to API Gateway in api-gateway/src/routes.go
+- [x] T070 [US1] Add structured logging for registration events in backend/tenant-service/src/api/handlers.go
 
 ### Frontend Implementation for US1
 
-- [ ] T071 [US1] Create registration form component in frontend/src/components/forms/RegistrationForm.tsx
-- [ ] T072 [US1] Create registration page in frontend/src/pages/auth/register.tsx
-- [ ] T073 [US1] Implement tenant service API calls in frontend/src/services/tenant.service.ts
-- [ ] T074 [US1] Add registration form translations in frontend/public/locales/en/auth.json
-- [ ] T075 [US1] Add registration form translations in frontend/public/locales/id/auth.json
+- [x] T071 [US1] Create registration form component in frontend/src/components/forms/RegistrationForm.tsx
+- [x] T072 [US1] Create registration page in frontend/src/pages/auth/register.tsx
+- [x] T073 [US1] Implement tenant service API calls in frontend/src/services/tenant.service.ts
+- [x] T074 [US1] Add registration form translations in frontend/public/locales/en/auth.json
+- [x] T075 [US1] Add registration form translations in frontend/public/locales/id/auth.json
 - [ ] T076 [US1] Unit test for RegistrationForm component in frontend/tests/unit/components/forms/RegistrationForm.test.tsx
 - [ ] T077 [US1] Unit test for tenant service in frontend/tests/unit/services/tenant.service.test.ts
 
@@ -212,27 +212,27 @@ This project uses web application architecture:
 
 ### Backend Implementation for US2
 
-- [ ] T085 [P] [US2] Create Session model in backend/src/models/Session.go
-- [ ] T086 [US2] Implement SessionService.Create in backend/auth-service/src/services/SessionService.go
-- [ ] T087 [US2] Implement SessionService.Validate in backend/auth-service/src/services/SessionService.go
-- [ ] T088 [US2] Implement SessionService.Renew in backend/auth-service/src/services/SessionService.go
-- [ ] T089 [US2] Implement AuthService.Login in backend/auth-service/src/services/AuthService.go
-- [ ] T090 [US2] Implement POST /api/auth/login handler in backend/auth-service/src/api/handlers.go
+- [x] T085 [P] [US2] Create Session model in backend/src/models/Session.go
+- [x] T086 [US2] Implement SessionService.Create in backend/auth-service/src/services/SessionService.go
+- [x] T087 [US2] Implement SessionService.Validate in backend/auth-service/src/services/SessionService.go
+- [x] T088 [US2] Implement SessionService.Renew in backend/auth-service/src/services/SessionService.go
+- [x] T089 [US2] Implement AuthService.Login in backend/auth-service/src/services/AuthService.go
+- [x] T090 [US2] Implement POST /api/auth/login handler in backend/auth-service/src/api/handlers.go
 - [ ] T361 [US2] **Add email verification check to login handler** - Return 403 with EMAIL_NOT_VERIFIED code and user info if not verified in backend/auth-service/src/api/handlers.go (after T090)
-- [ ] T311 [US2] **Publish user.login event to Kafka after successful login** in backend/auth-service/src/api/handlers.go (after T090, includes IP and user agent)
-- [ ] T091 [US2] Implement GET /api/auth/session handler in backend/auth-service/src/api/handlers.go
-- [ ] T092 [US2] Add login route with rate limiting to API Gateway in api-gateway/src/routes.go
-- [ ] T093 [US2] Add security event logging for login attempts in backend/auth-service/src/api/handlers.go
+- [x] T311 [US2] **Publish user.login event to Kafka after successful login** in backend/auth-service/src/api/handlers.go (after T090, includes IP and user agent)
+- [x] T091 [US2] Implement GET /api/auth/session handler in backend/auth-service/src/api/handlers.go
+- [x] T092 [US2] Add login route with rate limiting to API Gateway in api-gateway/src/routes.go
+- [x] T093 [US2] Add security event logging for login attempts in backend/auth-service/src/api/handlers.go
 
 ### Frontend Implementation for US2
 
-- [ ] T094 [US2] Create login form component in frontend/src/components/forms/LoginForm.tsx
-- [ ] T095 [US2] Create login page in frontend/src/pages/auth/login.tsx
+- [x] T094 [US2] Create login form component in frontend/src/components/forms/LoginForm.tsx
+- [x] T095 [US2] Create login page in frontend/src/pages/auth/login.tsx
 - [ ] T362 [US2] **Add unverified user redirect logic to login page** - Redirect to /auth/verification-required if EMAIL_NOT_VERIFIED error received in frontend/src/pages/auth/login.tsx (after T095)
 - [ ] T363 [US2] **Create verification required page** - Show message and resend button for unverified users trying to login in frontend/src/pages/auth/verification-required.tsx
-- [ ] T096 [US2] Implement auth service API calls in frontend/src/services/auth.service.ts
-- [ ] T097 [US2] Add login form translations in frontend/public/locales/en/auth.json
-- [ ] T098 [US2] Add login form translations in frontend/public/locales/id/auth.json
+- [x] T096 [US2] Implement auth service API calls in frontend/src/services/auth.service.ts
+- [x] T097 [US2] Add login form translations in frontend/public/locales/en/auth.json
+- [x] T098 [US2] Add login form translations in frontend/public/locales/id/auth.json
 - [ ] T099 [US2] Unit test for LoginForm component in frontend/tests/unit/components/forms/LoginForm.test.tsx
 - [ ] T100 [US2] Unit test for auth service in frontend/tests/unit/services/auth.service.test.ts
 - [ ] T101 [US2] Unit test for useAuth hook in frontend/tests/unit/hooks/useAuth.test.ts
@@ -310,10 +310,10 @@ This project uses web application architecture:
 
 ### Additional UI Components for US5
 
-- [ ] T109 [P] [US5] Create Modal component with Tailwind styling in frontend/src/components/ui/Modal.tsx
-- [ ] T110 [P] [US5] Create ErrorBoundary component in frontend/src/components/ui/ErrorBoundary.tsx
-- [ ] T111 [P] [US5] Create DashboardLayout component with navigation in frontend/src/components/layout/DashboardLayout.tsx
-- [ ] T112 [P] [US5] Create ResponsiveNav component with mobile menu in frontend/src/components/layout/ResponsiveNav.tsx
+- [x] T109 [P] [US5] Create Modal component with Tailwind styling in frontend/src/components/ui/Modal.tsx
+- [x] T110 [P] [US5] Create ErrorBoundary component in frontend/src/components/ui/ErrorBoundary.tsx
+- [x] T111 [P] [US5] Create DashboardLayout component with navigation in frontend/src/components/layout/DashboardLayout.tsx
+- [x] T112 [P] [US5] Create ResponsiveNav component with mobile menu in frontend/src/components/layout/ResponsiveNav.tsx
 - [ ] T113 [P] [US5] Unit test for Modal component in frontend/tests/unit/components/ui/Modal.test.tsx
 - [ ] T114 [P] [US5] Unit test for DashboardLayout component in frontend/tests/unit/components/layout/DashboardLayout.test.tsx
 
@@ -324,18 +324,18 @@ This project uses web application architecture:
 
 ### Backend Implementation for US5
 
-- [ ] T117 [US5] Implement SessionService.Terminate in backend/auth-service/src/services/SessionService.go
-- [ ] T118 [US5] Implement SessionService.ExpireInactive in backend/auth-service/src/services/SessionService.go
-- [ ] T119 [US5] Implement POST /api/auth/logout handler in backend/auth-service/src/api/handlers.go
-- [ ] T120 [US5] Add logout route to API Gateway in api-gateway/src/routes.go
-- [ ] T121 [US5] Add session termination logging in backend/auth-service/src/api/handlers.go
+- [x] T117 [US5] Implement SessionService.Terminate in backend/auth-service/src/services/SessionService.go
+- [x] T118 [US5] Implement SessionService.ExpireInactive in backend/auth-service/src/services/SessionService.go
+- [x] T119 [US5] Implement POST /api/auth/logout handler in backend/auth-service/src/api/handlers.go
+- [x] T120 [US5] Add logout route to API Gateway in api-gateway/src/routes.go
+- [x] T121 [US5] Add session termination logging in backend/auth-service/src/api/handlers.go
 
 ### Frontend Implementation for US5
 
-- [ ] T122 [US5] Implement logout functionality in auth service in frontend/src/services/auth.service.ts
-- [ ] T123 [US5] Create dashboard page with logout button in frontend/src/pages/dashboard/index.tsx
-- [ ] T124 [US5] Add logout translations in frontend/public/locales/en/common.json
-- [ ] T125 [US5] Add logout translations in frontend/public/locales/id/common.json
+- [x] T122 [US5] Implement logout functionality in auth service in frontend/src/services/auth.service.ts
+- [x] T123 [US5] Create dashboard page with logout button in frontend/src/pages/dashboard/index.tsx
+- [x] T124 [US5] Add logout translations in frontend/public/locales/en/common.json
+- [x] T125 [US5] Add logout translations in frontend/public/locales/id/common.json
 - [ ] T126 [US5] Unit test for logout flow in frontend/tests/unit/services/auth.service.test.ts
 
 ### Integration Tests for US5
@@ -363,25 +363,25 @@ This project uses web application architecture:
 
 ### Backend Implementation for US3
 
-- [ ] T134 [P] [US3] Create Invitation model in backend/src/models/Invitation.go
-- [ ] T135 [US3] Implement InvitationService.Create in backend/user-service/src/services/InvitationService.go
-- [ ] T136 [US3] Implement InvitationService.Accept in backend/user-service/src/services/InvitationService.go
-- [ ] T137 [US3] Implement InvitationService.List in backend/user-service/src/services/InvitationService.go
-- [ ] T138 [US3] Implement UserService.CreateFromInvitation in backend/user-service/src/services/UserService.go
-- [ ] T139 [US3] Implement POST /api/invitations handler in backend/user-service/src/api/handlers.go
-- [ ] T140 [US3] Implement GET /api/invitations handler in backend/user-service/src/api/handlers.go
-- [ ] T141 [US3] Implement POST /api/invitations/:token/accept handler in backend/user-service/src/api/handlers.go
-- [ ] T142 [US3] Add invitation routes to API Gateway in api-gateway/src/routes.go
-- [ ] T143 [US3] Add invitation event logging in backend/user-service/src/api/handlers.go
+- [x] T134 [P] [US3] Create Invitation model in backend/src/models/Invitation.go
+- [x] T135 [US3] Implement InvitationService.Create in backend/user-service/src/services/InvitationService.go
+- [x] T136 [US3] Implement InvitationService.Accept in backend/user-service/src/services/InvitationService.go
+- [x] T137 [US3] Implement InvitationService.List in backend/user-service/src/services/InvitationService.go
+- [x] T138 [US3] Implement UserService.CreateFromInvitation in backend/user-service/src/services/UserService.go
+- [x] T139 [US3] Implement POST /api/invitations handler in backend/user-service/src/api/handlers.go
+- [x] T140 [US3] Implement GET /api/invitations handler in backend/user-service/src/api/handlers.go
+- [x] T141 [US3] Implement POST /api/invitations/:token/accept handler in backend/user-service/src/api/handlers.go
+- [x] T142 [US3] Add invitation routes to API Gateway in api-gateway/src/routes.go
+- [x] T143 [US3] Add invitation event logging in backend/user-service/src/api/handlers.go
 
 ### Frontend Implementation for US3
 
-- [ ] T144 [US3] Create invitation form component in frontend/src/components/forms/InvitationForm.tsx
-- [ ] T145 [US3] Create user invite page in frontend/src/pages/users/invite.tsx
-- [ ] T146 [US3] Create accept invitation page in frontend/src/pages/auth/accept-invitation.tsx
-- [ ] T147 [US3] Implement user service API calls in frontend/src/services/user.service.ts
-- [ ] T148 [US3] Add invitation translations in frontend/public/locales/en/users.json
-- [ ] T149 [US3] Add invitation translations in frontend/public/locales/id/users.json
+- [x] T144 [US3] Create invitation form component in frontend/src/components/forms/InvitationForm.tsx
+- [x] T145 [US3] Create user invite page in frontend/src/pages/users/invite.tsx
+- [x] T146 [US3] Create accept invitation page in frontend/src/pages/auth/accept-invitation.tsx
+- [x] T147 [US3] Implement user service API calls in frontend/src/services/user.service.ts
+- [x] T148 [US3] Add invitation translations in frontend/public/locales/en/users.json
+- [x] T149 [US3] Add invitation translations in frontend/public/locales/id/users.json
 - [ ] T150 [US3] Unit test for InvitationForm component in frontend/tests/unit/components/forms/InvitationForm.test.tsx
 - [ ] T151 [US3] Unit test for user service in frontend/tests/unit/services/user.service.test.ts
 
@@ -456,9 +456,9 @@ This project uses web application architecture:
 
 **Purpose**: Complete i18n implementation with language switcher component
 
-- [ ] T190 [P] Create LanguageSwitcher component with Tailwind styling in frontend/src/components/ui/LanguageSwitcher.tsx
-- [ ] T191 [P] Add LanguageSwitcher to DashboardLayout in frontend/src/components/layout/DashboardLayout.tsx
-- [ ] T192 [P] Add LanguageSwitcher to AuthLayout in frontend/src/components/layout/AuthLayout.tsx
+- [x] T190 [P] Create LanguageSwitcher component with Tailwind styling in frontend/src/components/ui/LanguageSwitcher.tsx
+- [x] T191 [P] Add LanguageSwitcher to DashboardLayout in frontend/src/components/layout/DashboardLayout.tsx
+- [x] T192 [P] Add LanguageSwitcher to AuthLayout in frontend/src/components/layout/AuthLayout.tsx
 - [ ] T193 [P] Implement user locale preference API in backend/user-service/src/api/handlers.go (PATCH /api/users/:id/locale)
 - [ ] T194 [P] Add locale persistence logic in frontend/src/hooks/useAuth.ts
 - [ ] T195 [P] Create backend i18n utilities in backend/src/utils/i18n.utils.go
@@ -604,7 +604,7 @@ This project uses web application architecture:
 - [ ] T257 [P] Code cleanup and refactoring for consistency
 - [ ] T258 [P] Add comprehensive code comments for complex business logic
 - [ ] T259 [P] Verify all console.log removed from production code
-- [ ] T260 [P] Add health check endpoints to all services in backend/*/src/api/handlers.go
+- [x] T260 [P] Add health check endpoints to all services in backend/*/src/api/handlers.go
 - [ ] T261 [P] Add readiness check endpoints with dependency validation
 - [ ] T262 [P] Implement graceful shutdown for all services
 - [ ] T263 [P] Add request tracing with correlation IDs in api-gateway/src/middleware/tracing.middleware.go
