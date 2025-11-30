@@ -14,6 +14,7 @@ import (
 	"github.com/pos/auth-service/api"
 	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
+	"github.com/pos/auth-service/src/utils"
 )
 
 func main() {
@@ -21,6 +22,9 @@ func main() {
 
 	// Enable debug mode for detailed logging
 	e.Debug = true
+
+	// Set validator
+	e.Validator = utils.NewValidator()
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())

@@ -21,7 +21,7 @@ func NewPasswordResetHandler(passwordResetService *services.PasswordResetService
 
 type RequestResetRequest struct {
 	Email    string `json:"email" validate:"required,email"`
-	TenantID int    `json:"tenant_id" validate:"required"`
+	TenantID string `json:"tenant_id" validate:"required,uuid"`
 }
 
 type ResetPasswordRequest struct {

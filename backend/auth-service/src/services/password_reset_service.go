@@ -26,11 +26,15 @@ func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, user
 	}
 }
 
-func (s *PasswordResetService) RequestReset(email string, tenantID int) (string, error) {
+func (s *PasswordResetService) RequestReset(email string, tenantIDStr string) (string, error) {
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		return "", errors.New("invalid tenant ID")
+	}
+
 	var userID uuid.UUID
-	var tenantUUID uuid.UUID
-	query := `SELECT id FROM users WHERE email = $1 AND tenant_id = (SELECT id FROM tenants WHERE id = $2)`
-	err := s.userDB.QueryRow(query, email, tenantID).Scan(&userID)
+	query := `SELECT id FROM users WHERE email = $1 AND tenant_id = $2`
+	err = s.userDB.QueryRow(query, email, tenantID).Scan(&userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil
@@ -38,14 +42,8 @@ func (s *PasswordResetService) RequestReset(email string, tenantID int) (string,
 		return "", err
 	}
 
-	// Get tenant UUID
-	err = s.userDB.QueryRow(`SELECT id FROM tenants WHERE id = $1`, tenantID).Scan(&tenantUUID)
-	if err != nil {
-		return "", err
-	}
-
 	oneHourAgo := time.Now().Add(-1 * time.Hour)
-	recentCount, err := s.resetRepo.CountRecentRequests(userID, tenantUUID, oneHourAgo)
+	recentCount, err := s.resetRepo.CountRecentRequests(userID, tenantID, oneHourAgo)
 	if err != nil {
 		return "", err
 	}
@@ -60,7 +58,7 @@ func (s *PasswordResetService) RequestReset(email string, tenantID int) (string,
 
 	resetToken := &models.PasswordResetToken{
 		UserID:    userID,
-		TenantID:  tenantUUID,
+		TenantID:  tenantID,
 		Token:     token,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
