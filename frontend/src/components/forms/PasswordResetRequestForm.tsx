@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@/i18n/provider';
 import { useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 
 export default function PasswordResetRequestForm() {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation(['auth', 'common']);
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,10 +33,10 @@ export default function PasswordResetRequestForm() {
       if (response.ok) {
         setSuccess(true);
       } else {
-        setError(data.error || t('forgotPassword.error'));
+        setError(data.error || t('auth.forgotPassword.error'));
       }
     } catch (err) {
-      setError(t('forgotPassword.error'));
+      setError(t('auth.forgotPassword.error'));
     } finally {
       setLoading(false);
     }
@@ -46,16 +46,16 @@ export default function PasswordResetRequestForm() {
     return (
       <div className="text-center">
         <h3 className="text-lg font-semibold text-green-600 mb-4">
-          {t('forgotPassword.emailSent')}
+          {t('auth.forgotPassword.emailSent')}
         </h3>
         <p className="text-gray-600 mb-6">
-          {t('forgotPassword.checkEmail')}
+          {t('auth.forgotPassword.checkEmail')}
         </p>
         <Button
           variant="secondary"
-          onClick={() => router.push('/auth/login')}
+          onClick={() => router.push('/login')}
         >
-          {t('forgotPassword.backToLogin')}
+          {t('auth.forgotPassword.backToLogin')}
         </Button>
       </div>
     );
@@ -65,7 +65,7 @@ export default function PasswordResetRequestForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <p className="text-gray-600 mb-4">
-          {t('forgotPassword.instructions')}
+          {t('auth.forgotPassword.instructions')}
         </p>
       </div>
 
@@ -77,11 +77,11 @@ export default function PasswordResetRequestForm() {
 
       <Input
         type="email"
-        label={t('email')}
+        label={t('auth.login.email')}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
-        placeholder={t('emailPlaceholder')}
+        placeholder={t('auth.signup.emailPlaceholder')}
         disabled={loading}
       />
 
@@ -91,16 +91,16 @@ export default function PasswordResetRequestForm() {
         isLoading={loading}
         className="w-full"
       >
-        {loading ? t('forgotPassword.sending') : t('forgotPassword.sendResetLink')}
+        {loading ? t('auth.forgotPassword.sending') : t('auth.forgotPassword.sendResetLink')}
       </Button>
 
       <div className="text-center">
         <button
           type="button"
-          onClick={() => router.push('/auth/login')}
+          onClick={() => router.push('/login')}
           className="text-sm text-blue-600 hover:text-blue-800"
         >
-          {t('forgotPassword.backToLogin')}
+          {t('auth.forgotPassword.backToLogin')}
         </button>
       </div>
     </form>

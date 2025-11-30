@@ -3,13 +3,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import apiClient from '@/services/api';
 import { AxiosError } from 'axios';
+import { type Role } from '@/constants/roles';
 
 interface User {
   id: string;
   email: string;
   firstName?: string;
   lastName?: string;
-  role: string;
+  role: Role;
 }
 
 interface AuthContextType {

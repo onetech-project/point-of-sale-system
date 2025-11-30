@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import userService, { Invitation } from '@/services/user';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import { ROLES, type Role } from '@/constants/roles';
 
 export default function InviteUserPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('cashier');
+  const [role, setRole] = useState<Role>(ROLES.CASHIER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -62,7 +63,7 @@ export default function InviteUserPage() {
       await userService.inviteUser({ email, role });
       setSuccess(`Invitation sent successfully to ${email}`);
       setEmail('');
-      setRole('cashier');
+      setRole(ROLES.CASHIER);
       loadInvitations();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send invitation');
@@ -84,13 +85,13 @@ export default function InviteUserPage() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'owner':
+      case ROLES.OWNER:
         return 'bg-purple-100 text-purple-800';
-      case 'admin':
+      case ROLES.ADMIN:
         return 'bg-blue-100 text-blue-800';
-      case 'manager':
+      case ROLES.MANAGER:
         return 'bg-green-100 text-green-800';
-      case 'cashier':
+      case ROLES.CASHIER:
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -113,7 +114,7 @@ export default function InviteUserPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={['owner', 'manager']}>
+    <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
       <DashboardLayout>
         {/* Header */}
         <div className="mb-8">
@@ -163,13 +164,13 @@ export default function InviteUserPage() {
                 <select
                   id="role"
                   value={role}
-                  onChange={(e) => setRole(e.target.value)}
+                  onChange={(e) => setRole(e.target.value as Role)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   required
                 >
-                  <option value="cashier">Cashier</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
+                  <option value={ROLES.CASHIER}>Cashier</option>
+                  <option value={ROLES.MANAGER}>Manager</option>
+                  <option value={ROLES.ADMIN}>Admin</option>
                 </select>
               </div>
             </div>

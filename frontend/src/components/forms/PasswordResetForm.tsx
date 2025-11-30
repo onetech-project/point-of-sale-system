@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@/i18n/provider';
 import { useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -11,7 +11,7 @@ interface PasswordResetFormProps {
 }
 
 export default function PasswordResetForm({ token }: PasswordResetFormProps) {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation(['auth', 'common']);
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,9 +20,9 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
   const [success, setSuccess] = useState(false);
 
   const getPasswordStrength = (pass: string) => {
-    if (pass.length < 8) return { strength: 'weak', text: t('password.weak'), color: 'text-red-600' };
-    if (pass.length < 12) return { strength: 'medium', text: t('password.medium'), color: 'text-yellow-600' };
-    return { strength: 'strong', text: t('password.strong'), color: 'text-green-600' };
+    if (pass.length < 8) return { strength: 'weak', text: t('auth.password.weak'), color: 'text-red-600' };
+    if (pass.length < 12) return { strength: 'medium', text: t('auth.password.medium'), color: 'text-yellow-600' };
+    return { strength: 'strong', text: t('auth.password.strong'), color: 'text-green-600' };
   };
 
   const passwordStrength = getPasswordStrength(password);
@@ -32,12 +32,12 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
     setError('');
 
     if (password !== confirmPassword) {
-      setError(t('resetPassword.passwordMismatch'));
+      setError(t('auth.resetPassword.passwordMismatch'));
       return;
     }
 
     if (password.length < 8) {
-      setError(t('resetPassword.passwordTooShort'));
+      setError(t('auth.resetPassword.passwordTooShort'));
       return;
     }
 
@@ -63,10 +63,10 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
           router.push('/auth/login');
         }, 2000);
       } else {
-        setError(data.error || t('resetPassword.error'));
+        setError(data.error || t('auth.resetPassword.error'));
       }
     } catch (err) {
-      setError(t('resetPassword.error'));
+      setError(t('auth.resetPassword.error'));
     } finally {
       setLoading(false);
     }
@@ -76,10 +76,10 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
     return (
       <div className="text-center">
         <h3 className="text-lg font-semibold text-green-600 mb-4">
-          {t('resetPassword.success')}
+          {t('auth.resetPassword.success')}
         </h3>
         <p className="text-gray-600 mb-6">
-          {t('resetPassword.redirecting')}
+          {t('auth.resetPassword.redirecting')}
         </p>
       </div>
     );
@@ -96,11 +96,11 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
       <div>
         <Input
           type="password"
-          label={t('newPassword')}
+          label={t('auth.resetPassword.newPassword')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          placeholder={t('newPasswordPlaceholder')}
+          placeholder={t('auth.resetPassword.newPasswordPlaceholder')}
           disabled={loading}
         />
         {password && (
@@ -112,11 +112,11 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
 
       <Input
         type="password"
-        label={t('confirmPassword')}
+        label={t('auth.resetPassword.confirmPassword')}
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         required
-        placeholder={t('confirmPasswordPlaceholder')}
+        placeholder={t('auth.resetPassword.confirmPasswordPlaceholder')}
         disabled={loading}
       />
 
@@ -126,7 +126,7 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
         isLoading={loading}
         className="w-full"
       >
-        {loading ? t('resetPassword.resetting') : t('resetPassword.resetPassword')}
+        {loading ? t('auth.resetPassword.resetting') : t('auth.resetPassword.resetPassword')}
       </Button>
     </form>
   );

@@ -11,11 +11,15 @@ vendor/
 *.prof
 
 # Go build binaries
-auth-service
-user-service
-tenant-service
-notification-service
-api-gateway
+backend/auth-service/auth-service
+backend/user-service/user-service
+backend/tenant-service/tenant-service
+backend/notification-service/notification-service
+api-gateway/api-gateway
+**/auth-service
+**/user-service
+**/tenant-service
+**/notification-service
 
 # Frontend (Node.js/Next.js)
 node_modules/

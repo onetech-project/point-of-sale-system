@@ -5,6 +5,7 @@ import { useAuth } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/services/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { ROLES } from '@/constants/roles';
 
 interface TenantInfo {
   id: string;
@@ -116,9 +117,9 @@ export default function ProfilePage() {
                 </label>
                 <div className="px-4 py-3 bg-gray-50 rounded-lg">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    user?.role === 'owner'
+                    user?.role === ROLES.OWNER
                       ? 'bg-purple-100 text-purple-800'
-                      : user?.role === 'admin'
+                      : user?.role === ROLES.ADMIN
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
