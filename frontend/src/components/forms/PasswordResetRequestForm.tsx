@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 
@@ -52,7 +52,7 @@ export default function PasswordResetRequestForm() {
           {t('forgotPassword.checkEmail')}
         </p>
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => router.push('/auth/login')}
         >
           {t('forgotPassword.backToLogin')}
@@ -88,8 +88,8 @@ export default function PasswordResetRequestForm() {
       <Button
         type="submit"
         disabled={loading}
-        loading={loading}
-        fullWidth
+        isLoading={loading}
+        className="w-full"
       >
         {loading ? t('forgotPassword.sending') : t('forgotPassword.sendResetLink')}
       </Button>

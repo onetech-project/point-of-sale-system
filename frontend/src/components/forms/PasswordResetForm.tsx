@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 
@@ -123,8 +123,8 @@ export default function PasswordResetForm({ token }: PasswordResetFormProps) {
       <Button
         type="submit"
         disabled={loading || password !== confirmPassword}
-        loading={loading}
-        fullWidth
+        isLoading={loading}
+        className="w-full"
       >
         {loading ? t('resetPassword.resetting') : t('resetPassword.resetPassword')}
       </Button>
