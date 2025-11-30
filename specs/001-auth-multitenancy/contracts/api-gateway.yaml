@@ -1,0 +1,584 @@
+openapi: 3.0.3
+info:
+  title: API Gateway
+  description: |
+    Unified API Gateway for the POS system.
+    Single entry point for all frontend requests.
+    Handles authentication, rate limiting, and request routing to backend services.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.example.com
+    description: Production
+
+tags:
+  - name: Authentication
+    description: Auth service routes
+  - name: Users
+    description: User service routes
+  - name: Tenants
+    description: Tenant service routes
+  - name: Health
+    description: Gateway health checks
+
+paths:
+  # ============================================================
+  # Authentication Routes (proxied to Auth Service)
+  # ============================================================
+  
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: |
+        Authenticate user. Gateway validates request, enforces rate limiting,
+        then proxies to auth service.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - tenantId
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                tenantId:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: JWT token in HTTP-only cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          headers:
+            Set-Cookie:
+              description: Clears auth cookie
+              schema:
+                type: string
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh session
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session refreshed
+
+  /api/auth/session:
+    get:
+      tags:
+        - Authentication
+      summary: Get current session
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session information
+
+  /api/auth/password/reset-request:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - tenantId
+              properties:
+                email:
+                  type: string
+                  format: email
+                tenantId:
+                  type: string
+      responses:
+        '200':
+          description: Reset email sent
+
+  /api/auth/password/reset:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password reset successful
+
+  /api/auth/password/change:
+    post:
+      tags:
+        - Authentication
+      summary: Change password
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password changed
+
+  # ============================================================
+  # User Routes (proxied to User Service)
+  # ============================================================
+
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of users
+
+    post:
+      tags:
+        - Users
+      summary: Create user
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: User created
+
+  /api/users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details
+
+    patch:
+      tags:
+        - Users
+      summary: Update user
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: User updated
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+
+  /api/invitations:
+    get:
+      tags:
+        - Users
+      summary: List invitations
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: List of invitations
+
+    post:
+      tags:
+        - Users
+      summary: Create invitation
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+              properties:
+                email:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '201':
+          description: Invitation created
+
+  /api/invitations/{invitationId}/accept:
+    post:
+      tags:
+        - Users
+      summary: Accept invitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Invitation accepted
+
+  /api/invitations/{invitationId}/revoke:
+    post:
+      tags:
+        - Users
+      summary: Revoke invitation
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation revoked
+
+  # ============================================================
+  # Tenant Routes (proxied to Tenant Service)
+  # ============================================================
+
+  /api/tenants/register:
+    post:
+      tags:
+        - Tenants
+      summary: Register new tenant
+      description: Public endpoint for business registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - businessName
+                - ownerEmail
+                - ownerPassword
+              properties:
+                businessName:
+                  type: string
+                slug:
+                  type: string
+                ownerEmail:
+                  type: string
+                ownerPassword:
+                  type: string
+                ownerProfile:
+                  type: object
+      responses:
+        '201':
+          description: Tenant registered
+
+  /api/tenants/{tenantId}:
+    get:
+      tags:
+        - Tenants
+      summary: Get tenant
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant details
+
+    patch:
+      tags:
+        - Tenants
+      summary: Update tenant
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Tenant updated
+
+  /api/tenants/{tenantId}/status:
+    patch:
+      tags:
+        - Tenants
+      summary: Update tenant status
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+
+  /api/tenants/check-slug:
+    post:
+      tags:
+        - Tenants
+      summary: Check slug availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - slug
+              properties:
+                slug:
+                  type: string
+      responses:
+        '200':
+          description: Slug availability
+
+  # ============================================================
+  # Health Check
+  # ============================================================
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Gateway health check
+      description: |
+        Checks gateway health and aggregates backend service health status.
+      responses:
+        '200':
+          description: Gateway healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded, down]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  services:
+                    type: object
+                    properties:
+                      auth:
+                        type: string
+                        enum: [ok, down]
+                      users:
+                        type: string
+                        enum: [ok, down]
+                      tenants:
+                        type: string
+                        enum: [ok, down]
+                  uptime:
+                    type: number
+                    description: Gateway uptime in seconds
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: |
+        JWT token stored in HTTP-only cookie.
+        Gateway validates token before proxying to backend services.
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: UNAUTHORIZED
+                  message:
+                    type: string
+                    example: Invalid or missing authentication token
+
+    RateLimitError:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds until rate limit reset
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: RATE_LIMIT_EXCEEDED
+                  message:
+                    type: string
+                    example: Too many requests
+                  retryAfter:
+                    type: integer
+                    example: 900
