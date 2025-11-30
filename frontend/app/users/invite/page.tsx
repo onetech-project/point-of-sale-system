@@ -5,6 +5,7 @@ import { useAuth } from '@/store/auth';
 import { useRouter } from 'next/navigation';
 import userService, { Invitation } from '@/services/user';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 export default function InviteUserPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -112,14 +113,15 @@ export default function InviteUserPage() {
   };
 
   return (
-    <DashboardLayout>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Invite Team Member</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Send an invitation to add a new team member to your organization
-        </p>
-      </div>
+    <ProtectedRoute allowedRoles={['owner', 'manager']}>
+      <DashboardLayout>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Invite Team Member</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Send an invitation to add a new team member to your organization
+          </p>
+        </div>
 
         {/* Invitation Form */}
         <div className="bg-white rounded-lg shadow mb-6">
@@ -274,6 +276,7 @@ export default function InviteUserPage() {
             )}
           </div>
         </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }

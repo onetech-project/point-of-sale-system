@@ -39,6 +39,17 @@
       "contact": "Contact",
       "privacy": "Privacy Policy",
       "rights": "All rights reserved."
+    },
+    "unauthorized": {
+      "title": "Access Denied",
+      "message": "You don't have permission to access this page.",
+      "goBack": "Go Back",
+      "goHome": "Go to Dashboard"
+    },
+    "roles": {
+      "owner": "Owner",
+      "manager": "Manager",
+      "cashier": "Cashier"
     }
   }
 }

@@ -39,6 +39,8 @@ func main() {
 
 	authServiceURL := getEnv("AUTH_SERVICE_URL", "http://localhost:8082")
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
+	public.POST("/api/auth/password-reset/request", proxyHandler(authServiceURL, "/password-reset/request"))
+	public.POST("/api/auth/password-reset/reset", proxyHandler(authServiceURL, "/password-reset/reset"))
 
 	userServiceURL := getEnv("USER_SERVICE_URL", "http://localhost:8083")
 	public.POST("/api/invitations/:token/accept", proxyHandler(userServiceURL, "/invitations/:token/accept"))
@@ -52,9 +54,14 @@ func main() {
 
 	protected.GET("/api/tenant", proxyHandler(tenantServiceURL, "/tenant"))
 
-	protected.POST("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
+	// Invitation endpoints - only owner and manager can create/resend
+	inviteGroup := protected.Group("")
+	inviteGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	inviteGroup.POST("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
+	inviteGroup.POST("/api/invitations/:id/resend", proxyHandler(userServiceURL, "/invitations/:id/resend"))
+	
+	// All authenticated users can list invitations
 	protected.GET("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
-	protected.POST("/api/invitations/:id/resend", proxyHandler(userServiceURL, "/invitations/:id/resend"))
 
 	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)

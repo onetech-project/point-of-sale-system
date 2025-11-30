@@ -39,6 +39,17 @@
       "contact": "Kontak",
       "privacy": "Kebijakan Privasi",
       "rights": "Hak cipta dilindungi."
+    },
+    "unauthorized": {
+      "title": "Akses Ditolak",
+      "message": "Anda tidak memiliki izin untuk mengakses halaman ini.",
+      "goBack": "Kembali",
+      "goHome": "Ke Dashboard"
+    },
+    "roles": {
+      "owner": "Pemilik",
+      "manager": "Manajer",
+      "cashier": "Kasir"
     }
   }
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/auth-service/api"
+	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
 )
 
@@ -78,6 +79,13 @@ func main() {
 
 	logoutHandler := api.NewLogoutHandler(authService, jwtService)
 	e.POST("/logout", logoutHandler.Logout)
+
+	// Password reset endpoints
+	passwordResetRepo := repository.NewPasswordResetRepository(db)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db)
+	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
+	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
+	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)
 
 	// Start server
 	port := getEnv("PORT", "8082")
