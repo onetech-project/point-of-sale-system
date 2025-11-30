@@ -6,15 +6,18 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/auth-service/api"
+	"github.com/pos/auth-service/src/queue"
 	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
 	"github.com/pos/auth-service/src/utils"
+	backendQueue "github.com/pos/backend/src/queue"
 )
 
 func main() {
@@ -70,6 +73,15 @@ func main() {
 
 	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter)
 
+	// Initialize Kafka producer and event publisher
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
+	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+	kafkaProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
+	defer kafkaProducer.Close()
+	
+	// Initialize event publisher from backend/src/queue package
+	eventPublisher := backendQueue.NewEventPublisher(kafkaBrokers, kafkaTopic)
+
 	// Health checks
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
@@ -86,7 +98,7 @@ func main() {
 
 	// Password reset endpoints
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)

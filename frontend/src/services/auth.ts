@@ -104,6 +104,31 @@ export const authService = {
     } catch (error) {
       return false;
     }
+  },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      await apiClient.post('/api/auth/password-reset/request', { email });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to request password reset. Please try again.');
+    }
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      await apiClient.post('/api/auth/password-reset/reset', {
+        token,
+        new_password: newPassword,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to reset password. Please try again.');
+    }
   }
 };
 

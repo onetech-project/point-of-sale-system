@@ -1,36 +1,43 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/pos/auth-service/src/models"
+	"github.com/pos/auth-service/src/queue"
 	"github.com/pos/auth-service/src/repository"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type PasswordResetService struct {
-	resetRepo *repository.PasswordResetRepository
-	userDB    *sql.DB
+	resetRepo      *repository.PasswordResetRepository
+	userDB         *sql.DB
+	eventPublisher *queue.EventPublisher
 }
 
-func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, userDB *sql.DB) *PasswordResetService {
+func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, userDB *sql.DB, eventPublisher *queue.EventPublisher) *PasswordResetService {
 	return &PasswordResetService{
-		resetRepo: resetRepo,
-		userDB:    userDB,
+		resetRepo:      resetRepo,
+		userDB:         userDB,
+		eventPublisher: eventPublisher,
 	}
 }
 
 func (s *PasswordResetService) RequestReset(email string) (string, error) {
 	var userID uuid.UUID
 	var tenantID uuid.UUID
-	query := `SELECT id, tenant_id FROM users WHERE email = $1`
-	err := s.userDB.QueryRow(query, email).Scan(&userID, &tenantID)
+	var firstName string
+	var lastName string
+	query := `SELECT id, tenant_id, first_name, last_name FROM users WHERE email = $1`
+	err := s.userDB.QueryRow(query, email).Scan(&userID, &tenantID, &firstName, &lastName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil
@@ -63,6 +70,16 @@ func (s *PasswordResetService) RequestReset(email string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Publish event to notification service
+	name := firstName + " " + lastName
+	ctx := context.Background()
+	if err := s.eventPublisher.PublishPasswordResetRequested(ctx, tenantID.String(), userID.String(), email, name, token); err != nil {
+		// Log error but don't fail the request
+		log.Printf("Error publishing password reset event: %v", err)
+		return token, nil
+	}
+	log.Printf("Published password reset event for user: %s", email)
 
 	return token, nil
 }
@@ -98,7 +115,7 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 		return err
 	}
 
-	query := `UPDATE users SET password = $1 WHERE id = $2 AND tenant_id = $3`
+	query := `UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3`
 	_, err = s.userDB.Exec(query, string(hashedPassword), resetToken.UserID, resetToken.TenantID)
 	if err != nil {
 		return err

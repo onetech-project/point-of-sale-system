@@ -5,6 +5,7 @@ import { useTranslation } from '@/i18n/provider';
 import { useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import authService from '@/services/auth';
 
 export default function PasswordResetRequestForm() {
   const { t } = useTranslation(['auth', 'common']);
@@ -20,23 +21,10 @@ export default function PasswordResetRequestForm() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/password-reset/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(true);
-      } else {
-        setError(data.error || t('auth.forgotPassword.error'));
-      }
-    } catch (err) {
-      setError(t('auth.forgotPassword.error'));
+      await authService.requestPasswordReset(email);
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message || t('auth.forgotPassword.error'));
     } finally {
       setLoading(false);
     }

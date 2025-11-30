@@ -115,6 +115,13 @@ func (s *NotificationService) handleUserRegistration(ctx context.Context, event 
 		"URL":   fmt.Sprintf("%s/verify?token=%s", s.frontendURL, verificationToken),
 	})
 
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
 		UserID:    &event.UserID,
@@ -123,7 +130,7 @@ func (s *NotificationService) handleUserRegistration(ctx context.Context, event 
 		Subject:   subject,
 		Body:      body,
 		Recipient: email,
-		Metadata:  event.Data,
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.Create(ctx, notification); err != nil {
@@ -147,6 +154,13 @@ func (s *NotificationService) handleUserLogin(ctx context.Context, event models.
 		"Time":      time.Now().Format("2006-01-02 15:04:05"),
 	})
 
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
 		UserID:    &event.UserID,
@@ -155,7 +169,7 @@ func (s *NotificationService) handleUserLogin(ctx context.Context, event models.
 		Subject:   subject,
 		Body:      body,
 		Recipient: email,
-		Metadata:  event.Data,
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.Create(ctx, notification); err != nil {
@@ -177,6 +191,13 @@ func (s *NotificationService) handlePasswordResetRequest(ctx context.Context, ev
 		"URL":   fmt.Sprintf("%s/reset-password?token=%s", s.frontendURL, resetToken),
 	})
 
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
 		UserID:    &event.UserID,
@@ -185,7 +206,7 @@ func (s *NotificationService) handlePasswordResetRequest(ctx context.Context, ev
 		Subject:   subject,
 		Body:      body,
 		Recipient: email,
-		Metadata:  event.Data,
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.Create(ctx, notification); err != nil {
@@ -205,6 +226,13 @@ func (s *NotificationService) handlePasswordChanged(ctx context.Context, event m
 		"Time": time.Now().Format("2006-01-02 15:04:05"),
 	})
 
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
 		UserID:    &event.UserID,
@@ -213,7 +241,7 @@ func (s *NotificationService) handlePasswordChanged(ctx context.Context, event m
 		Subject:   subject,
 		Body:      body,
 		Recipient: email,
-		Metadata:  event.Data,
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.Create(ctx, notification); err != nil {
