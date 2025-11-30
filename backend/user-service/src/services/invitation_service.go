@@ -1,0 +1,172 @@
+package services
+
+import (
+	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/pos/user-service/src/models"
+	"github.com/pos/user-service/src/repository"
+	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	ErrInvitationNotFound = errors.New("invitation not found")
+	ErrInvitationExpired  = errors.New("invitation expired")
+	ErrInvitationInvalid  = errors.New("invitation invalid")
+	ErrEmailAlreadyInvited = errors.New("email already invited")
+	ErrEmailAlreadyExists = errors.New("email already registered")
+)
+
+type InvitationService struct {
+	invitationRepo *repository.InvitationRepository
+	userRepo       *repository.UserRepository
+	db             *sql.DB
+}
+
+func NewInvitationService(db *sql.DB) *InvitationService {
+	return &InvitationService{
+		invitationRepo: repository.NewInvitationRepository(db),
+		userRepo:       repository.NewUserRepository(db),
+		db:             db,
+	}
+}
+
+func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, invitedByID string) (*models.Invitation, error) {
+	// Check if email is already registered in this tenant
+	existingUser, err := s.userRepo.FindByEmail(ctx, tenantID, email)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
+	if existingUser != nil {
+		return nil, ErrEmailAlreadyExists
+	}
+
+	// Check if there's already a pending invitation
+	existingInvitation, err := s.invitationRepo.FindByEmail(ctx, tenantID, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing invitation: %w", err)
+	}
+	if existingInvitation != nil {
+		return nil, ErrEmailAlreadyInvited
+	}
+
+	// Generate secure token
+	token, err := generateSecureToken(32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	now := time.Now()
+	invitation := &models.Invitation{
+		ID:        uuid.New().String(),
+		TenantID:  tenantID,
+		Email:     email,
+		Role:      role,
+		Token:     token,
+		Status:    models.InvitationPending,
+		InvitedBy: invitedByID,
+		ExpiresAt: now.Add(7 * 24 * time.Hour), // 7 days expiration
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
+		return nil, fmt.Errorf("failed to create invitation: %w", err)
+	}
+
+	return invitation, nil
+}
+
+func (s *InvitationService) List(ctx context.Context, tenantID string) ([]*models.Invitation, error) {
+	invitations, err := s.invitationRepo.ListByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list invitations: %w", err)
+	}
+
+	// Update expired invitations
+	now := time.Now()
+	for _, inv := range invitations {
+		if inv.Status == models.InvitationPending && inv.ExpiresAt.Before(now) {
+			s.invitationRepo.UpdateStatus(ctx, inv.ID, models.InvitationExpired)
+			inv.Status = models.InvitationExpired
+		}
+	}
+
+	return invitations, nil
+}
+
+func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastName, password string) (*models.User, error) {
+	// Find invitation by token
+	invitation, err := s.invitationRepo.FindByToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find invitation: %w", err)
+	}
+	if invitation == nil {
+		return nil, ErrInvitationNotFound
+	}
+
+	// Validate invitation
+	if invitation.Status != models.InvitationPending {
+		return nil, ErrInvitationInvalid
+	}
+	if invitation.ExpiresAt.Before(time.Now()) {
+		s.invitationRepo.UpdateStatus(ctx, invitation.ID, models.InvitationExpired)
+		return nil, ErrInvitationExpired
+	}
+
+	// Check if email is already registered in this tenant
+	existingUser, err := s.userRepo.FindByEmail(ctx, invitation.TenantID, invitation.Email)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
+	if existingUser != nil {
+		return nil, ErrEmailAlreadyExists
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user
+	now := time.Now()
+	user := &models.User{
+		ID:           uuid.New().String(),
+		TenantID:     invitation.TenantID,
+		Email:        invitation.Email,
+		PasswordHash: string(hashedPassword),
+		Role:         invitation.Role,
+		FirstName:    &firstName,
+		LastName:     &lastName,
+		Status:       string(models.UserStatusActive),
+		Locale:       "en",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Mark invitation as accepted
+	if err := s.invitationRepo.MarkAccepted(ctx, invitation.ID); err != nil {
+		return nil, fmt.Errorf("failed to mark invitation as accepted: %w", err)
+	}
+
+	return user, nil
+}
+
+func generateSecureToken(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}

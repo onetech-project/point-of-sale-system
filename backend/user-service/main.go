@@ -33,11 +33,11 @@ func main() {
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
 
-	// TODO: Add invitation endpoints when implemented
-	// invitationHandler := api.NewInvitationHandler(db)
-	// e.POST("/invitations", invitationHandler.Create)
-	// e.GET("/invitations", invitationHandler.List)
-	// e.POST("/invitations/:token/accept", invitationHandler.Accept)
+	// Invitation endpoints
+	invitationHandler := api.NewInvitationHandler(db)
+	e.POST("/invitations", invitationHandler.CreateInvitation)
+	e.GET("/invitations", invitationHandler.ListInvitations)
+	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)
 
 	// Start server
 	port := getEnv("PORT", "8083")
