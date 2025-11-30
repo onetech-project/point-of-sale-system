@@ -26,15 +26,11 @@ func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, user
 	}
 }
 
-func (s *PasswordResetService) RequestReset(email string, tenantIDStr string) (string, error) {
-	tenantID, err := uuid.Parse(tenantIDStr)
-	if err != nil {
-		return "", errors.New("invalid tenant ID")
-	}
-
+func (s *PasswordResetService) RequestReset(email string) (string, error) {
 	var userID uuid.UUID
-	query := `SELECT id FROM users WHERE email = $1 AND tenant_id = $2`
-	err = s.userDB.QueryRow(query, email, tenantID).Scan(&userID)
+	var tenantID uuid.UUID
+	query := `SELECT id, tenant_id FROM users WHERE email = $1`
+	err := s.userDB.QueryRow(query, email).Scan(&userID, &tenantID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil

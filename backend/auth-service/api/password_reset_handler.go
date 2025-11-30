@@ -20,8 +20,7 @@ func NewPasswordResetHandler(passwordResetService *services.PasswordResetService
 }
 
 type RequestResetRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	TenantID string `json:"tenant_id" validate:"required,uuid"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 type ResetPasswordRequest struct {
@@ -39,7 +38,7 @@ func (h *PasswordResetHandler) RequestReset(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	token, err := h.passwordResetService.RequestReset(req.Email, req.TenantID)
+	token, err := h.passwordResetService.RequestReset(req.Email)
 	if err != nil {
 		c.Logger().Error("Failed to request password reset: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process request"})
