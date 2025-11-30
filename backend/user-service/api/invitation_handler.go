@@ -200,3 +200,53 @@ func (h *InvitationHandler) AcceptInvitation(c echo.Context) error {
 		},
 	})
 }
+
+// ResendInvitation handles POST /invitations/:id/resend
+func (h *InvitationHandler) ResendInvitation(c echo.Context) error {
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized",
+		})
+	}
+
+	userID := c.Request().Header.Get("X-User-ID")
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized",
+		})
+	}
+
+	invitationID := c.Param("id")
+	if invitationID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invitation ID is required",
+		})
+	}
+
+	invitation, err := h.invitationService.Resend(c.Request().Context(), tenantID, invitationID, userID)
+	if err != nil {
+		if err == services.ErrInvitationNotFound {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Invitation not found",
+			})
+		}
+
+		c.Logger().Errorf("Failed to resend invitation: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to resend invitation",
+		})
+	}
+
+	response := &models.InvitationResponse{
+		ID:        invitation.ID,
+		Email:     invitation.Email,
+		Role:      invitation.Role,
+		Status:    invitation.Status,
+		ExpiresAt: invitation.ExpiresAt,
+		InvitedBy: invitation.InvitedBy,
+		CreatedAt: invitation.CreatedAt,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}

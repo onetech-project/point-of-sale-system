@@ -55,7 +55,7 @@ export default function Header() {
           {/* Desktop View */}
           <div className="hidden md:flex items-center space-x-4">
             <LanguageSwitcher />
-            {isAuthenticated && user && (
+            {isAuthenticated && user ? (
               <>
                 <button
                   onClick={handleProfileClick}
@@ -91,11 +91,11 @@ export default function Header() {
                   <span>{t('common.logout')}</span>
                 </button>
               </>
-            )}
+            ) : null}
           </div>
 
           {/* Mobile Menu Button */}
-          {isAuthenticated && user && (
+          {isAuthenticated && user ? (
             <div className="md:hidden">
               <button
                 onClick={() => setIsDrawerOpen(!isDrawerOpen)}
@@ -117,7 +117,7 @@ export default function Header() {
                 </svg>
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       </nav>
 

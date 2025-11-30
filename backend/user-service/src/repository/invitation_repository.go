@@ -190,3 +190,53 @@ func (r *InvitationRepository) MarkAccepted(ctx context.Context, id string) erro
 	_, err := r.db.ExecContext(ctx, query, models.InvitationAccepted, now, now, id)
 	return err
 }
+
+func (r *InvitationRepository) FindByID(ctx context.Context, id string) (*models.Invitation, error) {
+	query := `
+		SELECT id, tenant_id, email, role, token, status, invited_by, expires_at, accepted_at, created_at, updated_at
+		FROM invitations
+		WHERE id = $1
+	`
+
+	invitation := &models.Invitation{}
+	var acceptedAt sql.NullTime
+
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&invitation.ID,
+		&invitation.TenantID,
+		&invitation.Email,
+		&invitation.Role,
+		&invitation.Token,
+		&invitation.Status,
+		&invitation.InvitedBy,
+		&invitation.ExpiresAt,
+		&acceptedAt,
+		&invitation.CreatedAt,
+		&invitation.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if acceptedAt.Valid {
+		invitation.AcceptedAt = &acceptedAt.Time
+	}
+
+	return invitation, nil
+}
+
+func (r *InvitationRepository) UpdateToken(ctx context.Context, id, token string, expiresAt time.Time) error {
+	query := `
+		UPDATE invitations
+		SET token = $1, expires_at = $2, updated_at = $3
+		WHERE id = $4
+	`
+
+	_, err := r.db.ExecContext(ctx, query, token, expiresAt, time.Now(), id)
+	return err
+}

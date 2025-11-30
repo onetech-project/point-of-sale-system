@@ -23,6 +23,7 @@ type SessionData struct {
 	TenantID  string `json:"tenantId"`
 	Email     string `json:"email"`
 	Role      string `json:"role"`
+	FirstName string `json:"firstName"`
 	CreatedAt int64  `json:"createdAt"`
 }
 

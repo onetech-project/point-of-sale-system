@@ -50,6 +50,7 @@ func main() {
 	e.POST("/invitations", invitationHandler.CreateInvitation)
 	e.GET("/invitations", invitationHandler.ListInvitations)
 	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)
+	e.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
 
 	// Start server
 	port := getEnv("PORT", "8083")

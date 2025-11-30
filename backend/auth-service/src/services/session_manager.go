@@ -24,7 +24,7 @@ func NewSessionManager(redisClient *redis.Client, ttlMinutes int) *SessionManage
 }
 
 // Create creates a new session in Redis
-func (sm *SessionManager) Create(ctx context.Context, userID, tenantID, email, role string) (string, error) {
+func (sm *SessionManager) Create(ctx context.Context, userID, tenantID, email, role, firstName string) (string, error) {
 	sessionID := uuid.New().String()
 
 	sessionData := models.SessionData{
@@ -32,6 +32,7 @@ func (sm *SessionManager) Create(ctx context.Context, userID, tenantID, email, r
 		TenantID:  tenantID,
 		Email:     email,
 		Role:      role,
+		FirstName: firstName,
 		CreatedAt: time.Now().Unix(),
 	}
 

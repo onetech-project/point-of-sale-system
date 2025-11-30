@@ -30,6 +30,10 @@ class UserService {
     return apiClient.get<Invitation[]>('/api/invitations');
   }
 
+  async resendInvitation(invitationId: string): Promise<Invitation> {
+    return apiClient.post<Invitation>(`/api/invitations/${invitationId}/resend`, {});
+  }
+
   async acceptInvitation(token: string, data: AcceptInvitationRequest): Promise<any> {
     return apiClient.post(`/api/invitations/${token}/accept`, data);
   }

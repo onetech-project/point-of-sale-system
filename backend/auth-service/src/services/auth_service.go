@@ -105,7 +105,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	s.rateLimiter.ResetLoginAttempts(ctx, req.Email, tenantID)
 
 	// Create session in Redis
-	sessionID, err := s.sessionManager.Create(ctx, user.ID, user.TenantID, user.Email, user.Role)
+	sessionID, err := s.sessionManager.Create(ctx, user.ID, user.TenantID, user.Email, user.Role, user.FirstName)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create session: %w", err)
 	}

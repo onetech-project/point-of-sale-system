@@ -211,6 +211,87 @@ func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastNa
 	return user, nil
 }
 
+// Resend resends an invitation
+func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, resendByID string) (*models.Invitation, error) {
+	// Find invitation
+	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find invitation: %w", err)
+	}
+	if invitation == nil {
+		return nil, ErrInvitationNotFound
+	}
+
+	// Verify tenant ownership
+	if invitation.TenantID != tenantID {
+		return nil, ErrInvitationNotFound
+	}
+
+	// Can only resend pending invitations
+	if invitation.Status != models.InvitationPending {
+		return nil, errors.New("can only resend pending invitations")
+	}
+
+	// Generate new token and extend expiration
+	token, err := generateSecureToken(32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	now := time.Now()
+	invitation.Token = token
+	invitation.ExpiresAt = now.Add(7 * 24 * time.Hour) // 7 days expiration
+	invitation.UpdatedAt = now
+
+	if err := s.invitationRepo.UpdateToken(ctx, invitation.ID, token, invitation.ExpiresAt); err != nil {
+		return nil, fmt.Errorf("failed to update invitation token: %w", err)
+	}
+
+	// Publish resend event to Kafka
+	if s.eventProducer != nil {
+		// Fetch inviter info
+		inviter, err := s.userRepo.FindByID(ctx, tenantID, resendByID)
+		inviterName := "Team Member"
+		if err == nil && inviter != nil {
+			if inviter.FirstName != nil && inviter.LastName != nil {
+				inviterName = fmt.Sprintf("%s %s", *inviter.FirstName, *inviter.LastName)
+			}
+		}
+
+		// Fetch tenant info
+		var tenantName string
+		err = s.db.QueryRowContext(ctx, "SELECT business_name FROM tenants WHERE id = $1", tenantID).Scan(&tenantName)
+		if err != nil {
+			tenantName = "the team"
+		}
+
+		event := &events.NotificationEvent{
+			EventID:   uuid.New().String(),
+			EventType: "invitation.created", // Reuse same template
+			TenantID:  tenantID,
+			UserID:    resendByID,
+			Data: map[string]interface{}{
+				"invitation_id":    invitation.ID,
+				"email":            invitation.Email,
+				"role":             invitation.Role,
+				"token":            token,
+				"invitation_token": token,
+				"expires_at":       invitation.ExpiresAt.Format(time.RFC3339),
+				"invited_by":       resendByID,
+				"inviter_name":     inviterName,
+				"tenant_name":      tenantName,
+			},
+			Timestamp: now,
+		}
+
+		if err := s.eventProducer.Publish(ctx, invitation.ID, event); err != nil {
+			fmt.Printf("Warning: failed to publish resend invitation event: %v\n", err)
+		}
+	}
+
+	return invitation, nil
+}
+
 func generateSecureToken(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {

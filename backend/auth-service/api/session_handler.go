@@ -62,10 +62,11 @@ func (h *SessionHandler) GetSession(c echo.Context) error {
 	response := models.SessionResponse{
 		Valid: true,
 		User: &models.UserInfo{
-			ID:       sessionData.UserID,
-			Email:    sessionData.Email,
-			TenantID: sessionData.TenantID,
-			Role:     sessionData.Role,
+			ID:        sessionData.UserID,
+			Email:     sessionData.Email,
+			TenantID:  sessionData.TenantID,
+			Role:      sessionData.Role,
+			FirstName: sessionData.FirstName,
 		},
 		TenantID: sessionData.TenantID,
 	}

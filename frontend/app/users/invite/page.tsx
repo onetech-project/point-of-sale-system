@@ -41,6 +41,16 @@ export default function InviteUserPage() {
     }
   };
 
+  const handleResend = async (invitationId: string) => {
+    try {
+      await userService.resendInvitation(invitationId);
+      setSuccess('Invitation resent successfully');
+      loadInvitations();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to resend invitation');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -219,6 +229,9 @@ export default function InviteUserPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Expires
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -242,6 +255,16 @@ export default function InviteUserPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(invitation.expiresAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {invitation.status === 'pending' && (
+                            <button
+                              onClick={() => handleResend(invitation.id)}
+                              className="text-primary-600 hover:text-primary-900 font-medium"
+                            >
+                              Resend
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

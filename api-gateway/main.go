@@ -40,6 +40,9 @@ func main() {
 	authServiceURL := getEnv("AUTH_SERVICE_URL", "http://localhost:8082")
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
 
+	userServiceURL := getEnv("USER_SERVICE_URL", "http://localhost:8083")
+	public.POST("/api/invitations/:token/accept", proxyHandler(userServiceURL, "/invitations/:token/accept"))
+
 	protected := e.Group("")
 	protected.Use(middleware.JWTAuth())
 	protected.Use(middleware.TenantScope())
@@ -49,10 +52,9 @@ func main() {
 
 	protected.GET("/api/tenant", proxyHandler(tenantServiceURL, "/tenant"))
 
-	userServiceURL := getEnv("USER_SERVICE_URL", "http://localhost:8083")
 	protected.POST("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
 	protected.GET("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
-	protected.POST("/api/invitations/:token/accept", proxyHandler(userServiceURL, "/invitations/:token/accept"))
+	protected.POST("/api/invitations/:id/resend", proxyHandler(userServiceURL, "/invitations/:id/resend"))
 
 	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)
@@ -81,6 +83,9 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 
 			if c.Param("token") != "" {
 				req.URL.Path = "/invitations/" + c.Param("token") + "/accept"
+			}
+			if c.Param("id") != "" {
+				req.URL.Path = "/invitations/" + c.Param("id") + "/resend"
 			}
 		}
 

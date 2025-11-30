@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/store/auth';
 import { useTranslation } from '@/i18n/provider';
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -117,7 +118,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               </div>
               <span className="text-xl font-bold text-gray-900">POS</span>
             </Link>
-            
+
             {/* Close button for mobile */}
             <button
               onClick={onClose}
@@ -160,10 +161,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 onClick={onClose}
                 className={`
                   flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors
-                  ${
-                    isActive(item.href)
-                      ? 'bg-primary-50 text-primary-600 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50'
+                  ${isActive(item.href)
+                    ? 'bg-primary-50 text-primary-600 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
                   }
                 `}
               >
@@ -175,8 +175,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             ))}
           </nav>
 
-          {/* Logout Button */}
-          <div className="p-4 border-t border-gray-200">
+          {/* Language Switcher */}
+          <div className='p-4 border-t border-gray-200 space-y-2'>
+            <LanguageSwitcher />
+          </div>
+
+          {/* Logout */}
+          <div className="p-4 border-t border-gray-200 space-y-2">
             <button
               onClick={handleLogout}
               className="w-full flex items-center space-x-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
