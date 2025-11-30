@@ -259,14 +259,14 @@ This project uses web application architecture:
 
 ### Backend Implementation for Password Reset
 
-- [ ] T268 Create PasswordResetToken model in backend/src/models/PasswordResetToken.go (token, user_id, tenant_id, expires_at, used)
-- [ ] T269 Implement PasswordResetService.RequestReset in backend/auth-service/src/services/PasswordResetService.go (generate token, check tenant)
-- [ ] T270 Implement PasswordResetService.ValidateToken in backend/auth-service/src/services/PasswordResetService.go (check expiry, tenant match)
-- [ ] T271 Implement PasswordResetService.ResetPassword in backend/auth-service/src/services/PasswordResetService.go (validate token, update password, invalidate token)
-- [ ] T272 Implement POST /api/auth/password-reset/request handler in backend/auth-service/src/api/handlers.go (email validation, tenant scoping)
-- [ ] T312 **Publish password.reset_requested event to Kafka after generating reset token** in backend/auth-service/src/api/handlers.go (after T272)
-- [ ] T273 Implement POST /api/auth/password-reset/reset handler in backend/auth-service/src/api/handlers.go (token validation, password update)
-- [ ] T313 **Publish password.changed event to Kafka after successful password reset** in backend/auth-service/src/api/handlers.go (after T273)
+- [x] T268 Create PasswordResetToken model in backend/src/models/PasswordResetToken.go (token, user_id, tenant_id, expires_at, used)
+- [x] T269 Implement PasswordResetService.RequestReset in backend/auth-service/src/services/PasswordResetService.go (generate token, check tenant)
+- [x] T270 Implement PasswordResetService.ValidateToken in backend/auth-service/src/services/PasswordResetService.go (check expiry, tenant match)
+- [x] T271 Implement PasswordResetService.ResetPassword in backend/auth-service/src/services/PasswordResetService.go (validate token, update password, invalidate token)
+- [x] T272 Implement POST /api/auth/password-reset/request handler in backend/auth-service/src/api/handlers.go (email validation, tenant scoping)
+- [x] T312 **Publish password.reset_requested event to Kafka after generating reset token** in backend/auth-service/src/api/handlers.go (after T272)
+- [x] T273 Implement POST /api/auth/password-reset/reset handler in backend/auth-service/src/api/handlers.go (token validation, password update)
+- [x] T313 **Publish password.changed event to Kafka after successful password reset** in backend/auth-service/src/api/handlers.go (after T273)
 - [ ] T274 Add password reset email template in backend/notification-service/templates/password-reset-email.html (NOTE: Already covered by T304 in Phase 2)
 - [ ] T275 Unit test for PasswordResetService.RequestReset in backend/tests/unit/services/PasswordResetService_test.go
 - [ ] T276 Unit test for PasswordResetService.ValidateToken in backend/tests/unit/services/PasswordResetService_test.go
@@ -275,13 +275,13 @@ This project uses web application architecture:
 
 ### Frontend Implementation for Password Reset
 
-- [ ] T279 [P] Create PasswordResetRequestForm component in frontend/src/components/forms/PasswordResetRequestForm.tsx (email input with Tailwind styling)
-- [ ] T280 [P] Create PasswordResetForm component in frontend/src/components/forms/PasswordResetForm.tsx (new password, confirm password with Tailwind styling)
-- [ ] T281 [P] Create password reset request page in frontend/src/pages/auth/forgot-password.tsx
-- [ ] T282 [P] Create password reset page in frontend/src/pages/auth/reset-password.tsx (accepts token from URL)
-- [ ] T283 [P] Implement password reset API calls in frontend/src/services/auth.service.ts (requestReset, resetPassword methods)
-- [ ] T284 [P] Add password reset translations in frontend/public/locales/en/auth.json
-- [ ] T285 [P] Add password reset translations in frontend/public/locales/id/auth.json
+- [x] T279 [P] Create PasswordResetRequestForm component in frontend/src/components/forms/PasswordResetRequestForm.tsx (email input with Tailwind styling)
+- [x] T280 [P] Create PasswordResetForm component in frontend/src/components/forms/PasswordResetForm.tsx (new password, confirm password with Tailwind styling)
+- [x] T281 [P] Create password reset request page in frontend/src/pages/auth/forgot-password.tsx
+- [x] T282 [P] Create password reset page in frontend/src/pages/auth/reset-password.tsx (accepts token from URL)
+- [x] T283 [P] Implement password reset API calls in frontend/src/services/auth.service.ts (requestReset, resetPassword methods)
+- [x] T284 [P] Add password reset translations in frontend/public/locales/en/auth.json
+- [x] T285 [P] Add password reset translations in frontend/public/locales/id/auth.json
 - [ ] T286 [P] Unit test for PasswordResetRequestForm in frontend/tests/unit/components/forms/PasswordResetRequestForm.test.tsx
 - [ ] T287 [P] Unit test for PasswordResetForm in frontend/tests/unit/components/forms/PasswordResetForm.test.tsx
 

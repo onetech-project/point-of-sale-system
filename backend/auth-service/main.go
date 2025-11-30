@@ -17,7 +17,6 @@ import (
 	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
 	"github.com/pos/auth-service/src/utils"
-	backendQueue "github.com/pos/backend/src/queue"
 )
 
 func main() {
@@ -71,16 +70,13 @@ func main() {
 	rateLimitWindow := getEnvInt("RATE_LIMIT_LOGIN_WINDOW", 900) // 15 minutes in seconds
 	rateLimiter := services.NewRateLimiter(redisClient, rateLimitMax, rateLimitWindow)
 
-	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter)
-
 	// Initialize Kafka producer and event publisher
 	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
 	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
-	kafkaProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
-	defer kafkaProducer.Close()
-	
-	// Initialize event publisher from backend/src/queue package
-	eventPublisher := backendQueue.NewEventPublisher(kafkaBrokers, kafkaTopic)
+	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
+	defer eventPublisher.Close()
+
+	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
 
 	// Health checks
 	e.GET("/health", api.HealthCheck)

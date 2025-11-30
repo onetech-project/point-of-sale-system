@@ -110,18 +110,41 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 		return err
 	}
 
+	// Get user details for notification
+	var email, firstName, lastName string
+	query := `SELECT email, first_name, last_name FROM users WHERE id = $1 AND tenant_id = $2`
+	err = s.userDB.QueryRow(query, resetToken.UserID, resetToken.TenantID).Scan(&email, &firstName, &lastName)
+	if err != nil {
+		return err
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	query := `UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3`
-	_, err = s.userDB.Exec(query, string(hashedPassword), resetToken.UserID, resetToken.TenantID)
+	updateQuery := `UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3`
+	_, err = s.userDB.Exec(updateQuery, string(hashedPassword), resetToken.UserID, resetToken.TenantID)
 	if err != nil {
 		return err
 	}
 
-	return s.resetRepo.MarkAsUsed(resetToken.ID)
+	err = s.resetRepo.MarkAsUsed(resetToken.ID)
+	if err != nil {
+		return err
+	}
+
+	// Publish password changed event
+	name := firstName + " " + lastName
+	ctx := context.Background()
+	if err := s.eventPublisher.PublishPasswordChanged(ctx, resetToken.TenantID.String(), resetToken.UserID.String(), email, name); err != nil {
+		// Log error but don't fail the request
+		log.Printf("Error publishing password changed event: %v", err)
+	} else {
+		log.Printf("Published password changed event for user: %s", email)
+	}
+
+	return nil
 }
 
 func generateSecureToken(length int) (string, error) {

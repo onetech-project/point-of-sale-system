@@ -11,12 +11,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type EventPublisher interface {
+	PublishUserLogin(ctx context.Context, tenantID, userID, email, name, ipAddress, userAgent string) error
+}
+
 type AuthService struct {
 	db              *sql.DB
 	sessionRepo     *repository.SessionRepository
 	sessionManager  *SessionManager
 	jwtService      *JWTService
 	rateLimiter     *RateLimiter
+	eventPublisher  EventPublisher
 }
 
 func NewAuthService(
@@ -24,6 +29,7 @@ func NewAuthService(
 	sessionManager *SessionManager,
 	jwtService *JWTService,
 	rateLimiter *RateLimiter,
+	eventPublisher EventPublisher,
 ) *AuthService {
 	return &AuthService{
 		db:             db,
@@ -31,6 +37,7 @@ func NewAuthService(
 		sessionManager: sessionManager,
 		jwtService:     jwtService,
 		rateLimiter:    rateLimiter,
+		eventPublisher: eventPublisher,
 	}
 }
 
@@ -138,6 +145,19 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 
 	// Update last login time
 	s.updateLastLogin(ctx, user.ID)
+
+	// Publish login event for notification
+	if s.eventPublisher != nil {
+		name := user.FirstName
+		if user.LastName != "" {
+			name += " " + user.LastName
+		}
+		go func() {
+			if err := s.eventPublisher.PublishUserLogin(context.Background(), user.TenantID, user.ID, user.Email, name, ipAddress, userAgent); err != nil {
+				fmt.Printf("Warning: failed to publish login event: %v\n", err)
+			}
+		}()
+	}
 
 	response := &models.LoginResponse{
 		User: models.UserInfo{
