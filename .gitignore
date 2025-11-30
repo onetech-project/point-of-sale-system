@@ -10,6 +10,13 @@ go.work
 vendor/
 *.prof
 
+# Go build binaries
+auth-service
+user-service
+tenant-service
+notification-service
+api-gateway
+
 # Frontend (Node.js/Next.js)
 node_modules/
 .next/

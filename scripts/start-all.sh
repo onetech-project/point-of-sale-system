@@ -3,14 +3,93 @@
 # Start All POS Services
 # This script starts all backend services and the frontend in development mode
 # It loads environment variables from .env files
+#
+# Usage:
+#   ./start-all.sh                     # Start all services
+#   ./start-all.sh gateway             # Start only API Gateway
+#   ./start-all.sh auth                # Start only Auth Service
+#   ./start-all.sh user                # Start only User Service
+#   ./start-all.sh tenant              # Start only Tenant Service
+#   ./start-all.sh notification        # Start only Notification Service
+#   ./start-all.sh frontend            # Start only Frontend
+#   ./start-all.sh auth user tenant    # Start multiple services
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Parse arguments
+TARGET_SERVICES=()
+START_ALL=false
+
+if [ $# -eq 0 ]; then
+    START_ALL=true
+else
+    for arg in "$@"; do
+        case $arg in
+            gateway|api-gateway)
+                TARGET_SERVICES+=("gateway")
+                ;;
+            auth|auth-service)
+                TARGET_SERVICES+=("auth")
+                ;;
+            user|user-service)
+                TARGET_SERVICES+=("user")
+                ;;
+            tenant|tenant-service)
+                TARGET_SERVICES+=("tenant")
+                ;;
+            notification|notification-service)
+                TARGET_SERVICES+=("notification")
+                ;;
+            frontend|web)
+                TARGET_SERVICES+=("frontend")
+                ;;
+            all)
+                START_ALL=true
+                ;;
+            *)
+                echo "❌ Unknown service: $arg"
+                echo ""
+                echo "Available services:"
+                echo "  gateway          - API Gateway"
+                echo "  auth             - Auth Service"
+                echo "  user             - User Service"
+                echo "  tenant           - Tenant Service"
+                echo "  notification     - Notification Service"
+                echo "  frontend         - Frontend (Next.js)"
+                echo "  all              - All services (default)"
+                echo ""
+                exit 1
+                ;;
+        esac
+    done
+fi
+
+# Helper function to check if service should start
+should_start_service() {
+    local service=$1
+    if [ "$START_ALL" = true ]; then
+        return 0
+    fi
+    for target in "${TARGET_SERVICES[@]}"; do
+        if [ "$target" = "$service" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 echo "🚀 Starting Point of Sale System Services"
 echo "=========================================="
+
+if [ "$START_ALL" = true ]; then
+    echo "🎯 Target: All services"
+else
+    echo "🎯 Target: ${TARGET_SERVICES[*]}"
+fi
+echo ""
 
 # Load environment variables from root .env if it exists
 if [ -f "$PROJECT_ROOT/.env" ]; then
@@ -25,76 +104,104 @@ else
 fi
 
 # Check if service .env files exist
-echo "🔍 Checking service configuration files..."
-services_to_check=(
-    "api-gateway/.env"
-    "backend/auth-service/.env"
-    "backend/tenant-service/.env"
-    "backend/user-service/.env"
-    "backend/notification-service/.env"
-)
-
-missing_files=false
-for service_env in "${services_to_check[@]}"; do
-    if [ ! -f "$PROJECT_ROOT/$service_env" ]; then
-        echo "❌ Missing: $service_env"
-        missing_files=true
-    else
-        echo "✅ Found: $service_env"
-    fi
-done
-
-if [ "$missing_files" = true ]; then
-    echo ""
-    echo "⚠️  Some .env files are missing!"
-    echo "    Run: ./scripts/setup-env.sh to create them"
-    echo ""
-    exit 1
-fi
-
-echo ""
-
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
-    echo "    Services will attempt to start but may fail without database connectivity."
-    echo ""
-fi
-
-# Start Docker services if available
-if docker info > /dev/null 2>&1; then
-    echo "📦 Starting Docker services (PostgreSQL & Redis)..."
-    cd "$PROJECT_ROOT"
-    docker-compose up -d
-    echo "✅ Docker services started"
-    echo ""
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+    echo "🔍 Checking service configuration files..."
+    services_to_check=()
     
-    # Wait for PostgreSQL to be ready
-    echo "⏳ Waiting for PostgreSQL to be ready..."
-    for i in {1..30}; do
-        if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
-            echo "✅ PostgreSQL is ready"
-            break
+    if [ "$START_ALL" = true ] || should_start_service "gateway"; then
+        services_to_check+=("api-gateway/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "auth"; then
+        services_to_check+=("backend/auth-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "tenant"; then
+        services_to_check+=("backend/tenant-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "user"; then
+        services_to_check+=("backend/user-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "notification"; then
+        services_to_check+=("backend/notification-service/.env")
+    fi
+
+    missing_files=false
+    for service_env in "${services_to_check[@]}"; do
+        if [ ! -f "$PROJECT_ROOT/$service_env" ]; then
+            echo "❌ Missing: $service_env"
+            missing_files=true
+        else
+            echo "✅ Found: $service_env"
         fi
-        if [ $i -eq 30 ]; then
-            echo "❌ PostgreSQL did not become ready in time"
-            exit 1
-        fi
-        sleep 1
     done
+
+    if [ "$missing_files" = true ]; then
+        echo ""
+        echo "⚠️  Some .env files are missing!"
+        echo "    Run: ./scripts/setup-env.sh to create them"
+        echo ""
+        exit 1
+    fi
+    
     echo ""
 fi
 
-# Build all services
-echo "🔨 Building services..."
-cd "$PROJECT_ROOT/api-gateway" && go build -o api-gateway main.go &
-cd "$PROJECT_ROOT/backend/auth-service" && go build -o auth-service main.go &
-cd "$PROJECT_ROOT/backend/tenant-service" && go build -o tenant-service main.go &
-cd "$PROJECT_ROOT/backend/user-service" && go build -o user-service main.go &
-cd "$PROJECT_ROOT/backend/notification-service" && go build -o notification-service main.go &
-wait
-echo "✅ All services built"
-echo ""
+# Check if Docker is running (only if starting backend services)
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+    if ! docker info > /dev/null 2>&1; then
+        echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
+        echo "    Services will attempt to start but may fail without database connectivity."
+        echo ""
+    fi
+
+    # Start Docker services if available
+    if docker info > /dev/null 2>&1; then
+        echo "📦 Starting Docker services (PostgreSQL & Redis)..."
+        cd "$PROJECT_ROOT"
+        docker-compose up -d
+        echo "✅ Docker services started"
+        echo ""
+        
+        # Wait for PostgreSQL to be ready
+        echo "⏳ Waiting for PostgreSQL to be ready..."
+        for i in {1..30}; do
+            if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
+                echo "✅ PostgreSQL is ready"
+                break
+            fi
+            if [ $i -eq 30 ]; then
+                echo "❌ PostgreSQL did not become ready in time"
+                exit 1
+            fi
+            sleep 1
+        done
+        echo ""
+    fi
+fi
+
+# Build services
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+    echo "🔨 Building services..."
+    
+    if [ "$START_ALL" = true ] || should_start_service "gateway"; then
+        cd "$PROJECT_ROOT/api-gateway" && go build -o api-gateway main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "auth"; then
+        cd "$PROJECT_ROOT/backend/auth-service" && go build -o auth-service main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "tenant"; then
+        cd "$PROJECT_ROOT/backend/tenant-service" && go build -o tenant-service main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "user"; then
+        cd "$PROJECT_ROOT/backend/user-service" && go build -o user-service main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "notification"; then
+        cd "$PROJECT_ROOT/backend/notification-service" && go build -o notification-service main.go &
+    fi
+    
+    wait
+    echo "✅ Services built"
+    echo ""
+fi
 
 # Start services in background with .env files
 echo "🎯 Starting services..."
@@ -124,41 +231,49 @@ start_service_with_env() {
 # Create/clear PID file
 > /tmp/pos-services.pid
 
-# Start API Gateway
-start_service_with_env "API Gateway" "$PROJECT_ROOT/api-gateway" "api-gateway" "/tmp/api-gateway.log"
+# Start services based on arguments
+if [ "$START_ALL" = true ] || should_start_service "gateway"; then
+    start_service_with_env "API Gateway" "$PROJECT_ROOT/api-gateway" "api-gateway" "/tmp/api-gateway.log"
+fi
 
-# Start Tenant Service
-start_service_with_env "Tenant Service" "$PROJECT_ROOT/backend/tenant-service" "tenant-service" "/tmp/tenant-service.log"
+if [ "$START_ALL" = true ] || should_start_service "tenant"; then
+    start_service_with_env "Tenant Service" "$PROJECT_ROOT/backend/tenant-service" "tenant-service" "/tmp/tenant-service.log"
+fi
 
-# Start Auth Service
-start_service_with_env "Auth Service" "$PROJECT_ROOT/backend/auth-service" "auth-service" "/tmp/auth-service.log"
+if [ "$START_ALL" = true ] || should_start_service "auth"; then
+    start_service_with_env "Auth Service" "$PROJECT_ROOT/backend/auth-service" "auth-service" "/tmp/auth-service.log"
+fi
 
-# Start User Service
-start_service_with_env "User Service" "$PROJECT_ROOT/backend/user-service" "user-service" "/tmp/user-service.log"
+if [ "$START_ALL" = true ] || should_start_service "user"; then
+    start_service_with_env "User Service" "$PROJECT_ROOT/backend/user-service" "user-service" "/tmp/user-service.log"
+fi
 
-# Start Notification Service
-start_service_with_env "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log"
+if [ "$START_ALL" = true ] || should_start_service "notification"; then
+    start_service_with_env "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log"
+fi
 
 # Wait a moment for services to start
 sleep 2
 
 # Start frontend
-echo ""
-echo "🎨 Starting frontend..."
-cd "$PROJECT_ROOT/frontend"
-
-# Load frontend .env if it exists
-if [ -f ".env.local" ]; then
-    export $(grep -v '^#' .env.local | xargs)
+if [ "$START_ALL" = true ] || should_start_service "frontend"; then
+    echo ""
+    echo "🎨 Starting frontend..."
+    cd "$PROJECT_ROOT/frontend"
+    
+    # Load frontend .env if it exists
+    if [ -f ".env.local" ]; then
+        export $(grep -v '^#' .env.local | xargs)
+    fi
+    
+    # Clear PORT variable to use Next.js default (3000)
+    unset PORT
+    
+    npm run dev > /tmp/frontend.log 2>&1 &
+    frontend_pid=$!
+    echo $frontend_pid >> /tmp/pos-services.pid
+    echo "✅ Frontend started (PID: $frontend_pid)"
 fi
-
-# Clear PORT variable to use Next.js default (3000)
-unset PORT
-
-npm run dev > /tmp/frontend.log 2>&1 &
-frontend_pid=$!
-echo $frontend_pid >> /tmp/pos-services.pid
-echo "✅ Frontend started (PID: $frontend_pid)"
 
 echo ""
 echo "=========================================="
