@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Login Detected</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #F59E0B;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+            border-radius: 0 0 5px 5px;
+        }
+        .alert-box {
+            background-color: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .details {
+            background-color: white;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .details ul {
+            list-style: none;
+            padding: 0;
+        }
+        .details li {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .details li:last-child {
+            border-bottom: none;
+        }
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 New Login Detected</h1>
+    </div>
+    <div class="content">
+        <h2>Hello {{.Name}},</h2>
+        <div class="alert-box">
+            <strong>Security Alert:</strong> We detected a new login to your account.
+        </div>
+        <p>If this was you, you can safely ignore this email. If you don't recognize this activity, please secure your account immediately.</p>
+        
+        <div class="details">
+            <h3>Login Details:</h3>
+            <ul>
+                <li><strong>Time:</strong> {{.Time}}</li>
+                <li><strong>IP Address:</strong> {{.IPAddress}}</li>
+                <li><strong>Device/Browser:</strong> {{.UserAgent}}</li>
+            </ul>
+        </div>
+        
+        <p><strong>What to do if this wasn't you:</strong></p>
+        <ol>
+            <li>Reset your password immediately</li>
+            <li>Review your recent account activity</li>
+            <li>Enable two-factor authentication if available</li>
+            <li>Contact our support team</li>
+        </ol>
+    </div>
+    <div class="footer">
+        <p>This is an automated security alert, please do not reply.</p>
+        <p>&copy; 2024 POS System. All rights reserved.</p>
+    </div>
+</body>
+</html>

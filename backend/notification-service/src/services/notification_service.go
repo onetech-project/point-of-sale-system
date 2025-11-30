@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -19,14 +21,60 @@ type NotificationService struct {
 	repo          *repository.NotificationRepository
 	emailProvider providers.EmailProvider
 	pushProvider  providers.PushProvider
+	templates     map[string]*template.Template
+	frontendURL   string
 }
 
 func NewNotificationService(db *sql.DB) *NotificationService {
-	return &NotificationService{
+	service := &NotificationService{
 		repo:          repository.NewNotificationRepository(db),
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
+		templates:     make(map[string]*template.Template),
+		frontendURL:   getEnv("FRONTEND_DOMAIN", "http://localhost:3000"),
 	}
+	
+	// Load all templates
+	if err := service.loadTemplates(); err != nil {
+		log.Printf("Warning: Failed to load templates: %v", err)
+	}
+	
+	return service
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func (s *NotificationService) loadTemplates() error {
+	templateDir := getEnv("TEMPLATE_DIR", "./templates")
+	
+	templateFiles := []string{
+		"registration.html",
+		"login_alert.html",
+		"password_reset.html",
+		"password_changed.html",
+		"team_invitation.html",
+	}
+	
+	for _, filename := range templateFiles {
+		templatePath := filepath.Join(templateDir, filename)
+		tmpl, err := template.ParseFiles(templatePath)
+		if err != nil {
+			return fmt.Errorf("failed to parse template %s: %w", filename, err)
+		}
+		
+		// Store template with name without extension
+		templateName := filename[:len(filename)-5] // Remove .html
+		s.templates[templateName] = tmpl
+		log.Printf("Loaded template: %s", templateName)
+	}
+	
+	return nil
 }
 
 // HandleEvent processes notification events from Kafka
@@ -47,6 +95,8 @@ func (s *NotificationService) HandleEvent(ctx context.Context, eventData []byte)
 		return s.handlePasswordResetRequest(ctx, event)
 	case "password.changed":
 		return s.handlePasswordChanged(ctx, event)
+	case "invitation.created":
+		return s.handleTeamInvitation(ctx, event)
 	default:
 		log.Printf("Unknown event type: %s", event.EventType)
 		return nil
@@ -62,7 +112,7 @@ func (s *NotificationService) handleUserRegistration(ctx context.Context, event 
 	body := s.renderTemplate("registration", map[string]interface{}{
 		"Name":  name,
 		"Token": verificationToken,
-		"URL":   fmt.Sprintf("https://pos-system.com/verify?token=%s", verificationToken),
+		"URL":   fmt.Sprintf("%s/verify?token=%s", s.frontendURL, verificationToken),
 	})
 
 	notification := &models.Notification{
@@ -124,7 +174,7 @@ func (s *NotificationService) handlePasswordResetRequest(ctx context.Context, ev
 	body := s.renderTemplate("password_reset", map[string]interface{}{
 		"Name":  name,
 		"Token": resetToken,
-		"URL":   fmt.Sprintf("https://pos-system.com/reset-password?token=%s", resetToken),
+		"URL":   fmt.Sprintf("%s/reset-password?token=%s", s.frontendURL, resetToken),
 	})
 
 	notification := &models.Notification{
@@ -173,6 +223,38 @@ func (s *NotificationService) handlePasswordChanged(ctx context.Context, event m
 	return s.sendEmail(ctx, notification)
 }
 
+func (s *NotificationService) handleTeamInvitation(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	inviterName, _ := event.Data["inviter_name"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	role, _ := event.Data["role"].(string)
+	invitationToken, _ := event.Data["invitation_token"].(string)
+
+	subject := fmt.Sprintf("You're invited to join %s", tenantName)
+	body := s.renderTemplate("team_invitation", map[string]interface{}{
+		"InviterName": inviterName,
+		"TenantName":  tenantName,
+		"Role":        role,
+		"URL":         fmt.Sprintf("%s/accept-invitation?token=%s", s.frontendURL, invitationToken),
+	})
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  event.Data,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create notification: %w", err)
+	}
+
+	return s.sendEmail(ctx, notification)
+}
+
 func (s *NotificationService) sendEmail(ctx context.Context, notification *models.Notification) error {
 	err := s.emailProvider.Send(notification.Recipient, notification.Subject, notification.Body, true)
 	
@@ -196,68 +278,15 @@ func (s *NotificationService) sendEmail(ctx context.Context, notification *model
 }
 
 func (s *NotificationService) renderTemplate(templateName string, data map[string]interface{}) string {
-	templates := map[string]string{
-		"registration": `
-<html>
-<body>
-	<h2>Welcome {{.Name}}!</h2>
-	<p>Thank you for registering with our POS system.</p>
-	<p>Please verify your email by clicking the link below:</p>
-	<p><a href="{{.URL}}">Verify Email</a></p>
-	<p>Or copy this link: {{.URL}}</p>
-	<p>This link will expire in 24 hours.</p>
-</body>
-</html>`,
-		"login_alert": `
-<html>
-<body>
-	<h2>New Login Detected</h2>
-	<p>Hello {{.Name}},</p>
-	<p>We detected a new login to your account:</p>
-	<ul>
-		<li>Time: {{.Time}}</li>
-		<li>IP Address: {{.IPAddress}}</li>
-		<li>Device: {{.UserAgent}}</li>
-	</ul>
-	<p>If this wasn't you, please reset your password immediately.</p>
-</body>
-</html>`,
-		"password_reset": `
-<html>
-<body>
-	<h2>Password Reset Request</h2>
-	<p>Hello {{.Name}},</p>
-	<p>We received a request to reset your password.</p>
-	<p>Click the link below to reset your password:</p>
-	<p><a href="{{.URL}}">Reset Password</a></p>
-	<p>Or copy this link: {{.URL}}</p>
-	<p>This link will expire in 1 hour.</p>
-	<p>If you didn't request this, please ignore this email.</p>
-</body>
-</html>`,
-		"password_changed": `
-<html>
-<body>
-	<h2>Password Changed Successfully</h2>
-	<p>Hello {{.Name}},</p>
-	<p>Your password was changed at {{.Time}}.</p>
-	<p>If you didn't make this change, please contact support immediately.</p>
-</body>
-</html>`,
-	}
-
-	tmplStr, ok := templates[templateName]
+	tmpl, ok := s.templates[templateName]
 	if !ok {
-		return "Template not found"
-	}
-
-	tmpl, err := template.New(templateName).Parse(tmplStr)
-	if err != nil {
-		return fmt.Sprintf("Template error: %v", err)
+		log.Printf("Template not found: %s", templateName)
+		return fmt.Sprintf("Template '%s' not found", templateName)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
+		log.Printf("Template execution error for %s: %v", templateName, err)
 		return fmt.Sprintf("Template execution error: %v", err)
 	}
 
