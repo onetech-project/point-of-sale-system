@@ -238,6 +238,13 @@ func (s *NotificationService) handleTeamInvitation(ctx context.Context, event mo
 		"URL":         fmt.Sprintf("%s/accept-invitation?token=%s", s.frontendURL, invitationToken),
 	})
 
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
 		Type:      models.NotificationTypeEmail,
@@ -245,7 +252,7 @@ func (s *NotificationService) handleTeamInvitation(ctx context.Context, event mo
 		Subject:   subject,
 		Body:      body,
 		Recipient: email,
-		Metadata:  event.Data,
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.Create(ctx, notification); err != nil {

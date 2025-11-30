@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/user-service/api"
+	"github.com/pos/user-service/src/queue"
 )
 
 func main() {
@@ -29,12 +31,22 @@ func main() {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
+	// Kafka configuration
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
+	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+
+	// Initialize Kafka producer
+	eventProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
+	defer eventProducer.Close()
+
+	log.Printf("Kafka producer initialized: brokers=%v, topic=%s", kafkaBrokers, kafkaTopic)
+
 	// Health checks
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
 
 	// Invitation endpoints
-	invitationHandler := api.NewInvitationHandler(db)
+	invitationHandler := api.NewInvitationHandler(db, eventProducer)
 	e.POST("/invitations", invitationHandler.CreateInvitation)
 	e.GET("/invitations", invitationHandler.ListInvitations)
 	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)

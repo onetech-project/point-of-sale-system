@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/pos/user-service/src/models"
+	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/services"
 )
 
@@ -13,9 +14,9 @@ type InvitationHandler struct {
 	invitationService *services.InvitationService
 }
 
-func NewInvitationHandler(db *sql.DB) *InvitationHandler {
+func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationHandler {
 	return &InvitationHandler{
-		invitationService: services.NewInvitationService(db),
+		invitationService: services.NewInvitationService(db, eventProducer),
 	}
 }
 

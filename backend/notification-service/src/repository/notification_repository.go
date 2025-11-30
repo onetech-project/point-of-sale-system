@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/pos/notification-service/src/models"
@@ -18,9 +19,27 @@ func NewNotificationRepository(db *sql.DB) *NotificationRepository {
 
 func (r *NotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
 	query := `
-		INSERT INTO notifications (tenant_id, user_id, type, status, subject, body, recipient, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO notifications (tenant_id, user_id, type, status, event_type, subject, body, recipient, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at`
+
+	// Extract event_type from metadata if present
+	eventType := "unknown"
+	if notification.Metadata != nil {
+		if et, ok := notification.Metadata["event_type"].(string); ok {
+			eventType = et
+		}
+	}
+
+	// Convert metadata map to JSON
+	var metadataJSON []byte
+	var err error
+	if notification.Metadata != nil {
+		metadataJSON, err = json.Marshal(notification.Metadata)
+		if err != nil {
+			return err
+		}
+	}
 
 	return r.db.QueryRowContext(
 		ctx,
@@ -29,10 +48,11 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *model
 		notification.UserID,
 		notification.Type,
 		notification.Status,
+		eventType,
 		notification.Subject,
 		notification.Body,
 		notification.Recipient,
-		notification.Metadata,
+		metadataJSON,
 	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
 }
 

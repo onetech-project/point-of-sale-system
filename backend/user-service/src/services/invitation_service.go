@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pos/user-service/src/events"
 	"github.com/pos/user-service/src/models"
+	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -27,13 +29,15 @@ type InvitationService struct {
 	invitationRepo *repository.InvitationRepository
 	userRepo       *repository.UserRepository
 	db             *sql.DB
+	eventProducer  *queue.KafkaProducer
 }
 
-func NewInvitationService(db *sql.DB) *InvitationService {
+func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationService {
 	return &InvitationService{
 		invitationRepo: repository.NewInvitationRepository(db),
 		userRepo:       repository.NewUserRepository(db),
 		db:             db,
+		eventProducer:  eventProducer,
 	}
 }
 
@@ -78,6 +82,50 @@ func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, i
 
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
+	}
+
+	// Publish invitation event to Kafka for notification service
+	if s.eventProducer != nil {
+		// Fetch inviter info
+		inviter, err := s.userRepo.FindByID(ctx, tenantID, invitedByID)
+		inviterName := "Team Member"
+		if err == nil && inviter != nil {
+			if inviter.FirstName != nil && inviter.LastName != nil {
+				inviterName = fmt.Sprintf("%s %s", *inviter.FirstName, *inviter.LastName)
+			}
+		}
+
+		// Fetch tenant info
+		var tenantName string
+		err = s.db.QueryRowContext(ctx, "SELECT business_name FROM tenants WHERE id = $1", tenantID).Scan(&tenantName)
+		if err != nil {
+			tenantName = "the team"
+		}
+
+		event := &events.NotificationEvent{
+			EventID:   uuid.New().String(),
+			EventType: "invitation.created",
+			TenantID:  tenantID,
+			UserID:    invitedByID,
+			Data: map[string]interface{}{
+				"invitation_id":    invitation.ID,
+				"email":            email,
+				"role":             role,
+				"token":            token,
+				"invitation_token": token,
+				"expires_at":       invitation.ExpiresAt.Format(time.RFC3339),
+				"invited_by":       invitedByID,
+				"inviter_name":     inviterName,
+				"tenant_name":      tenantName,
+			},
+			Timestamp: now,
+		}
+
+		// Send event to Kafka (non-blocking, log error if failed)
+		if err := s.eventProducer.Publish(ctx, invitation.ID, event); err != nil {
+			// Log the error but don't fail the invitation creation
+			fmt.Printf("Warning: failed to publish invitation event: %v\n", err)
+		}
 	}
 
 	return invitation, nil
