@@ -61,7 +61,7 @@ func (r *productRepository) FindAll(ctx context.Context, filters map[string]inte
 	argCount := 1
 
 	if search, ok := filters["search"].(string); ok && search != "" {
-		query += fmt.Sprintf(" AND name ILIKE $%d", argCount)
+		query += fmt.Sprintf(" AND p.name ILIKE $%d", argCount)
 		args = append(args, "%"+search+"%")
 		argCount++
 	}
@@ -88,7 +88,7 @@ func (r *productRepository) FindAll(ctx context.Context, filters map[string]inte
 		query += " AND archived_at IS NULL"
 	}
 
-	query += " ORDER BY name"
+	query += " ORDER BY p.name"
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCount, argCount+1)
 	args = append(args, limit, offset)
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from '@/i18n/provider';
 import CategorySelect from './CategorySelect';
 import { CreateProductRequest, UpdateProductRequest, Product } from '@/types/product';
+import { formatNumber, parseFormattedNumber } from '@/utils/format';
 
 interface ProductFormProps {
   initialData?: Product;
@@ -28,6 +29,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
     cost_price: initialData?.cost_price?.toString() || '',
     tax_rate: initialData?.tax_rate?.toString() || '0',
     stock_quantity: initialData?.stock_quantity?.toString() || '0',
+  });
+
+  const [displayPrices, setDisplayPrices] = useState({
+    selling_price: initialData?.selling_price ? formatNumber(initialData.selling_price, 0) : '',
+    cost_price: initialData?.cost_price ? formatNumber(initialData.cost_price, 0) : '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -118,6 +124,40 @@ const ProductForm: React.FC<ProductFormProps> = ({
     }
   };
 
+  const handlePriceChange = (field: 'selling_price' | 'cost_price', displayValue: string) => {
+    // Remove all non-digit characters except decimal point
+    const cleanValue = displayValue.replace(/[^\d.]/g, '');
+    
+    // Only allow one decimal point
+    const parts = cleanValue.split('.');
+    const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleanValue;
+    
+    // Store clean value
+    setFormData((prev) => ({ ...prev, [field]: sanitized }));
+    
+    // Format display value with thousand separator
+    if (sanitized) {
+      const [intPart, decPart] = sanitized.split('.');
+      const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      const formatted = decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
+      setDisplayPrices((prev) => ({ ...prev, [field]: formatted }));
+    } else {
+      setDisplayPrices((prev) => ({ ...prev, [field]: '' }));
+    }
+    
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handlePriceBlur = (field: 'selling_price' | 'cost_price') => {
+    const value = parseFloat(formData[field]);
+    if (!isNaN(value)) {
+      const formatted = formatNumber(value, 0);
+      setDisplayPrices((prev) => ({ ...prev, [field]: formatted }));
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors.submit && (
@@ -184,12 +224,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
             Selling Price <span className="text-red-500">*</span>
           </label>
           <input
-            type="number"
+            type="text"
             id="selling_price"
-            step="0.01"
-            min="0"
-            value={formData.selling_price}
-            onChange={(e) => handleChange('selling_price', e.target.value)}
+            value={displayPrices.selling_price}
+            onChange={(e) => handlePriceChange('selling_price', e.target.value)}
+            onBlur={() => handlePriceBlur('selling_price')}
             disabled={isSubmitting}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.selling_price ? 'border-red-500' : 'border-gray-300'
@@ -205,12 +244,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
             Cost Price <span className="text-red-500">*</span>
           </label>
           <input
-            type="number"
+            type="text"
             id="cost_price"
-            step="0.01"
-            min="0"
-            value={formData.cost_price}
-            onChange={(e) => handleChange('cost_price', e.target.value)}
+            value={displayPrices.cost_price}
+            onChange={(e) => handlePriceChange('cost_price', e.target.value)}
+            onBlur={() => handlePriceBlur('cost_price')}
             disabled={isSubmitting}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.cost_price ? 'border-red-500' : 'border-gray-300'

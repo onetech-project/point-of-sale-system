@@ -11,6 +11,7 @@ import ProductForm from '@/components/products/ProductForm';
 import StockAdjustmentModal from '@/components/products/StockAdjustmentModal';
 import productService from '@/services/product';
 import { Product, UpdateProductRequest, StockAdjustmentRequest } from '@/types/product';
+import { formatNumber } from '@/utils/format';
 
 export default function ProductDetailPage() {
   const router = useRouter();
@@ -191,7 +192,7 @@ export default function ProductDetailPage() {
 
             <div className="flex space-x-2">
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push('/products')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               >
                 {t('common.back', { ns: 'common' })}
@@ -324,11 +325,11 @@ export default function ProductDetailPage() {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">{t('products.form.sellingPrice')}</label>
-                        <p className="mt-1 text-gray-900 text-lg font-bold">${product.selling_price.toFixed(2)}</p>
+                        <p className="mt-1 text-gray-900 text-lg font-bold">{formatNumber(product.selling_price)}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">{t('products.form.costPrice')}</label>
-                        <p className="mt-1 text-gray-900">${product.cost_price.toFixed(2)}</p>
+                        <p className="mt-1 text-gray-900">{formatNumber(product.cost_price)}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">{t('products.form.taxRate')}</label>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/provider';
 import productService from '@/services/product';
 import { Product, ProductListParams } from '@/types/product';
+import { formatNumber } from '@/utils/format';
 
 interface ProductListProps {
   categoryFilter?: string;
@@ -199,7 +200,7 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
 
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-bold text-gray-900">
-                      ${product.selling_price.toFixed(2)}
+                      {formatNumber(product.selling_price, 0)}
                     </span>
                     <span className={`px-2 py-1 text-xs font-medium rounded ${stockStatus.className}`}>
                       {stockStatus.label}

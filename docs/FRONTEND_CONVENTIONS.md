@@ -474,6 +474,115 @@ class ProductService {
 
 ---
 
+## 💰 Number and Currency Formatting
+
+### Utility Functions (`/src/utils/format.ts`)
+
+**Available formatters:**
+```typescript
+// Format with thousand separators (no currency symbol)
+formatNumber(value: number, decimals?: number): string
+
+// Compact format for large numbers (1.2M, 3.5B)
+formatCompactNumber(value: number, decimals?: number): string
+
+// Responsive format (full on desktop, compact on mobile)
+formatResponsiveNumber(value: number, isMobile?: boolean, decimals?: number): string
+
+// Parse formatted string back to number
+parseFormattedNumber(value: string): number
+```
+
+### Display Formatting (Read-only)
+
+**For prices and monetary values:**
+```typescript
+import { formatNumber } from '@/utils/format';
+
+// Display price without decimals (whole numbers)
+<span>{formatNumber(product.selling_price, 0)}</span>
+// Output: 1,250,000
+
+// Display with 2 decimals if needed
+<span>{formatNumber(product.cost, 2)}</span>
+// Output: 1,250,000.50
+```
+
+**For large inventory values (responsive):**
+```typescript
+import { formatNumber, formatCompactNumber } from '@/utils/format';
+
+// Desktop: full number, Mobile: compact
+<span className="text-3xl font-bold">
+  <span className="hidden sm:inline">{formatNumber(totalValue, 0)}</span>
+  <span className="sm:hidden">{formatCompactNumber(totalValue)}</span>
+</span>
+// Desktop: 1,250,000,000
+// Mobile: 1.3B
+```
+
+### Input Field Formatting (Editable)
+
+**For form inputs with live formatting:**
+```typescript
+import { formatNumber, parseFormattedNumber } from '@/utils/format';
+
+const [formData, setFormData] = useState({ price: '' });
+const [displayPrice, setDisplayPrice] = useState('');
+
+// On input change - allow typing
+const handlePriceChange = (value: string) => {
+  const cleaned = value.replace(/,/g, ''); // Remove commas for storage
+  setFormData({ ...formData, price: cleaned });
+  setDisplayPrice(value); // Keep user's input
+};
+
+// On blur - format the number
+const handlePriceBlur = () => {
+  const value = parseFloat(formData.price);
+  if (!isNaN(value)) {
+    setDisplayPrice(formatNumber(value, 0));
+  }
+};
+
+// In JSX
+<input
+  type="text"
+  value={displayPrice}
+  onChange={(e) => handlePriceChange(e.target.value)}
+  onBlur={handlePriceBlur}
+  placeholder="0"
+/>
+```
+
+### Rules & Best Practices
+
+1. **NO currency symbols** - Remove Rp, $, etc. for now
+2. **Use thousand separators** - Always format numbers ≥1,000
+3. **No decimals for prices** - Indonesian Rupiah doesn't use cents
+4. **Responsive large numbers** - Use compact format on mobile (1.2M vs 1,200,000)
+5. **Separate storage from display**:
+   - Store: raw numbers without formatting
+   - Display: formatted with separators
+6. **Input fields**: Format on blur, not on every keystroke
+7. **Consistency**: Use same decimals across similar fields
+
+### Examples
+
+```typescript
+// ✅ Correct
+{formatNumber(1234567, 0)}           // "1,234,567"
+{formatCompactNumber(1234567)}       // "1.2M"
+{formatNumber(totalValue, 0)}        // "1,250,000"
+
+// ❌ Incorrect
+{product.price}                      // 1250000 (no separators)
+Rp {formatNumber(price, 0)}          // Rp 1,250,000 (no currency yet)
+{formatNumber(price, 2)}             // 1,250,000.00 (unnecessary decimals)
+```
+
+---
+
 ## ✅ Summary Checklist
 
 When implementing a new feature:

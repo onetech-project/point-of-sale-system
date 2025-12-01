@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import productService from '@/services/product';
 import { InventorySummary } from '@/types/product';
+import { formatNumber, formatCompactNumber } from '@/utils/format';
 
 const InventoryDashboard: React.FC = () => {
   const [summary, setSummary] = useState<InventorySummary | null>(null);
@@ -77,7 +78,8 @@ const InventoryDashboard: React.FC = () => {
     },
     {
       title: 'Total Inventory Value',
-      value: `$${summary.total_value.toFixed(2)}`,
+      value: formatNumber(summary.total_value, 0),
+      compactValue: formatCompactNumber(summary.total_value),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -135,7 +137,11 @@ const InventoryDashboard: React.FC = () => {
               {card.icon}
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+          {/* Show compact value on small screens, full value on larger screens */}
+          <p className="text-3xl font-bold text-gray-900">
+            <span className="hidden sm:inline">{card.value}</span>
+            <span className="sm:hidden">{card.compactValue || card.value}</span>
+          </p>
         </div>
       ))}
     </div>
