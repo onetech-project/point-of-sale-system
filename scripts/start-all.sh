@@ -43,6 +43,9 @@ else
             notification|notification-service)
                 TARGET_SERVICES+=("notification")
                 ;;
+            product|product-service)
+                TARGET_SERVICES+=("product")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -58,6 +61,7 @@ else
                 echo "  user             - User Service"
                 echo "  tenant           - Tenant Service"
                 echo "  notification     - Notification Service"
+                echo "  product          - Product Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -104,7 +108,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -122,6 +126,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "notification"; then
         services_to_check+=("backend/notification-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "product"; then
+        services_to_check+=("backend/product-service/.env")
     fi
 
     missing_files=false
@@ -146,7 +153,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
@@ -179,23 +186,26 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then
-        cd "$PROJECT_ROOT/api-gateway" && go build -o api-gateway main.go &
+        cd "$PROJECT_ROOT/api-gateway" && go build -o api-gateway.bin main.go &
     fi
     if [ "$START_ALL" = true ] || should_start_service "auth"; then
-        cd "$PROJECT_ROOT/backend/auth-service" && go build -o auth-service main.go &
+        cd "$PROJECT_ROOT/backend/auth-service" && go build -o auth-service.bin main.go &
     fi
     if [ "$START_ALL" = true ] || should_start_service "tenant"; then
-        cd "$PROJECT_ROOT/backend/tenant-service" && go build -o tenant-service main.go &
+        cd "$PROJECT_ROOT/backend/tenant-service" && go build -o tenant-service.bin main.go &
     fi
     if [ "$START_ALL" = true ] || should_start_service "user"; then
-        cd "$PROJECT_ROOT/backend/user-service" && go build -o user-service main.go &
+        cd "$PROJECT_ROOT/backend/user-service" && go build -o user-service.bin main.go &
     fi
     if [ "$START_ALL" = true ] || should_start_service "notification"; then
-        cd "$PROJECT_ROOT/backend/notification-service" && go build -o notification-service main.go &
+        cd "$PROJECT_ROOT/backend/notification-service" && go build -o notification-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "product"; then
+        cd "$PROJECT_ROOT/backend/product-service" && go build -o product-service.bin main.go &
     fi
     
     wait
@@ -220,7 +230,7 @@ start_service_with_env() {
         export $(grep -v '^#' .env | xargs)
     fi
     
-    ./"$binary_name" > "$log_file" 2>&1 &
+    ./"$binary_name".bin > "$log_file" 2>&1 &
     local pid=$!
     echo "✅ $service_name started (PID: $pid)"
     
@@ -250,6 +260,10 @@ fi
 
 if [ "$START_ALL" = true ] || should_start_service "notification"; then
     start_service_with_env "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log"
+fi
+
+if [ "$START_ALL" = true ] || should_start_service "product"; then
+    start_service_with_env "Product Service" "$PROJECT_ROOT/backend/product-service" "product-service" "/tmp/product-service.log"
 fi
 
 # Wait a moment for services to start
@@ -285,6 +299,7 @@ echo "   Auth Service:         http://localhost:${AUTH_SERVICE_PORT:-8082}"
 echo "   User Service:         http://localhost:${USER_SERVICE_PORT:-8083}"
 echo "   Tenant Service:       http://localhost:${TENANT_SERVICE_PORT:-8084}"
 echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}"
+echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
 echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
@@ -293,6 +308,7 @@ echo "   curl http://localhost:${AUTH_SERVICE_PORT:-8082}/health"
 echo "   curl http://localhost:${USER_SERVICE_PORT:-8083}/health"
 echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
 echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
+echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
@@ -300,6 +316,7 @@ echo "   tail -f /tmp/auth-service.log"
 echo "   tail -f /tmp/user-service.log"
 echo "   tail -f /tmp/tenant-service.log"
 echo "   tail -f /tmp/notification-service.log"
+echo "   tail -f /tmp/product-service.log"
 echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"

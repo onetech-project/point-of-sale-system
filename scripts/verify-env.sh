@@ -27,6 +27,7 @@ files=(
     "backend/user-service/.env"
     "backend/tenant-service/.env"
     "backend/notification-service/.env"
+    "backend/product-service/.env"
     "frontend/.env.local"
 )
 

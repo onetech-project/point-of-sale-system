@@ -63,6 +63,14 @@ func main() {
 	// All authenticated users can list invitations
 	protected.GET("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
 
+	// Product service routes - only owner and manager can manage products
+	productServiceURL := getEnv("PRODUCT_SERVICE_URL", "http://localhost:8086")
+	productGroup := protected.Group("")
+	productGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	productGroup.Any("/api/v1/products*", proxyWildcard(productServiceURL))
+	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
+	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+
 	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
@@ -110,4 +118,38 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func proxyWildcard(targetURL string) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		target, err := url.Parse(targetURL)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "Service configuration error",
+			})
+		}
+
+		proxy := httputil.NewSingleHostReverseProxy(target)
+
+		proxy.Director = func(req *http.Request) {
+			req.Host = target.Host
+			req.URL.Scheme = target.Scheme
+			req.URL.Host = target.Host
+			
+			// Preserve authentication headers from TenantScope middleware
+			if tenantID := c.Request().Header.Get("X-Tenant-ID"); tenantID != "" {
+				req.Header.Set("X-Tenant-ID", tenantID)
+			}
+			if userID := c.Request().Header.Get("X-User-ID"); userID != "" {
+				req.Header.Set("X-User-ID", userID)
+			}
+			if role := c.Request().Header.Get("X-User-Role"); role != "" {
+				req.Header.Set("X-User-Role", role)
+			}
+		}
+
+		proxy.ServeHTTP(c.Response(), c.Request())
+
+		return nil
+	}
 }

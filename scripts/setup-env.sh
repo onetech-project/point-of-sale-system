@@ -63,6 +63,15 @@ else
     echo "✓ backend/notification-service/.env already exists"
 fi
 
+# Product Service
+if [ ! -f "backend/product-service/.env" ]; then
+    echo "Creating backend/product-service/.env file..."
+    cp backend/product-service/.env.example backend/product-service/.env
+    echo "✓ Created backend/product-service/.env"
+else
+    echo "✓ backend/product-service/.env already exists"
+fi
+
 # Frontend
 if [ ! -f "frontend/.env.local" ]; then
     echo "Creating frontend/.env.local file..."
@@ -85,6 +94,7 @@ echo "  - backend/auth-service/.env (JWT secret must match)"
 echo "  - backend/user-service/.env (email configuration)"
 echo "  - backend/tenant-service/.env"
 echo "  - backend/notification-service/.env (email, SMS, Kafka)"
+echo "  - backend/product-service/.env"
 echo "  - frontend/.env.local (API URL)"
 echo ""
 echo "📖 For detailed configuration instructions, see: docs/ENVIRONMENT.md"
