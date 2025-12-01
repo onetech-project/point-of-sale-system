@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -9,7 +11,10 @@ func TenantScope() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			tenantID := c.Get("tenant_id")
 			if tenantID == nil {
-				c.Logger().Warn("Request processed without tenant_id in context")
+				c.Logger().Error("Request processed without tenant_id in context")
+				return c.JSON(http.StatusUnauthorized, map[string]string{
+					"error": "Tenant context not found",
+				})
 			}
 
 			c.Request().Header.Set("X-Tenant-ID", tenantID.(string))

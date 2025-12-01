@@ -1,0 +1,151 @@
+{
+  "products": {
+    "title": "Produk",
+    "subtitle": "Kelola katalog produk dan inventori Anda",
+    "addProduct": "Tambah Produk",
+    "editProduct": "Edit Produk",
+    "deleteProduct": "Hapus Produk",
+    "archiveProduct": "Arsipkan Produk",
+    "restoreProduct": "Pulihkan Produk",
+    "viewProduct": "Lihat Produk",
+    "noProducts": "Tidak ada produk",
+    "createFirst": "Buat produk pertama Anda untuk memulai",
+    
+    "list": {
+      "search": "Cari produk...",
+      "filter": "Filter",
+      "category": "Kategori",
+      "allCategories": "Semua Kategori",
+      "showArchived": "Tampilkan Arsip",
+      "lowStock": "Stok Rendah",
+      "outOfStock": "Stok Habis",
+      "inStock": "Tersedia",
+      "archived": "Diarsipkan"
+    },
+    
+    "form": {
+      "name": "Nama Produk",
+      "namePlaceholder": "Masukkan nama produk",
+      "sku": "SKU / Barcode",
+      "skuPlaceholder": "Masukkan SKU atau barcode",
+      "category": "Kategori",
+      "selectCategory": "Pilih kategori",
+      "description": "Deskripsi",
+      "descriptionPlaceholder": "Masukkan deskripsi produk (opsional)",
+      "sellingPrice": "Harga Jual",
+      "costPrice": "Harga Modal",
+      "taxRate": "Tarif Pajak (%)",
+      "stockQuantity": "Jumlah Stok",
+      "photo": "Foto Produk",
+      "uploadPhoto": "Unggah Foto",
+      "changePhoto": "Ubah Foto",
+      "deletePhoto": "Hapus Foto",
+      "maxFileSize": "Ukuran maks: 5MB. Format: JPEG, PNG, WebP"
+    },
+    
+    "details": {
+      "information": "Informasi Produk",
+      "pricing": "Harga",
+      "inventory": "Inventori",
+      "stockStatus": "Status Stok",
+      "currentStock": "Stok Saat Ini",
+      "margin": "Margin",
+      "lastUpdated": "Terakhir Diperbarui",
+      "createdAt": "Dibuat"
+    },
+    
+    "actions": {
+      "manageCategories": "Kelola Kategori",
+      "adjustStock": "Sesuaikan Stok",
+      "viewHistory": "Lihat Riwayat",
+      "duplicate": "Duplikat",
+      "export": "Ekspor"
+    },
+    
+    "inventory": {
+      "dashboard": "Dasbor Inventori",
+      "summary": "Ringkasan",
+      "totalProducts": "Total Produk",
+      "lowStockItems": "Barang Stok Rendah",
+      "outOfStockItems": "Barang Stok Habis",
+      "totalValue": "Total Nilai Inventori",
+      "adjustments": "Penyesuaian Stok",
+      "adjustStock": "Sesuaikan Stok",
+      "reason": "Alasan",
+      "quantity": "Jumlah",
+      "newQuantity": "Jumlah Baru",
+      "adjustment": "Penyesuaian",
+      "adjustmentReasons": {
+        "supplier_delivery": "Pengiriman Supplier",
+        "physical_count": "Perhitungan Fisik",
+        "shrinkage": "Penyusutan",
+        "damage": "Kerusakan",
+        "return": "Pengembalian",
+        "correction": "Koreksi",
+        "sale": "Penjualan"
+      }
+    },
+    
+    "categories": {
+      "title": "Kategori",
+      "subtitle": "Kelola kategori produk untuk organisasi yang lebih baik",
+      "addCategory": "Tambah Kategori",
+      "editCategory": "Edit Kategori",
+      "deleteCategory": "Hapus Kategori",
+      "noCategories": "Belum ada kategori",
+      "createFirst": "Buat kategori pertama untuk mengorganisir produk",
+      "name": "Nama Kategori",
+      "namePlaceholder": "Masukkan nama kategori",
+      "displayOrder": "Urutan Tampilan",
+      "displayOrderPlaceholder": "Masukkan urutan tampilan (0-999)",
+      "productsCount": "Produk"
+    },
+    
+    "messages": {
+      "createSuccess": "Produk berhasil dibuat",
+      "updateSuccess": "Produk berhasil diperbarui",
+      "deleteSuccess": "Produk berhasil dihapus",
+      "archiveSuccess": "Produk berhasil diarsipkan",
+      "restoreSuccess": "Produk berhasil dipulihkan",
+      "photoUploadSuccess": "Foto berhasil diunggah",
+      "photoDeleteSuccess": "Foto berhasil dihapus",
+      "stockAdjustSuccess": "Stok berhasil disesuaikan",
+      "categoryCreateSuccess": "Kategori berhasil dibuat",
+      "categoryUpdateSuccess": "Kategori berhasil diperbarui",
+      "categoryDeleteSuccess": "Kategori berhasil dihapus",
+      "createError": "Gagal membuat produk",
+      "updateError": "Gagal memperbarui produk",
+      "deleteError": "Gagal menghapus produk",
+      "deleteProtected": "Tidak dapat menghapus produk yang memiliki riwayat penjualan",
+      "loadError": "Gagal memuat produk",
+      "photoUploadError": "Gagal mengunggah foto",
+      "stockAdjustError": "Gagal menyesuaikan stok",
+      "categoryError": "Gagal mengelola kategori",
+      "categoryHasProducts": "Tidak dapat menghapus kategori yang memiliki produk"
+    },
+    
+    "validation": {
+      "nameRequired": "Nama produk wajib diisi",
+      "nameTooLong": "Nama produk terlalu panjang",
+      "skuRequired": "SKU wajib diisi",
+      "skuExists": "SKU sudah ada",
+      "categoryRequired": "Kategori wajib diisi",
+      "priceRequired": "Harga wajib diisi",
+      "priceInvalid": "Harga harus berupa angka positif",
+      "taxRateInvalid": "Tarif pajak harus antara 0 dan 100",
+      "stockRequired": "Jumlah stok wajib diisi",
+      "stockInvalid": "Jumlah stok harus berupa angka",
+      "photoTooLarge": "Ukuran foto harus kurang dari 5MB",
+      "photoInvalidFormat": "Foto harus dalam format JPEG, PNG, atau WebP"
+    },
+    
+    "confirm": {
+      "delete": "Apakah Anda yakin ingin menghapus produk ini?",
+      "deleteWarning": "Tindakan ini tidak dapat dibatalkan.",
+      "archive": "Apakah Anda yakin ingin mengarsipkan produk ini?",
+      "deletePhoto": "Apakah Anda yakin ingin menghapus foto ini?",
+      "deleteCategory": "Apakah Anda yakin ingin menghapus kategori ini?",
+      "deleteCategoryWarning": "Produk dalam kategori ini akan menjadi tanpa kategori."
+    }
+  }
+}

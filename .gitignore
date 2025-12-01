@@ -10,16 +10,8 @@ go.work
 vendor/
 *.prof
 
-# Go build binaries
-backend/auth-service/auth-service
-backend/user-service/user-service
-backend/tenant-service/tenant-service
-backend/notification-service/notification-service
-api-gateway/api-gateway
-**/auth-service
-**/user-service
-**/tenant-service
-**/notification-service
+# Go build binaries (*.bin extension)
+*.bin
 
 # Frontend (Node.js/Next.js)
 node_modules/
@@ -74,6 +66,10 @@ temp/
 *.tmp
 *.bak
 *.backup
+
+# Uploads
+uploads/
+backend/product-service/uploads/
 
 # Docker
 .docker/
