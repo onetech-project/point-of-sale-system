@@ -55,11 +55,11 @@ class ErrorBoundary extends Component<Props, State> {
                   />
                 </svg>
               </div>
-              
+
               <h2 className="mt-4 text-center text-xl font-semibold text-gray-900">
                 Something went wrong
               </h2>
-              
+
               <p className="mt-2 text-center text-sm text-gray-600">
                 We're sorry, but something unexpected happened. Please try again.
               </p>
@@ -80,7 +80,7 @@ class ErrorBoundary extends Component<Props, State> {
                   Try Again
                 </button>
                 <button
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => (window.location.href = '/')}
                   className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Go to Home

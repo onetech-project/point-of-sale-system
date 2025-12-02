@@ -35,7 +35,7 @@ export const authService = {
         email: data.email,
         password: data.password,
         first_name: data.ownerProfile?.firstName || '',
-        last_name: data.ownerProfile?.lastName || ''
+        last_name: data.ownerProfile?.lastName || '',
       });
 
       return response;
@@ -51,7 +51,7 @@ export const authService = {
     try {
       const response = await apiClient.post<UserSession>('/api/auth/login', {
         email: credentials.email,
-        password: credentials.password
+        password: credentials.password,
       });
 
       // Token is stored in HTTP-only cookie by backend, no need to store manually
@@ -129,7 +129,7 @@ export const authService = {
       }
       throw new Error('Failed to reset password. Please try again.');
     }
-  }
+  },
 };
 
 export default authService;

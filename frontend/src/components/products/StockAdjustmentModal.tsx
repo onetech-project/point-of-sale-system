@@ -58,7 +58,10 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose}></div>
+        <div
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          onClick={onClose}
+        ></div>
 
         <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
           <div className="p-6">
@@ -66,12 +69,14 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">
                 {t('products.actions.adjustStock')}
               </h3>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-500"
-              >
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -79,7 +84,9 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             <div className="mb-4">
               <p className="text-sm text-gray-600">{productName}</p>
               <p className="text-sm text-gray-500">
-                {t('products.details.currentStock')}: <span className="font-medium">{currentStock}</span> {t('common.units', { ns: 'common' })}
+                {t('products.details.currentStock')}:{' '}
+                <span className="font-medium">{currentStock}</span>{' '}
+                {t('common.units', { ns: 'common' })}
               </p>
             </div>
 
@@ -91,21 +98,27 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="new_quantity" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="new_quantity"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   {t('products.inventory.newQuantity')} *
                 </label>
                 <input
                   type="number"
                   id="new_quantity"
                   value={formData.new_quantity}
-                  onChange={(e) => setFormData({ ...formData, new_quantity: e.target.value })}
+                  onChange={e => setFormData({ ...formData, new_quantity: e.target.value })}
                   min="0"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
                 {!isNaN(quantityDelta) && (
-                  <p className={`mt-1 text-sm ${quantityDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {t('products.inventory.adjustment')}: {quantityDelta >= 0 ? '+' : ''}{quantityDelta} {t('common.units', { ns: 'common' })}
+                  <p
+                    className={`mt-1 text-sm ${quantityDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  >
+                    {t('products.inventory.adjustment')}: {quantityDelta >= 0 ? '+' : ''}
+                    {quantityDelta} {t('common.units', { ns: 'common' })}
                   </p>
                 )}
               </div>
@@ -117,16 +130,26 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 <select
                   id="reason"
                   value={formData.reason}
-                  onChange={(e) => setFormData({ ...formData, reason: e.target.value as StockAdjustmentReason })}
+                  onChange={e =>
+                    setFormData({ ...formData, reason: e.target.value as StockAdjustmentReason })
+                  }
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
-                  <option value="supplier_delivery">{t('products.inventory.adjustmentReasons.supplier_delivery')}</option>
-                  <option value="physical_count">{t('products.inventory.adjustmentReasons.physical_count')}</option>
-                  <option value="shrinkage">{t('products.inventory.adjustmentReasons.shrinkage')}</option>
+                  <option value="supplier_delivery">
+                    {t('products.inventory.adjustmentReasons.supplier_delivery')}
+                  </option>
+                  <option value="physical_count">
+                    {t('products.inventory.adjustmentReasons.physical_count')}
+                  </option>
+                  <option value="shrinkage">
+                    {t('products.inventory.adjustmentReasons.shrinkage')}
+                  </option>
                   <option value="damage">{t('products.inventory.adjustmentReasons.damage')}</option>
                   <option value="return">{t('products.inventory.adjustmentReasons.return')}</option>
-                  <option value="correction">{t('products.inventory.adjustmentReasons.correction')}</option>
+                  <option value="correction">
+                    {t('products.inventory.adjustmentReasons.correction')}
+                  </option>
                 </select>
               </div>
 
@@ -137,7 +160,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 <textarea
                   id="notes"
                   value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder={t('common.notesPlaceholder', { ns: 'common' })}
@@ -158,7 +181,9 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                   disabled={isSubmitting}
                   className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {isSubmitting ? t('common.saving', { ns: 'common' }) : t('common.save', { ns: 'common' })}
+                  {isSubmitting
+                    ? t('common.saving', { ns: 'common' })
+                    : t('common.save', { ns: 'common' })}
                 </button>
               </div>
             </form>

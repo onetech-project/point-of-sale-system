@@ -17,13 +17,9 @@ export default function Footer() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xl">P</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">
-                {t('common.appName')}
-              </span>
+              <span className="text-xl font-bold text-gray-900">{t('common.appName')}</span>
             </div>
-            <p className="text-gray-600 text-sm max-w-md">
-              {t('common.footer.description')}
-            </p>
+            <p className="text-gray-600 text-sm max-w-md">{t('common.footer.description')}</p>
           </div>
 
           <div>
@@ -32,17 +28,26 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/features" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/features"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.features')}
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/pricing"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.pricing')}
                 </Link>
               </li>
               <li>
-                <Link href="/docs" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/docs"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.documentation')}
                 </Link>
               </li>
@@ -55,17 +60,26 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/help" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/help"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.helpCenter')}
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/contact"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.contact')}
                 </Link>
               </li>
               <li>
-                <Link href="/privacy" className="text-gray-600 hover:text-primary-600 text-sm transition-colors">
+                <Link
+                  href="/privacy"
+                  className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
+                >
                   {t('common.footer.privacy')}
                 </Link>
               </li>

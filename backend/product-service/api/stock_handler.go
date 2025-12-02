@@ -182,7 +182,7 @@ func (h *StockHandler) GetAllAdjustments(c echo.Context) error {
 	}
 
 	filters := make(map[string]interface{})
-	
+
 	if reason != "" {
 		filters["reason"] = reason
 	}

@@ -46,9 +46,7 @@ export default function Header() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xl">P</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">
-                {t('common.appName')}
-              </span>
+              <span className="text-xl font-bold text-gray-900">{t('common.appName')}</span>
             </Link>
           </div>
 
@@ -66,21 +64,14 @@ export default function Header() {
                       {getUserDisplayName().charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    {getUserDisplayName()}
-                  </span>
+                  <span className="text-sm font-medium text-gray-700">{getUserDisplayName()}</span>
                 </button>
                 <button
                   onClick={handleLogout}
                   className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title={t('common.logout')}
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -131,9 +122,7 @@ export default function Header() {
           <div className="fixed top-0 right-0 h-full w-64 bg-white shadow-lg z-50 md:hidden transform transition-transform">
             <div className="p-4">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {t('common.menu')}
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900">{t('common.menu')}</h2>
                 <button
                   onClick={() => setIsDrawerOpen(false)}
                   className="p-2 rounded-lg hover:bg-gray-100"
@@ -169,9 +158,7 @@ export default function Header() {
                     </span>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-gray-900">
-                      {getUserDisplayName()}
-                    </p>
+                    <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
                     <p className="text-xs text-gray-500">{t('common.viewProfile')}</p>
                   </div>
                 </button>
@@ -180,12 +167,7 @@ export default function Header() {
                   onClick={handleLogout}
                   className="w-full flex items-center space-x-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"

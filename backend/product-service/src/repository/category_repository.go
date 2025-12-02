@@ -31,7 +31,7 @@ func (r *categoryRepository) Create(ctx context.Context, category *models.Catego
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	return r.db.QueryRowContext(
 		ctx, query,
 		category.TenantID, category.Name, category.DisplayOrder,

@@ -36,13 +36,8 @@ export default function PasswordResetRequestForm() {
         <h3 className="text-lg font-semibold text-green-600 mb-4">
           {t('auth.forgotPassword.emailSent')}
         </h3>
-        <p className="text-gray-600 mb-6">
-          {t('auth.forgotPassword.checkEmail')}
-        </p>
-        <Button
-          variant="secondary"
-          onClick={() => router.push('/login')}
-        >
+        <p className="text-gray-600 mb-6">{t('auth.forgotPassword.checkEmail')}</p>
+        <Button variant="secondary" onClick={() => router.push('/login')}>
           {t('auth.forgotPassword.backToLogin')}
         </Button>
       </div>
@@ -52,9 +47,7 @@ export default function PasswordResetRequestForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <p className="text-gray-600 mb-4">
-          {t('auth.forgotPassword.instructions')}
-        </p>
+        <p className="text-gray-600 mb-4">{t('auth.forgotPassword.instructions')}</p>
       </div>
 
       {error && (
@@ -67,18 +60,13 @@ export default function PasswordResetRequestForm() {
         type="email"
         label={t('auth.login.email')}
         value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        onChange={e => setEmail(e.target.value)}
         required
         placeholder={t('auth.signup.emailPlaceholder')}
         disabled={loading}
       />
 
-      <Button
-        type="submit"
-        disabled={loading}
-        isLoading={loading}
-        className="w-full"
-      >
+      <Button type="submit" disabled={loading} isLoading={loading} className="w-full">
         {loading ? t('auth.forgotPassword.sending') : t('auth.forgotPassword.sendResetLink')}
       </Button>
 

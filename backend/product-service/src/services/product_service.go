@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,11 +14,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/pos/backend/product-service/src/models"
 	"github.com/pos/backend/product-service/src/repository"
+	"github.com/pos/backend/product-service/src/utils"
 )
 
 type ProductService struct {
-	repo     repository.ProductRepository
-	uploadDir string
+	repo           repository.ProductRepository
+	uploadDir      string
 	maxPhotoSizeMB int
 }
 
@@ -26,28 +28,38 @@ func NewProductService(repo repository.ProductRepository) *ProductService {
 	if uploadDir == "" {
 		uploadDir = "./uploads"
 	}
-	
+
 	return &ProductService{
-		repo:     repo,
-		uploadDir: uploadDir,
+		repo:           repo,
+		uploadDir:      uploadDir,
 		maxPhotoSizeMB: 5,
 	}
 }
 
 func (s *ProductService) CreateProduct(ctx context.Context, product *models.Product) error {
+	utils.Log.Info("Creating product: name=%s, sku=%s", product.Name, product.SKU)
+
 	existing, err := s.repo.FindAll(ctx, map[string]interface{}{"search": product.SKU}, 1, 0)
 	if err != nil {
+		utils.Log.Error("Failed to check SKU uniqueness: %v", err)
 		return err
 	}
 	if len(existing) > 0 {
 		for _, p := range existing {
 			if p.SKU == product.SKU {
+				utils.Log.Warn("SKU already exists: %s", product.SKU)
 				return fmt.Errorf("SKU already exists")
 			}
 		}
 	}
 
-	return s.repo.Create(ctx, product)
+	if err := s.repo.Create(ctx, product); err != nil {
+		utils.Log.Error("Failed to create product: %v", err)
+		return err
+	}
+
+	utils.Log.Info("Product created successfully: id=%s, name=%s", product.ID, product.Name)
+	return nil
 }
 
 func (s *ProductService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
@@ -69,47 +81,85 @@ func (s *ProductService) GetProducts(ctx context.Context, filters map[string]int
 }
 
 func (s *ProductService) UpdateProduct(ctx context.Context, product *models.Product) error {
+	utils.Log.Info("Updating product: id=%s, name=%s", product.ID, product.Name)
+
 	existing, err := s.repo.FindByID(ctx, product.ID)
 	if err != nil {
+		utils.Log.Error("Failed to find product for update: id=%s, error=%v", product.ID, err)
 		return err
 	}
 	if existing == nil {
+		utils.Log.Warn("Product not found for update: id=%s", product.ID)
 		return fmt.Errorf("product not found")
 	}
 
 	if existing.SKU != product.SKU {
 		allProducts, err := s.repo.FindAll(ctx, map[string]interface{}{}, 10000, 0)
 		if err != nil {
+			utils.Log.Error("Failed to check SKU uniqueness: %v", err)
 			return err
 		}
 		for _, p := range allProducts {
 			if p.SKU == product.SKU && p.ID != product.ID {
+				utils.Log.Warn("SKU already exists: %s", product.SKU)
 				return fmt.Errorf("SKU already exists")
 			}
 		}
 	}
 
-	return s.repo.Update(ctx, product)
+	if err := s.repo.Update(ctx, product); err != nil {
+		utils.Log.Error("Failed to update product: id=%s, error=%v", product.ID, err)
+		return err
+	}
+
+	utils.Log.Info("Product updated successfully: id=%s", product.ID)
+	return nil
 }
 
 func (s *ProductService) DeleteProduct(ctx context.Context, id uuid.UUID) error {
+	utils.Log.Info("Deleting product: id=%s", id)
+
 	hasSales, err := s.repo.HasSalesHistory(ctx, id)
 	if err != nil {
+		utils.Log.Error("Failed to check sales history: id=%s, error=%v", id, err)
 		return err
 	}
 	if hasSales {
+		utils.Log.Warn("Cannot delete product with sales history: id=%s", id)
 		return fmt.Errorf("cannot delete product with sales history")
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		utils.Log.Error("Failed to delete product: id=%s, error=%v", id, err)
+		return err
+	}
+
+	utils.Log.Info("Product deleted successfully: id=%s", id)
+	return nil
 }
 
 func (s *ProductService) ArchiveProduct(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Archive(ctx, id)
+	utils.Log.Info("Archiving product: id=%s", id)
+
+	if err := s.repo.Archive(ctx, id); err != nil {
+		utils.Log.Error("Failed to archive product: id=%s, error=%v", id, err)
+		return err
+	}
+
+	utils.Log.Info("Product archived successfully: id=%s", id)
+	return nil
 }
 
 func (s *ProductService) RestoreProduct(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Restore(ctx, id)
+	utils.Log.Info("Restoring product: id=%s", id)
+
+	if err := s.repo.Restore(ctx, id); err != nil {
+		utils.Log.Error("Failed to restore product: id=%s, error=%v", id, err)
+		return err
+	}
+
+	utils.Log.Info("Product restored successfully: id=%s", id)
+	return nil
 }
 
 func (s *ProductService) GetInventorySummary(ctx context.Context) (map[string]interface{}, error) {
@@ -133,7 +183,7 @@ func (s *ProductService) GetInventorySummary(ctx context.Context) (map[string]in
 		}
 		// Calculate total inventory value (cost price * quantity)
 		totalValue += p.CostPrice * float64(p.StockQuantity)
-		
+
 		// Track unique categories
 		if p.CategoryID != nil {
 			categoryMap[*p.CategoryID] = true
@@ -152,13 +202,65 @@ func (s *ProductService) GetInventorySummary(ctx context.Context) (map[string]in
 }
 
 func (s *ProductService) UploadPhoto(ctx context.Context, productID uuid.UUID, tenantID uuid.UUID, file multipart.File, header *multipart.FileHeader) error {
+	utils.Log.Info("Uploading photo for product: id=%s, filename=%s, size=%d", productID, header.Filename, header.Size)
+
+	// Security: Validate file size
 	if header.Size > int64(s.maxPhotoSizeMB*1024*1024) {
+		utils.Log.Warn("Photo size exceeds limit: size=%d, limit=%dMB", header.Size, s.maxPhotoSizeMB)
 		return fmt.Errorf("file size exceeds %dMB limit", s.maxPhotoSizeMB)
 	}
 
+	// Security: Validate file size is not zero
+	if header.Size == 0 {
+		utils.Log.Warn("Empty file uploaded")
+		return fmt.Errorf("file cannot be empty")
+	}
+
+	// Security: Validate file extension
 	ext := strings.ToLower(filepath.Ext(header.Filename))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" {
+	allowedExts := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".webp": true,
+	}
+	if !allowedExts[ext] {
+		utils.Log.Warn("Invalid photo format: %s", ext)
 		return fmt.Errorf("invalid file format, only JPEG, PNG, WebP allowed")
+	}
+
+	// Security: Sanitize filename to prevent directory traversal
+	sanitizedFilename := filepath.Base(header.Filename)
+	if sanitizedFilename != header.Filename {
+		utils.Log.Warn("Potentially malicious filename detected: %s", header.Filename)
+	}
+
+	// Security: Read first 512 bytes to detect actual MIME type
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		utils.Log.Error("Failed to read file for MIME detection: %v", err)
+		return fmt.Errorf("failed to read file")
+	}
+
+	// Security: Reset file pointer after reading
+	if seeker, ok := file.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, 0); err != nil {
+			utils.Log.Error("Failed to reset file pointer: %v", err)
+			return fmt.Errorf("failed to process file")
+		}
+	}
+
+	// Security: Validate MIME type matches extension
+	mimeType := http.DetectContentType(buffer[:n])
+	validMimeTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+	if !validMimeTypes[mimeType] {
+		utils.Log.Warn("Invalid MIME type detected: %s (expected image type)", mimeType)
+		return fmt.Errorf("invalid file content, must be a valid image file")
 	}
 
 	uploadPath := filepath.Join(s.uploadDir, tenantID.String(), productID.String())
@@ -190,7 +292,7 @@ func (s *ProductService) UploadPhoto(ctx context.Context, productID uuid.UUID, t
 	}
 
 	relativePath := filepath.Join("uploads", tenantID.String(), productID.String(), filename)
-	
+
 	product, err := s.repo.FindByID(ctx, productID)
 	if err != nil {
 		return err
@@ -208,7 +310,13 @@ func (s *ProductService) UploadPhoto(ctx context.Context, productID uuid.UUID, t
 	product.PhotoPath = &relativePath
 	product.PhotoSize = &photoSize
 
-	return s.repo.Update(ctx, product)
+	if err := s.repo.Update(ctx, product); err != nil {
+		utils.Log.Error("Failed to update product with photo path: id=%s, error=%v", productID, err)
+		return err
+	}
+
+	utils.Log.Info("Photo uploaded successfully: product_id=%s, path=%s", productID, relativePath)
+	return nil
 }
 
 func (s *ProductService) GetPhotoPath(ctx context.Context, productID uuid.UUID, tenantID uuid.UUID) (string, error) {
@@ -225,7 +333,7 @@ func (s *ProductService) GetPhotoPath(ctx context.Context, productID uuid.UUID, 
 
 	// Convert relative path to absolute path
 	absolutePath := filepath.Join(s.uploadDir, tenantID.String(), productID.String(), filepath.Base(*product.PhotoPath))
-	
+
 	// Verify file exists
 	if _, err := os.Stat(absolutePath); os.IsNotExist(err) {
 		return "", fmt.Errorf("photo file not found")

@@ -110,7 +110,7 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             placeholder={t('products.list.search')}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
@@ -127,7 +127,7 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
             <input
               type="checkbox"
               checked={lowStockOnly}
-              onChange={(e) => {
+              onChange={e => {
                 setLowStockOnly(e.target.checked);
                 setPage(1);
               }}
@@ -145,75 +145,80 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {products && products.map((product) => {
-            const stockStatus = getStockStatus(product.stock_quantity);
-            return (
-              <div
-                key={product.id}
-                onClick={() => handleProductClick(product.id)}
-                className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              >
-                {/* Product Image */}
-                <div className="h-48 bg-gray-100 flex items-center justify-center">
-                  {product.photo_path ? (
-                    <img
-                      src={productService.getPhotoUrl(product.id)}
-                      alt={product.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-gray-400">
-                      <svg
-                        className="w-16 h-16"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-
-                {/* Product Details */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                      <p className="text-sm text-gray-500">{product.sku}</p>
-                    </div>
-                    {product.archived_at && (
-                      <span className="ml-2 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                        {t('products.list.archived')}
-                      </span>
+          {products &&
+            products.map(product => {
+              const stockStatus = getStockStatus(product.stock_quantity);
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => handleProductClick(product.id)}
+                  className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                >
+                  {/* Product Image */}
+                  <div className="h-48 bg-gray-100 flex items-center justify-center">
+                    {product.photo_path ? (
+                      <img
+                        src={productService.getPhotoUrl(product.id)}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-gray-400">
+                        <svg
+                          className="w-16 h-16"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
                     )}
                   </div>
 
-                  {product.category_name && (
-                    <p className="text-xs text-gray-500 mb-2">{product.category_name}</p>
-                  )}
+                  {/* Product Details */}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                        <p className="text-sm text-gray-500">{product.sku}</p>
+                      </div>
+                      {product.archived_at && (
+                        <span className="ml-2 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                          {t('products.list.archived')}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg font-bold text-gray-900">
-                      {formatNumber(product.selling_price, 0)}
-                    </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${stockStatus.className}`}>
-                      {stockStatus.label}
-                    </span>
-                  </div>
+                    {product.category_name && (
+                      <p className="text-xs text-gray-500 mb-2">{product.category_name}</p>
+                    )}
 
-                  <div className="text-sm text-gray-600">
-                    {t('products.form.stockQuantity')}: <span className="font-medium">{product.stock_quantity}</span> {t('common.units', { ns: 'common' })}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg font-bold text-gray-900">
+                        {formatNumber(product.selling_price, 0)}
+                      </span>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${stockStatus.className}`}
+                      >
+                        {stockStatus.label}
+                      </span>
+                    </div>
+
+                    <div className="text-sm text-gray-600">
+                      {t('products.form.stockQuantity')}:{' '}
+                      <span className="font-medium">{product.stock_quantity}</span>{' '}
+                      {t('common.units', { ns: 'common' })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       )}
 
@@ -221,17 +226,18 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
       {totalPages > 1 && (
         <div className="flex items-center justify-center space-x-2 pt-6">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
             className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('common.previous', { ns: 'common' })}
           </button>
           <span className="text-sm text-gray-600">
-            {t('common.page', { ns: 'common' })} {page} {t('common.of', { ns: 'common' })} {totalPages}
+            {t('common.page', { ns: 'common' })} {page} {t('common.of', { ns: 'common' })}{' '}
+            {totalPages}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >

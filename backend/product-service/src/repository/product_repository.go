@@ -39,7 +39,7 @@ func (r *productRepository) Create(ctx context.Context, product *models.Product)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	return r.db.QueryRowContext(
 		ctx, query,
 		product.TenantID, product.SKU, product.Name, product.Description, product.CategoryID,
@@ -56,7 +56,7 @@ func (r *productRepository) FindAll(ctx context.Context, filters map[string]inte
 		LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = p.tenant_id
 		WHERE 1=1
 	`
-	
+
 	args := []interface{}{}
 	argCount := 1
 
@@ -196,7 +196,7 @@ func (r *productRepository) HasSalesHistory(ctx context.Context, id uuid.UUID) (
 func (r *productRepository) Count(ctx context.Context, filters map[string]interface{}) (int, error) {
 	query := `SELECT COUNT(*) FROM products WHERE 1=1`
 	args := []interface{}{}
-	
+
 	if archived, ok := filters["archived"].(bool); ok {
 		if archived {
 			query += " AND archived_at IS NOT NULL"
@@ -228,7 +228,7 @@ func (r *productRepository) CreateStockAdjustment(ctx context.Context, adjustmen
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, quantity_delta, created_at
 	`
-	
+
 	return r.db.QueryRowContext(
 		ctx, query,
 		adjustment.TenantID, adjustment.ProductID, adjustment.UserID,

@@ -11,7 +11,7 @@ func TenantMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Try to get tenant ID from header first (set by API Gateway)
 		tenantID := c.Request().Header.Get("X-Tenant-ID")
-		
+
 		// Fallback to context if not in header
 		if tenantID == "" {
 			tenantIDCtx := c.Get("tenant_id")
@@ -19,7 +19,7 @@ func TenantMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 				tenantID = tenantIDCtx.(string)
 			}
 		}
-		
+
 		if tenantID == "" {
 			c.Logger().Error("Tenant ID not found in header or context")
 			c.Logger().Errorf("Headers: %v", c.Request().Header)

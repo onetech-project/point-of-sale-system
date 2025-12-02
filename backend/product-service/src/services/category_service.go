@@ -92,7 +92,7 @@ func (s *CategoryService) DeleteCategory(ctx context.Context, id uuid.UUID) erro
 	if hasProducts {
 		return fmt.Errorf("cannot delete category with assigned products")
 	}
-	
+
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}

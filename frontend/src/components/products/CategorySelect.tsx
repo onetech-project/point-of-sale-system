@@ -47,7 +47,7 @@ const CategorySelect: React.FC<CategorySelectProps> = ({
     <div className="w-full">
       <select
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         disabled={disabled || loading}
         required={required}
         className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -55,18 +55,14 @@ const CategorySelect: React.FC<CategorySelectProps> = ({
         } ${disabled || loading ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
       >
         <option value="">{loading ? 'Loading...' : placeholder}</option>
-        {categories.map((category) => (
+        {categories.map(category => (
           <option key={category.id} value={category.id}>
             {category.name}
           </option>
         ))}
       </select>
-      {fetchError && (
-        <p className="mt-1 text-sm text-red-600">{fetchError}</p>
-      )}
-      {error && !fetchError && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
-      )}
+      {fetchError && <p className="mt-1 text-sm text-red-600">{fetchError}</p>}
+      {error && !fetchError && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 };

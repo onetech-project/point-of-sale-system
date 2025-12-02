@@ -33,14 +33,14 @@ func (h *ProductHandler) RegisterRoutes(e *echo.Group) {
 }
 
 type CreateProductRequest struct {
-	SKU          string     `json:"sku" validate:"required,min=1,max=50"`
-	Name         string     `json:"name" validate:"required,min=1,max=255"`
-	Description  *string    `json:"description"`
-	CategoryID   *uuid.UUID `json:"category_id"`
-	SellingPrice float64    `json:"selling_price" validate:"required,gte=0"`
-	CostPrice    float64    `json:"cost_price" validate:"required,gte=0"`
-	TaxRate      float64    `json:"tax_rate" validate:"gte=0,lte=100"`
-	StockQuantity int       `json:"stock_quantity"`
+	SKU           string     `json:"sku" validate:"required,min=1,max=50"`
+	Name          string     `json:"name" validate:"required,min=1,max=255"`
+	Description   *string    `json:"description"`
+	CategoryID    *uuid.UUID `json:"category_id"`
+	SellingPrice  float64    `json:"selling_price" validate:"required,gte=0"`
+	CostPrice     float64    `json:"cost_price" validate:"required,gte=0"`
+	TaxRate       float64    `json:"tax_rate" validate:"gte=0,lte=100"`
+	StockQuantity int        `json:"stock_quantity"`
 }
 
 func (h *ProductHandler) CreateProduct(c echo.Context) error {
@@ -60,14 +60,14 @@ func (h *ProductHandler) CreateProduct(c echo.Context) error {
 	}
 
 	product := &models.Product{
-		TenantID:     tenantUUID,
-		SKU:          req.SKU,
-		Name:         req.Name,
-		Description:  req.Description,
-		CategoryID:   req.CategoryID,
-		SellingPrice: req.SellingPrice,
-		CostPrice:    req.CostPrice,
-		TaxRate:      req.TaxRate,
+		TenantID:      tenantUUID,
+		SKU:           req.SKU,
+		Name:          req.Name,
+		Description:   req.Description,
+		CategoryID:    req.CategoryID,
+		SellingPrice:  req.SellingPrice,
+		CostPrice:     req.CostPrice,
+		TaxRate:       req.TaxRate,
 		StockQuantity: req.StockQuantity,
 	}
 
@@ -189,18 +189,18 @@ func (h *ProductHandler) UpdateProduct(c echo.Context) error {
 	}
 
 	product := &models.Product{
-		ID:           id,
-		TenantID:     tenantUUID,
-		SKU:          req.SKU,
-		Name:         req.Name,
-		Description:  req.Description,
-		CategoryID:   req.CategoryID,
-		SellingPrice: req.SellingPrice,
-		CostPrice:    req.CostPrice,
-		TaxRate:      req.TaxRate,
+		ID:            id,
+		TenantID:      tenantUUID,
+		SKU:           req.SKU,
+		Name:          req.Name,
+		Description:   req.Description,
+		CategoryID:    req.CategoryID,
+		SellingPrice:  req.SellingPrice,
+		CostPrice:     req.CostPrice,
+		TaxRate:       req.TaxRate,
 		StockQuantity: existingProduct.StockQuantity, // Preserve existing stock
-		PhotoPath:    existingProduct.PhotoPath,      // Preserve existing photo
-		PhotoSize:    existingProduct.PhotoSize,      // Preserve existing photo size
+		PhotoPath:     existingProduct.PhotoPath,     // Preserve existing photo
+		PhotoSize:     existingProduct.PhotoSize,     // Preserve existing photo size
 	}
 
 	if err := h.service.UpdateProduct(c.Request().Context(), product); err != nil {

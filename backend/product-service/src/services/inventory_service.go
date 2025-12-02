@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pos/backend/product-service/src/models"
 	"github.com/pos/backend/product-service/src/repository"
+	"github.com/pos/backend/product-service/src/utils"
 )
 
 type InventoryService struct {
@@ -29,9 +30,12 @@ func NewInventoryService(productRepo repository.ProductRepository, stockRepo *re
 // AdjustStock updates product stock quantity and creates an audit log entry
 // This operation is performed in a transaction to ensure consistency
 func (s *InventoryService) AdjustStock(ctx context.Context, productID, tenantID, userID uuid.UUID, newQuantity int, reason, notes string) (*models.Product, error) {
+	utils.Log.Info("Adjusting stock: product_id=%s, new_quantity=%d, reason=%s", productID, newQuantity, reason)
+
 	// Start transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		utils.Log.Error("Failed to begin transaction: %v", err)
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -39,15 +43,18 @@ func (s *InventoryService) AdjustStock(ctx context.Context, productID, tenantID,
 	// Get current product to capture previous quantity
 	product, err := s.productRepo.FindByID(ctx, productID)
 	if err != nil {
+		utils.Log.Error("Product not found for stock adjustment: id=%s, error=%v", productID, err)
 		return nil, fmt.Errorf("product not found: %w", err)
 	}
 
 	if product == nil {
+		utils.Log.Warn("Product not found for stock adjustment: id=%s", productID)
 		return nil, errors.New("product not found")
 	}
 
 	// Verify tenant ownership
 	if product.TenantID != tenantID {
+		utils.Log.Warn("Tenant mismatch for stock adjustment: product_id=%s, tenant_id=%s", productID, tenantID)
 		return nil, errors.New("product not found")
 	}
 
@@ -95,8 +102,12 @@ func (s *InventoryService) AdjustStock(ctx context.Context, productID, tenantID,
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
+		utils.Log.Error("Failed to commit stock adjustment transaction: product_id=%s, error=%v", productID, err)
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	utils.Log.Info("Stock adjusted successfully: product_id=%s, previous=%d, new=%d, delta=%d",
+		productID, previousQuantity, newQuantity, newQuantity-previousQuantity)
 
 	// Return updated product
 	product.StockQuantity = newQuantity

@@ -71,12 +71,12 @@ Based on plan.md structure:
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T021 [P] [US1] Contract test for POST /products endpoint in backend/product-service/tests/contract/product_create_test.go
-- [ ] T022 [P] [US1] Contract test for GET /products endpoint in backend/product-service/tests/contract/product_list_test.go
-- [ ] T023 [P] [US1] Contract test for POST /products/{id}/photo endpoint in backend/product-service/tests/contract/product_photo_test.go
-- [ ] T024 [P] [US1] Unit test for ProductRepository.Create in backend/product-service/tests/unit/product_repository_test.go
-- [ ] T025 [P] [US1] Unit test for ProductService.CreateProduct in backend/product-service/tests/unit/product_service_test.go
-- [ ] T026 [P] [US1] Integration test for full product creation workflow in backend/product-service/tests/integration/create_product_test.go
+- [X] T021 [P] [US1] Contract test for POST /products endpoint in backend/product-service/tests/contract/product_create_test.go
+- [X] T022 [P] [US1] Contract test for GET /products endpoint in backend/product-service/tests/contract/product_list_test.go
+- [X] T023 [P] [US1] Contract test for POST /products/{id}/photo endpoint in backend/product-service/tests/contract/product_photo_test.go
+- [X] T024 [P] [US1] Unit test for ProductRepository.Create in backend/product-service/tests/unit/product_repository_test.go
+- [X] T025 [P] [US1] Unit test for ProductService.CreateProduct in backend/product-service/tests/unit/product_service_test.go
+- [X] T026 [P] [US1] Integration test for full product creation workflow in backend/product-service/tests/integration/create_product_test.go
 
 ### Implementation for User Story 1
 
@@ -297,28 +297,28 @@ Based on plan.md structure:
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T139 [P] Add structured logging for all product operations in backend/product-service/src/services/product_service.go
-- [ ] T140 [P] Add structured logging for all inventory operations in backend/product-service/src/services/inventory_service.go
-- [ ] T141 [P] Add health check endpoint GET /health in backend/product-service/api/health_handler.go
-- [ ] T142 [P] Add readiness check endpoint GET /ready in backend/product-service/api/health_handler.go
-- [ ] T143 [P] Implement graceful shutdown handling in backend/product-service/main.go
-- [ ] T144 [P] Add request ID middleware for distributed tracing in backend/product-service/src/middleware/request_id.go
-- [ ] T145 [P] Add rate limiting middleware in backend/product-service/src/middleware/rate_limit.go
-- [ ] T146 [P] Add API response time metrics in backend/product-service/src/middleware/metrics.go
-- [ ] T147 [P] Create README.md for product-service at backend/product-service/README.md
-- [ ] T148 [P] Add unit tests for edge cases (negative stock, duplicate SKU, photo size limits) in backend/product-service/tests/unit/
-- [ ] T149 [P] Add frontend unit tests for ProductForm component in frontend/src/components/products/ProductForm.test.tsx
-- [ ] T150 [P] Add frontend unit tests for ProductList component in frontend/src/components/products/ProductList.test.tsx
-- [ ] T151 Code cleanup: Remove debug logs, format code with gofmt in backend/product-service/
-- [ ] T152 Code cleanup: Format frontend code with prettier in frontend/
-- [ ] T153 Performance optimization: Add database query explain analysis and optimize slow queries
-- [ ] T154 Performance optimization: Verify indexes are used in common queries (search by name, filter by category)
-- [ ] T155 Security hardening: Validate all file uploads for malicious content in backend/product-service/src/services/product_service.go
-- [ ] T156 Security hardening: Add CORS configuration in backend/product-service/main.go
-- [ ] T157 Run quickstart.md validation: Test all API examples from specs/001-product-inventory/quickstart.md
-- [ ] T158 Documentation: Update backend/product-service/README.md with deployment instructions
-- [ ] T159 Documentation: Add JSDoc comments to frontend service methods in frontend/src/services/product.service.ts
-- [ ] T160 Run full test suite and verify 80%+ code coverage requirement
+- [X] T139 [P] Add structured logging for all product operations in backend/product-service/src/services/product_service.go
+- [X] T140 [P] Add structured logging for all inventory operations in backend/product-service/src/services/inventory_service.go
+- [X] T141 [P] Add health check endpoint GET /health in backend/product-service/api/health_handler.go
+- [X] T142 [P] Add readiness check endpoint GET /ready in backend/product-service/api/health_handler.go
+- [X] T143 [P] Implement graceful shutdown handling in backend/product-service/main.go
+- [X] T144 [P] Add request ID middleware for distributed tracing in backend/product-service/src/middleware/request_id.go
+- [X] T145 [P] Add rate limiting middleware in backend/product-service/src/middleware/rate_limit.go
+- [X] T146 [P] Add API response time metrics in backend/product-service/src/middleware/metrics.go
+- [X] T147 [P] Create README.md for product-service at backend/product-service/README.md
+- [X] T148 [P] Add unit tests for edge cases (negative stock, duplicate SKU, photo size limits) in backend/product-service/tests/unit/
+- [X] T149 [P] Add frontend unit tests for ProductForm component in frontend/src/components/products/ProductForm.test.tsx
+- [X] T150 [P] Add frontend unit tests for ProductList component in frontend/src/components/products/ProductList.test.tsx
+- [X] T151 Code cleanup: Remove debug logs, format code with gofmt in backend/product-service/
+- [X] T152 Code cleanup: Format frontend code with prettier in frontend/
+- [X] T153 Performance optimization: Add database query explain analysis and optimize slow queries
+- [X] T154 Performance optimization: Verify indexes are used in common queries (search by name, filter by category)
+- [X] T155 Security hardening: Validate all file uploads for malicious content in backend/product-service/src/services/product_service.go
+- [X] T156 Security hardening: Add CORS configuration in backend/product-service/main.go
+- [X] T157 Run quickstart.md validation: Test all API examples from specs/001-product-inventory/quickstart.md
+- [X] T158 Documentation: Update backend/product-service/README.md with deployment instructions
+- [X] T159 Documentation: Add JSDoc comments to frontend service methods in frontend/src/services/product.service.ts
+- [X] T160 Run full test suite and verify 80%+ code coverage requirement
 
 ---
 

@@ -40,7 +40,7 @@ export interface StockAdjustment {
   adjusted_by?: string;
 }
 
-export type StockAdjustmentReason = 
+export type StockAdjustmentReason =
   | 'supplier_delivery'
   | 'physical_count'
   | 'shrinkage'
