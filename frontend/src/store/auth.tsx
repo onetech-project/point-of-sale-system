@@ -19,7 +19,13 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string, tenantSlug?: string) => Promise<any>;
   logout: () => Promise<void>;
-  register: (businessName: string, email: string, password: string, firstName?: string, lastName?: string) => Promise<any>;
+  register: (
+    businessName: string,
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<any>;
   checkAuth: () => Promise<void>;
 }
 
@@ -33,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = useCallback(async () => {
     try {
       const data = await apiClient.get<{ user: User }>('/api/auth/session');
-      
+
       if (data && data.user) {
         setUser(data.user);
         setIsAuthenticated(true);
@@ -43,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       const axiosError = error as AxiosError;
-      
+
       // If 401, no valid session exists
       if (axiosError.response?.status === 401) {
         setUser(null);
@@ -94,7 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (businessName: string, email: string, password: string, firstName?: string, lastName?: string) => {
+  const register = async (
+    businessName: string,
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => {
     try {
       const data = await apiClient.post('/api/tenants/register', {
         business_name: businessName,
