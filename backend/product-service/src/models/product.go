@@ -24,3 +24,19 @@ type Product struct {
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 }
+
+// PublicProduct represents a product for public catalog/menu display
+// Includes real-time available stock calculation (stock - active reservations)
+type PublicProduct struct {
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Description    *string `json:"description,omitempty"`
+	Price          float64 `json:"price"`
+	ImageURL       *string `json:"image_url,omitempty"`
+	CategoryID     *string `json:"category_id,omitempty"`
+	CategoryName   *string `json:"category_name,omitempty"`
+	SKU            string  `json:"sku"`
+	Stock          int     `json:"stock"`           // Total stock quantity
+	AvailableStock int     `json:"available_stock"` // Stock minus active reservations
+	IsAvailable    bool    `json:"is_available"`    // Calculated from available_stock > 0
+}

@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/store/auth';
-import { useRouter } from 'next/navigation';
 import apiClient from '@/services/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
 
 interface TenantInfo {
@@ -16,21 +16,12 @@ interface TenantInfo {
 }
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loadingTenant, setLoadingTenant] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  useEffect(() => {
     const fetchTenantInfo = async () => {
-      if (!isAuthenticated) return;
-
       try {
         setLoadingTenant(true);
         const data = await apiClient.get<TenantInfo>('/api/tenant');
@@ -43,21 +34,19 @@ export default function ProfilePage() {
     };
 
     fetchTenantInfo();
-  }, [isAuthenticated]);
+  }, []);
 
-  if (isLoading || loadingTenant) {
+  if (loadingTenant) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
+      <ProtectedRoute>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading profile...</p>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   const formatDate = (dateString: string) => {
@@ -70,14 +59,15 @@ export default function ProfilePage() {
   };
 
   return (
-    <DashboardLayout>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          View your account and organization information
-        </p>
-      </div>
+    <ProtectedRoute>
+      <DashboardLayout>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            View your account and organization information
+          </p>
+        </div>
 
         {/* User Information Card */}
         <div className="bg-white rounded-lg shadow mb-6">
@@ -116,13 +106,12 @@ export default function ProfilePage() {
                   Role
                 </label>
                 <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    user?.role === ROLES.OWNER
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user?.role === ROLES.OWNER
                       ? 'bg-purple-100 text-purple-800'
                       : user?.role === ROLES.ADMIN
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
                     {user?.role?.toUpperCase() || 'N/A'}
                   </span>
                 </div>
@@ -179,13 +168,12 @@ export default function ProfilePage() {
                     Status
                   </label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      tenantInfo.status === 'active'
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenantInfo.status === 'active'
                         ? 'bg-green-100 text-green-800'
                         : tenantInfo.status === 'suspended'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
                       <svg className="w-2 h-2 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                         <circle cx={4} cy={4} r={3} />
                       </svg>
@@ -245,6 +233,7 @@ export default function ProfilePage() {
             Back to Dashboard
           </button>
         </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }

@@ -1,0 +1,292 @@
+openapi: 3.0.3
+info:
+  title: Midtrans Payment Webhook API
+  description: |
+    Webhook endpoint for receiving payment notifications from Midtrans.
+    This contract defines the expected payload and signature verification requirements.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8084
+    description: Local development
+  - url: https://api.pos-system.com
+    description: Production
+
+paths:
+  /payments/midtrans/notification:
+    post:
+      summary: Receive Midtrans payment notification
+      description: |
+        Webhook endpoint called by Midtrans when payment status changes.
+        Requires signature verification for security.
+
+        **Signature Calculation**:
+        ```
+        signature = SHA512(order_id + status_code + gross_amount + server_key)
+        ```
+
+        **Idempotency**: Multiple notifications with same transaction_id + status are ignored.
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MidtransNotification"
+            examples:
+              settlement:
+                summary: Successful payment
+                value:
+                  transaction_type: "on-us"
+                  transaction_time: "2021-06-23 15:45:42"
+                  transaction_status: "settlement"
+                  transaction_id: "1015a919-b03f-450a-bc85-b38202a79a96"
+                  status_message: "midtrans payment notification"
+                  status_code: "200"
+                  signature_key: "5d40504728eb96686bd5926299768a6496547f70dbd1e19d583ef4e780fe9dd5c38d0db45ec0f06dafa5c56caa6cf8358ead1523882b5fb3e102c52345d41850"
+                  settlement_time: "2021-06-23 15:46:00"
+                  payment_type: "qris"
+                  order_id: "order102"
+                  merchant_id: "G490526303"
+                  issuer: "gopay"
+                  gross_amount: "789000.00"
+                  fraud_status: "accept"
+                  currency: "IDR"
+                  acquirer: "gopay"
+              pending:
+                summary: Payment initiated but not completed
+                value:
+                  transaction_type: "on-us"
+                  transaction_time: "2021-06-23 15:30:00"
+                  transaction_status: "pending"
+                  transaction_id: "1015a919-b03f-450a-bc85-b38202a79a96"
+                  status_code: "201"
+                  signature_key: "5d40504728eb96686bd5926299768a6496547f70dbd1e19d583ef4e780fe9dd5c38d0db45ec0f06dafa5c56caa6cf8358ead1523882b5fb3e102c52345d41850"
+                  payment_type: "qris"
+                  order_id: "order102"
+                  merchant_id: "G490526303"
+                  gross_amount: "789000.00"
+                  currency: "IDR"
+                  expiry_time: "2021-06-23 15:45:00"
+              expire:
+                summary: Payment expired
+                value:
+                  transaction_type: "on-us"
+                  transaction_time: "2021-06-23 15:45:00"
+                  transaction_status: "expire"
+                  transaction_id: "1015a919-b03f-450a-bc85-b38202a79a96"
+                  status_code: "407"
+                  signature_key: "5d40504728eb96686bd5926299768a6496547f70dbd1e19d583ef4e780fe9dd5c38d0db45ec0f06dafa5c56caa6cf8358ead1523882b5fb3e102c52345d41850"
+                  payment_type: "qris"
+                  order_id: "order102"
+                  merchant_id: "G490526303"
+                  gross_amount: "789000.00"
+                  currency: "IDR"
+                  fraud_status: "accept"
+      responses:
+        "200":
+          description: Notification processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Notification processed"
+        "400":
+          description: Invalid payload or signature verification failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalid_signature:
+                  value:
+                    error: "Invalid signature"
+                    message: "Signature verification failed"
+                amount_mismatch:
+                  value:
+                    error: "Amount mismatch"
+                    message: "Payment amount does not match order total"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Order not found"
+                message: "No order found with reference order102"
+        "409":
+          description: Duplicate notification (idempotency check)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "duplicate"
+                  message:
+                    type: string
+                    example: "Notification already processed"
+
+components:
+  schemas:
+    MidtransNotification:
+      type: object
+      required:
+        - transaction_time
+        - transaction_status
+        - transaction_id
+        - status_code
+        - signature_key
+        - payment_type
+        - order_id
+        - merchant_id
+        - gross_amount
+        - currency
+      properties:
+        transaction_type:
+          type: string
+          description: Type of transaction (on-us or off-us)
+          enum:
+            - on-us
+            - off-us
+          example: "on-us"
+
+        transaction_time:
+          type: string
+          description: "Format: YYYY-MM-DD HH:mm:ss"
+          example: "2021-06-23 15:45:42"
+
+        transaction_status:
+          type: string
+          enum:
+            - capture # Credit card authorized
+            - settlement # Payment successful
+            - pending # Payment initiated
+            - deny # Payment rejected
+            - cancel # Payment cancelled
+            - expire # Payment expired
+            - refund # Payment refunded
+          description: Current status of the transaction
+          example: "settlement"
+
+        transaction_id:
+          type: string
+          format: uuid
+          description: Midtrans transaction ID
+          example: "1015a919-b03f-450a-bc85-b38202a79a96"
+
+        status_message:
+          type: string
+          description: Human-readable status message
+          example: "midtrans payment notification"
+
+        status_code:
+          type: string
+          description: |
+            Status code from payment provider:
+            - 200: Success
+            - 201: Pending
+            - 202: Deny
+            - 407: Expire
+          example: "200"
+
+        signature_key:
+          type: string
+          description: |
+            SHA512 signature for verification.
+            Calculated as: SHA512(order_id + status_code + gross_amount + server_key)
+          example: "5d40504728eb96686bd5926299768a6496547f70dbd1e19d583ef4e780fe9dd5c38d0db45ec0f06dafa5c56caa6cf8358ead1523882b5fb3e102c52345d41850"
+
+        settlement_time:
+          type: string
+          description: When payment was settled (only for settled transactions)
+          example: "2021-06-23 15:46:00"
+
+        payment_type:
+          type: string
+          description: Payment method used
+          enum:
+            - qris
+            - gopay
+            - shopeepay
+            - bank_transfer
+            - credit_card
+          example: "qris"
+
+        order_id:
+          type: string
+          description: Order reference number
+          example: "order102"
+
+        merchant_id:
+          type: string
+          description: Midtrans merchant identifier
+          example: "G490526303"
+
+        issuer:
+          type: string
+          description: Payment issuer (e.g., bank or e-wallet provider)
+          example: "gopay"
+
+        gross_amount:
+          type: string
+          description: Total amount in decimal format
+          pattern: '^\d+\.\d{2}$'
+          example: "789000.00"
+
+        fraud_status:
+          type: string
+          enum:
+            - accept # Transaction safe
+            - challenge # Transaction flagged for review
+            - deny # Transaction rejected as fraudulent
+          description: Fraud detection status
+          example: "accept"
+
+        currency:
+          type: string
+          description: Currency code (ISO 4217)
+          example: "IDR"
+
+        acquirer:
+          type: string
+          description: Acquirer bank or payment provider
+          example: "gopay"
+
+        expiry_time:
+          type: string
+          description: When payment will expire (for pending transactions)
+          example: "2025-12-03 11:30:45"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+  securitySchemes:
+    signature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: |
+        SHA512 signature for webhook verification.
+        Not used in header, but included in payload as `signature_key`.
+
+security: [] # No authentication header, verification via signature_key in payload

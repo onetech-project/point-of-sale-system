@@ -11,6 +11,7 @@ interface User {
   firstName?: string;
   lastName?: string;
   role: Role;
+  tenantId?: string;
 }
 
 interface AuthContextType {
@@ -29,6 +30,26 @@ interface AuthContextType {
   checkAuth: () => Promise<void>;
 }
 
+// Public pages that don't require authentication
+const PUBLIC_PAGES = {
+  AUTH: ['/login', '/register'],
+  GUEST_ORDER_PATTERN: /^\/orders\/[A-Z0-9-]+$/, // Matches /orders/{orderReference}
+  GUEST_PATHS: ['/menu/', '/checkout/'],
+};
+
+const isPublicPage = (pathname: string): boolean => {
+  // Check exact auth pages
+  if (PUBLIC_PAGES.AUTH.includes(pathname)) return true;
+
+  // Check guest order status page pattern
+  if (PUBLIC_PAGES.GUEST_ORDER_PATTERN.test(pathname)) return true;
+
+  // Check guest ordering paths
+  if (PUBLIC_PAGES.GUEST_PATHS.some(path => pathname.includes(path))) return true;
+
+  return false;
+};
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -37,6 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const checkAuth = useCallback(async () => {
+    // Skip auth check for public routes
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+
+      if (isPublicPage(pathname)) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const data = await apiClient.get<{ user: User }>('/api/auth/session');
 

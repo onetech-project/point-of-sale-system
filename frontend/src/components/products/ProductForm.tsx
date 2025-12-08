@@ -43,36 +43,36 @@ const ProductForm: React.FC<ProductFormProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.sku.trim()) {
-      newErrors.sku = 'SKU is required';
+      newErrors.sku = t('products.validation.skuRequired');
     } else if (formData.sku.length > 50) {
-      newErrors.sku = 'SKU must be 50 characters or less';
+      newErrors.sku = t('products.validation.skuMaxLength');
     }
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+      newErrors.name = t('products.validation.nameRequired');
     } else if (formData.name.length > 255) {
-      newErrors.name = 'Name must be 255 characters or less';
+      newErrors.name = t('products.validation.nameMaxLength');
     }
 
     const sellingPrice = parseFloat(formData.selling_price);
     if (isNaN(sellingPrice) || sellingPrice < 0) {
-      newErrors.selling_price = 'Selling price must be a positive number';
+      newErrors.selling_price = t('products.validation.sellingPricePositive');
     }
 
     const costPrice = parseFloat(formData.cost_price);
     if (isNaN(costPrice) || costPrice < 0) {
-      newErrors.cost_price = 'Cost price must be a non-negative number';
+      newErrors.cost_price = t('products.validation.costPricePositive');
     }
 
     const taxRate = parseFloat(formData.tax_rate);
     if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
-      newErrors.tax_rate = 'Tax rate must be between 0 and 100';
+      newErrors.tax_rate = t('products.validation.taxRateRange');
     }
 
     if (!isEdit) {
       const stockQuantity = parseInt(formData.stock_quantity);
       if (isNaN(stockQuantity)) {
-        newErrors.stock_quantity = 'Stock quantity must be a number';
+        newErrors.stock_quantity = t('products.validation.stockQuantityNumber');
       }
     }
 
@@ -110,7 +110,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
       if (error.response?.data?.message) {
         setErrors({ submit: error.response.data.message });
       } else {
-        setErrors({ submit: 'Failed to save product. Please try again.' });
+        setErrors({ submit: t('products.messages.saveError') });
       }
     } finally {
       setIsSubmitting(false);
@@ -170,7 +170,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* SKU */}
         <div>
           <label htmlFor="sku" className="block text-sm font-medium text-gray-700 mb-1">
-            SKU <span className="text-red-500">*</span>
+            {t('products.form.sku')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -178,10 +178,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
             value={formData.sku}
             onChange={e => handleChange('sku', e.target.value)}
             disabled={isSubmitting}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.sku ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="e.g., PROD-001"
+            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.sku ? 'border-red-500' : 'border-gray-300'
+              }`}
+            placeholder={t('products.form.skuPlaceholder')}
           />
           {errors.sku && <p className="mt-1 text-sm text-red-600">{errors.sku}</p>}
         </div>
@@ -189,7 +188,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* Name */}
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-            Name <span className="text-red-500">*</span>
+            {t('products.form.name')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -197,10 +196,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
             value={formData.name}
             onChange={e => handleChange('name', e.target.value)}
             disabled={isSubmitting}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.name ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Product name"
+            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
+              }`}
+            placeholder={t('products.form.namePlaceholder')}
           />
           {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
         </div>
@@ -208,7 +206,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* Category */}
         <div>
           <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-            Category
+            {t('products.form.category')}
           </label>
           <CategorySelect
             value={formData.category_id}
@@ -221,7 +219,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* Selling Price */}
         <div>
           <label htmlFor="selling_price" className="block text-sm font-medium text-gray-700 mb-1">
-            Selling Price <span className="text-red-500">*</span>
+            {t('products.form.sellingPrice')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -230,9 +228,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
             onChange={e => handlePriceChange('selling_price', e.target.value)}
             onBlur={() => handlePriceBlur('selling_price')}
             disabled={isSubmitting}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.selling_price ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.selling_price ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="0.00"
           />
           {errors.selling_price && (
@@ -243,7 +240,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* Cost Price */}
         <div>
           <label htmlFor="cost_price" className="block text-sm font-medium text-gray-700 mb-1">
-            Cost Price <span className="text-red-500">*</span>
+            {t('products.form.costPrice')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -252,9 +249,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
             onChange={e => handlePriceChange('cost_price', e.target.value)}
             onBlur={() => handlePriceBlur('cost_price')}
             disabled={isSubmitting}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.cost_price ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.cost_price ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="0.00"
           />
           {errors.cost_price && <p className="mt-1 text-sm text-red-600">{errors.cost_price}</p>}
@@ -263,7 +259,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {/* Tax Rate */}
         <div>
           <label htmlFor="tax_rate" className="block text-sm font-medium text-gray-700 mb-1">
-            Tax Rate (%)
+            {t('products.form.taxRate')}
           </label>
           <input
             type="number"
@@ -274,9 +270,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
             value={formData.tax_rate}
             onChange={e => handleChange('tax_rate', e.target.value)}
             disabled={isSubmitting}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.tax_rate ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.tax_rate ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="0"
           />
           {errors.tax_rate && <p className="mt-1 text-sm text-red-600">{errors.tax_rate}</p>}
@@ -289,7 +284,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               htmlFor="stock_quantity"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Initial Stock Quantity
+              {t('products.form.stockQuantity')}
             </label>
             <input
               type="number"
@@ -298,9 +293,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
               value={formData.stock_quantity}
               onChange={e => handleChange('stock_quantity', e.target.value)}
               disabled={isSubmitting}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                errors.stock_quantity ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.stock_quantity ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="0"
             />
             {errors.stock_quantity && (
@@ -313,7 +307,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
       {/* Description */}
       <div>
         <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-          Description
+          {t('products.form.description')}
         </label>
         <textarea
           id="description"
@@ -322,7 +316,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           onChange={e => handleChange('description', e.target.value)}
           disabled={isSubmitting}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          placeholder="Product description..."
+          placeholder={t('products.form.descriptionPlaceholder')}
         />
       </div>
 
@@ -335,7 +329,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             disabled={isSubmitting}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            Cancel
+            {t('common.cancel', { ns: 'common' })}
           </button>
         )}
         <button
@@ -343,7 +337,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {isSubmitting ? 'Saving...' : isEdit ? 'Update Product' : 'Create Product'}
+          {isSubmitting ? t('common.saving', { ns: 'common' }) : isEdit ? t('products.form.updateButton') : t('products.form.createButton')}
         </button>
       </div>
     </form>

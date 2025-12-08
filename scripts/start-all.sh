@@ -46,6 +46,9 @@ else
             product|product-service)
                 TARGET_SERVICES+=("product")
                 ;;
+            order|order-service)
+                TARGET_SERVICES+=("order")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -62,6 +65,7 @@ else
                 echo "  tenant           - Tenant Service"
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
+                echo "  order            - Order Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -207,6 +211,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     if [ "$START_ALL" = true ] || should_start_service "product"; then
         cd "$PROJECT_ROOT/backend/product-service" && go build -o product-service.bin main.go &
     fi
+    if [ "$START_ALL" = true ] || should_start_service "order"; then
+        cd "$PROJECT_ROOT/backend/order-service" && go build -o order-service.bin main.go &
+    fi
     
     wait
     echo "✅ Services built"
@@ -266,6 +273,10 @@ if [ "$START_ALL" = true ] || should_start_service "product"; then
     start_service_with_env "Product Service" "$PROJECT_ROOT/backend/product-service" "product-service" "/tmp/product-service.log"
 fi
 
+if [ "$START_ALL" = true ] || should_start_service "order"; then
+    start_service_with_env "Order Service" "$PROJECT_ROOT/backend/order-service" "order-service" "/tmp/order-service.log"
+fi
+
 # Wait a moment for services to start
 sleep 2
 
@@ -300,6 +311,7 @@ echo "   User Service:         http://localhost:${USER_SERVICE_PORT:-8083}"
 echo "   Tenant Service:       http://localhost:${TENANT_SERVICE_PORT:-8084}"
 echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}"
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
+echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
 echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
@@ -309,6 +321,7 @@ echo "   curl http://localhost:${USER_SERVICE_PORT:-8083}/health"
 echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
 echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
 echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
+echo "   curl http://localhost:${ORDER_SERVICE_PORT:-8087}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
@@ -317,6 +330,7 @@ echo "   tail -f /tmp/user-service.log"
 echo "   tail -f /tmp/tenant-service.log"
 echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
+echo "   tail -f /tmp/order-service.log"
 echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import productService from '@/services/product';
+import { useTranslation } from '@/i18n/provider';
+import { product } from '@/services/product';
 import { Category } from '@/types/product';
 
 interface CategorySelectProps {
@@ -19,8 +20,9 @@ const CategorySelect: React.FC<CategorySelectProps> = ({
   error,
   required = false,
   disabled = false,
-  placeholder = 'Select a category',
+  placeholder,
 }) => {
+  const { t } = useTranslation(['products', 'common']);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -30,18 +32,20 @@ const CategorySelect: React.FC<CategorySelectProps> = ({
       try {
         setLoading(true);
         setFetchError(null);
-        const data = await productService.getCategories();
+        const data = await product.getCategories();
         setCategories(data);
       } catch (err: any) {
         console.error('Failed to fetch categories:', err);
-        setFetchError(err.response?.data?.message || 'Failed to load categories');
+        setFetchError(err.response?.data?.message || t('products.messages.categoryError'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchCategories();
-  }, []);
+  }, [t]);
+
+  const selectPlaceholder = placeholder || t('products.form.selectCategory');
 
   return (
     <div className="w-full">
@@ -50,11 +54,10 @@ const CategorySelect: React.FC<CategorySelectProps> = ({
         onChange={e => onChange(e.target.value)}
         disabled={disabled || loading}
         required={required}
-        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${disabled || loading ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${error ? 'border-red-500' : 'border-gray-300'
+          } ${disabled || loading ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
       >
-        <option value="">{loading ? 'Loading...' : placeholder}</option>
+        <option value="">{loading ? t('common.loading', { ns: 'common' }) : selectPlaceholder}</option>
         {categories.map(category => (
           <option key={category.id} value={category.id}>
             {category.name}

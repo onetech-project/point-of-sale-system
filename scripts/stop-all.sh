@@ -44,6 +44,9 @@ else
             product|product-service)
                 TARGET_SERVICES+=("product")
                 ;;
+            order|order-service)
+                TARGET_SERVICES+=("order")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -60,6 +63,7 @@ else
                 echo "  tenant           - Tenant Service"
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
+                echo "  order            - Order Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -121,6 +125,7 @@ USER_SERVICE_PORT=${USER_SERVICE_PORT:-8083}
 TENANT_SERVICE_PORT=${TENANT_SERVICE_PORT:-8084}
 NOTIFICATION_SERVICE_PORT=${NOTIFICATION_SERVICE_PORT:-8085}
 PRODUCT_SERVICE_PORT=${PRODUCT_SERVICE_PORT:-8086}
+ORDER_SERVICE_PORT=${ORDER_SERVICE_PORT:-8087}
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
 # Map ports to services
@@ -131,11 +136,12 @@ PORT_SERVICE_MAP[$USER_SERVICE_PORT]="user"
 PORT_SERVICE_MAP[$TENANT_SERVICE_PORT]="tenant"
 PORT_SERVICE_MAP[$NOTIFICATION_SERVICE_PORT]="notification"
 PORT_SERVICE_MAP[$PRODUCT_SERVICE_PORT]="product"
+PORT_SERVICE_MAP[$ORDER_SERVICE_PORT]="order"
 PORT_SERVICE_MAP[$FRONTEND_PORT]="frontend"
 
 STOPPED_PORTS=()
 
-for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $FRONTEND_PORT; do
+for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $FRONTEND_PORT; do
     service_name=${PORT_SERVICE_MAP[$port]}
     
     if should_stop_service "$service_name"; then

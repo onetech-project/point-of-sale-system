@@ -28,6 +28,7 @@ files=(
     "backend/tenant-service/.env"
     "backend/notification-service/.env"
     "backend/product-service/.env"
+    "backend/order-service/.env"
     "frontend/.env.local"
 )
 

@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import productService from '@/services/product';
+import { useTranslation } from '@/i18n/provider';
+import { product } from '@/services/product';
 import { InventorySummary } from '@/types/product';
 import { formatNumber, formatCompactNumber } from '@/utils/format';
 
 const InventoryDashboard: React.FC = () => {
+  const { t } = useTranslation(['products', 'common']);
   const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,11 +20,11 @@ const InventoryDashboard: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await productService.getInventorySummary();
+      const data = await product.getInventorySummary();
       setSummary(data);
     } catch (err: any) {
       console.error('Failed to fetch inventory summary:', err);
-      setError(err.response?.data?.message || 'Failed to load inventory summary');
+      setError(err.response?.data?.message || t('products.messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -49,7 +51,7 @@ const InventoryDashboard: React.FC = () => {
           onClick={fetchSummary}
           className="mt-2 text-sm text-red-600 underline hover:text-red-800"
         >
-          Try again
+          {t('common.tryAgain', { ns: 'common' })}
         </button>
       </div>
     );
@@ -61,7 +63,7 @@ const InventoryDashboard: React.FC = () => {
 
   const cards = [
     {
-      title: 'Total Products',
+      title: t('products.inventory.totalProducts'),
       value: summary.total_products,
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,7 +79,7 @@ const InventoryDashboard: React.FC = () => {
       bgColor: 'bg-blue-100',
     },
     {
-      title: 'Total Inventory Value',
+      title: t('products.inventory.totalValue'),
       value: formatNumber(summary.total_value, 0),
       compactValue: formatCompactNumber(summary.total_value),
       icon: (
@@ -94,7 +96,7 @@ const InventoryDashboard: React.FC = () => {
       bgColor: 'bg-green-100',
     },
     {
-      title: 'Low Stock Items',
+      title: t('products.inventory.lowStockItems'),
       value: summary.low_stock_count,
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +112,7 @@ const InventoryDashboard: React.FC = () => {
       bgColor: 'bg-yellow-100',
     },
     {
-      title: 'Out of Stock',
+      title: t('products.inventory.outOfStockItems'),
       value: summary.out_of_stock_count,
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

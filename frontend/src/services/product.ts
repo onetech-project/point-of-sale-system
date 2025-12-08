@@ -143,9 +143,15 @@ class ProductService {
   /**
    * Gets the URL for a product photo
    * @param id - Product UUID
+   * @param tenantId - Optional tenant ID for public access
    * @returns Full URL to product photo endpoint
    */
-  getPhotoUrl(id: string): string {
+  getPhotoUrl(id: string, tenantId?: string): string {
+    if (tenantId) {
+      // Public photo URL for guest ordering
+      return `${apiClient.getAxiosInstance().defaults.baseURL}/api/public/products/${tenantId}/${id}/photo`;
+    }
+    // Authenticated photo URL
     return `${apiClient.getAxiosInstance().defaults.baseURL}${PRODUCTS_BASE}/${id}/photo`;
   }
 
@@ -270,8 +276,36 @@ class ProductService {
   async deleteCategory(id: string): Promise<void> {
     return apiClient.delete(`${CATEGORIES_BASE}/${id}`);
   }
+
+  // ==================== Public Menu (Guest Ordering) ====================
+
+  /**
+   * Get public menu for guest ordering
+   * @param tenantId - Tenant UUID
+   * @param params - Query parameters for filtering
+   * @returns List of available products
+   */
+  async getPublicMenu(
+    tenantId: string,
+    params?: {
+      category?: string;
+      available_only?: boolean;
+    }
+  ): Promise<{ products: any[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.category && params.category !== 'all') {
+      queryParams.append('category', params.category);
+    }
+    if (params?.available_only !== undefined) {
+      queryParams.append('available_only', params.available_only.toString());
+    }
+
+    const url = queryParams.toString()
+      ? `/api/public/menu/${tenantId}/products?${queryParams}`
+      : `/api/public/menu/${tenantId}/products`;
+
+    return apiClient.get<{ products: any[] }>(url);
+  }
 }
 
-const productService = new ProductService();
-
-export default productService;
+export const product = new ProductService();

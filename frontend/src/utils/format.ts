@@ -58,3 +58,16 @@ export const parseFormattedNumber = (value: string): number => {
   const cleaned = value.replace(/,/g, '');
   return parseFloat(cleaned) || 0;
 };
+
+/**
+ * Format a price in Indonesian Rupiah (IDR)
+ * @param price - The price to format
+ * @returns Formatted currency string
+ */
+export const formatPrice = (price: number): string => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(price);
+};

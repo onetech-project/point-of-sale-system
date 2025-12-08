@@ -67,9 +67,71 @@ services:
       timeout: 10s
       retries: 5
 
+  # T112: Order Service for QRIS Guest Ordering
+  # order-service:
+  #   build:
+  #     context: ./backend/order-service
+  #     dockerfile: Dockerfile
+  #   container_name: order-service
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     # Database
+  #     DATABASE_URL: postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     DB_USER: pos_user
+  #     DB_PASSWORD: pos_password
+  #     DB_NAME: pos_db
+      
+  #     # Redis
+  #     REDIS_URL: redis://redis:6379
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+      
+  #     # Midtrans Payment Gateway
+  #     MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-your-server-key-here}
+  #     MIDTRANS_CLIENT_KEY: ${MIDTRANS_CLIENT_KEY:-your-client-key-here}
+  #     MIDTRANS_ENVIRONMENT: ${MIDTRANS_ENVIRONMENT:-sandbox}
+      
+  #     # Google Maps API for Geocoding
+  #     GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-your-google-maps-api-key}
+      
+  #     # Service URLs
+  #     TENANT_SERVICE_URL: ${TENANT_SERVICE_URL:-http://tenant-service:8001}
+  #     PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL:-http://product-service:8002}
+      
+  #     # Server Configuration
+  #     PORT: 8080
+  #     LOG_LEVEL: ${LOG_LEVEL:-info}
+  #     ENVIRONMENT: ${ENVIRONMENT:-development}
+      
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./backend/order-service:/app
+  #     - order_service_cache:/go/pkg/mod
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   restart: unless-stopped
+  #   networks:
+  #     - pos-network
+
 volumes:
   postgres_data:
   redis_data:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:
+  # order_service_cache:
+
+networks:
+  pos-network:
+    driver: bridge

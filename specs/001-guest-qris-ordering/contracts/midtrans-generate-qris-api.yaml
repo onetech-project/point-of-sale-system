@@ -1,0 +1,221 @@
+openapi: 3.0.0
+info:
+  title: Midtrans QRIS Payment API
+  description: API contract for generating QRIS payment via Midtrans
+  version: 1.0.0
+  contact:
+    name: Midtrans API Documentation
+    url: https://docs.midtrans.com
+
+servers:
+  - url: https://api.sandbox.midtrans.com
+    description: Sandbox environment
+  - url: https://api.midtrans.com
+    description: Production environment
+
+security:
+  - BasicAuth: []
+
+paths:
+  /v2/charge:
+    post:
+      summary: Create QRIS Transaction
+      description: Generate a QRIS payment transaction
+      operationId: createQrisCharge
+      tags:
+        - QRIS Payment
+      parameters:
+        - name: X-Override-Notification
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uri
+          description: |
+            Override the default notification URL configured in Midtrans dashboard.
+            Webhook notifications will be sent to this URL instead.
+          example: "https://api.pos-system.com/payments/midtrans/notification"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_type
+                - transaction_details
+              properties:
+                payment_type:
+                  type: string
+                  enum: [qris]
+                  description: Payment method type
+                  example: qris
+                transaction_details:
+                  type: object
+                  required:
+                    - order_id
+                    - gross_amount
+                  properties:
+                    order_id:
+                      type: string
+                      description: Unique order identifier
+                      example: order102
+                    gross_amount:
+                      type: integer
+                      description: Total transaction amount in IDR (no decimals)
+                      example: 789000
+                custom_expiry:
+                  type: object
+                  description: Optional custom expiry configuration
+                  properties:
+                    order_time:
+                      type: string
+                      format: date-time
+                      description: Order time in ISO 8601 format
+                    expiry_duration:
+                      type: integer
+                      description: Expiry duration in minutes
+                      example: 15
+                    unit:
+                      type: string
+                      enum: [minute]
+                      example: minute
+      responses:
+        "201":
+          description: QRIS transaction successfully created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status_code:
+                    type: string
+                    description: HTTP status code
+                    example: "201"
+                  status_message:
+                    type: string
+                    description: Status message
+                    example: "Qris transaction is created"
+                  transaction_id:
+                    type: string
+                    format: uuid
+                    description: Unique transaction identifier from Midtrans
+                    example: "63ef306b-5ea3-4866-bf80-821eb62f6214"
+                  order_id:
+                    type: string
+                    description: Order identifier from request
+                    example: "order102"
+                  merchant_id:
+                    type: string
+                    description: Merchant identifier
+                    example: "G433605386"
+                  gross_amount:
+                    type: string
+                    description: Total amount with decimal format
+                    example: "789000.00"
+                  currency:
+                    type: string
+                    description: Currency code
+                    example: "IDR"
+                  payment_type:
+                    type: string
+                    description: Payment method type
+                    example: "qris"
+                  transaction_time:
+                    type: string
+                    format: date-time
+                    description: Transaction creation timestamp
+                    example: "2025-12-07 12:17:40"
+                  transaction_status:
+                    type: string
+                    enum: [pending, settlement, deny, cancel, expire]
+                    description: Current transaction status
+                    example: "pending"
+                  fraud_status:
+                    type: string
+                    enum: [accept, challenge, deny]
+                    description: Fraud detection status
+                    example: "accept"
+                  actions:
+                    type: array
+                    description: Available actions for the transaction
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Action name
+                          example: "generate-qr-code"
+                        method:
+                          type: string
+                          enum: [GET, POST]
+                          description: HTTP method
+                          example: "GET"
+                        url:
+                          type: string
+                          format: uri
+                          description: Action endpoint URL
+                          example: "https://api.sandbox.midtrans.com/v2/qris/63ef306b-5ea3-4866-bf80-821eb62f6214/qr-code"
+                  acquirer:
+                    type: string
+                    description: Payment acquirer
+                    example: "gopay"
+                  qr_string:
+                    type: string
+                    description: QRIS string data for generating QR code
+                    example: "00020101021226620014COM.GO-JEK.WWW011993600914343360538630210G4336053860303UKE51440014ID.CO.QRIS.WWW0215AID2426074113490303UKE52048931530336054067890005802ID5916One Tech Project6009TANGERANG61051515862395028A120251207051740dS6cCe2LlJID0703A0163047CA2"
+                  expiry_time:
+                    type: string
+                    format: date-time
+                    description: QRIS expiration timestamp (default 15 minutes)
+                    example: "2025-12-07 12:32:40"
+        "400":
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        Base64 encoded Server Key in format: `Basic base64(ServerKey:)`
+        Note: Server Key should be suffixed with colon (:) before encoding
+        Example: If ServerKey is "Mid-server-XXX", encode "Mid-server-XXX:"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        status_code:
+          type: string
+          description: HTTP status code
+          example: "400"
+        status_message:
+          type: string
+          description: Error message
+          example: "Invalid request parameters"
+        error_messages:
+          type: array
+          description: Detailed error messages
+          items:
+            type: string
+
+tags:
+  - name: QRIS Payment
+    description: QRIS payment transaction operations
