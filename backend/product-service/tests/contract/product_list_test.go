@@ -1,7 +1,6 @@
 package contract
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +28,7 @@ func TestListProductsContract(t *testing.T) {
 				data, ok := resp["data"].([]interface{})
 				require.True(t, ok, "response should have data array")
 				assert.NotNil(t, data)
-				
+
 				pagination, ok := resp["pagination"].(map[string]interface{})
 				require.True(t, ok, "response should have pagination object")
 				assert.NotNil(t, pagination)
@@ -158,32 +157,32 @@ func TestListProductsContract(t *testing.T) {
 					first = false
 				}
 			}
-			
+
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("X-Tenant-ID", uuid.New().String())
 			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
+			_ = e.NewContext(req, rec) // c - for future implementation when handler is uncommented
 
 			// This is a contract test - it should FAIL until implementation exists
 			// Uncomment the handler call once implementation is complete:
 			// err := handler.ListProducts(c)
-			
+
 			// For now, assert the test is skipped
 			t.Skip("Implementation not yet complete - test should fail first (TDD)")
 
 			// Once implementation exists, use these assertions:
 			/*
-			assert.Equal(t, tt.expectedStatus, rec.Code)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
 
-			if tt.expectedStatus >= 200 && tt.expectedStatus < 300 {
-				var response map[string]interface{}
-				err := json.Unmarshal(rec.Body.Bytes(), &response)
-				require.NoError(t, err)
-				
-				if tt.checkResponse != nil {
-					tt.checkResponse(t, response)
+				if tt.expectedStatus >= 200 && tt.expectedStatus < 300 {
+					var response map[string]interface{}
+					err := json.Unmarshal(rec.Body.Bytes(), &response)
+					require.NoError(t, err)
+
+					if tt.checkResponse != nil {
+						tt.checkResponse(t, response)
+					}
 				}
-			}
 			*/
 		})
 	}
@@ -192,7 +191,7 @@ func TestListProductsContract(t *testing.T) {
 // TestListProductsResponseStructure verifies the response structure matches the contract
 func TestListProductsResponseStructure(t *testing.T) {
 	t.Skip("Implementation not yet complete - test should fail first (TDD)")
-	
+
 	// This test should verify:
 	// 1. Response has "data" array
 	// 2. Each product in data has all required fields: id, sku, name, selling_price, cost_price, tax_rate, stock_quantity, created_at, updated_at

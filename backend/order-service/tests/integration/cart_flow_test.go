@@ -16,18 +16,18 @@ func TestCartFlow_AddUpdateRemove(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-	tenantID := "550e8400-e29b-41d4-a716-446655440000"
-	sessionID := "test-session-" + time.Now().Format("20060102150405")
+	_ = context.Background()                                  // ctx - for future implementation
+	_ = "550e8400-e29b-41d4-a716-446655440000"                // tenantID - for future implementation
+	_ = "test-session-" + time.Now().Format("20060102150405") // sessionID - for future implementation
 
 	t.Run("Add item to empty cart", func(t *testing.T) {
 		// Given: Empty cart
 		// When: Add item
 		// Then: Cart contains 1 item with correct details
 
-		productID := "prod-001"
-		quantity := 2
-		unitPrice := 50000
+		_ = "prod-001" // productID - for future implementation
+		_ = 2          // quantity - for future implementation
+		_ = 50000      // unitPrice - for future implementation
 
 		// TODO: Call cartService.AddItem(ctx, tenantID, sessionID, productID, quantity, unitPrice)
 		// cart, err := cartService.AddItem(ctx, tenantID, sessionID, productID, "Test Product", quantity, unitPrice)
@@ -45,8 +45,8 @@ func TestCartFlow_AddUpdateRemove(t *testing.T) {
 		// When: Update quantity to 5
 		// Then: Item quantity is updated
 
-		productID := "prod-001"
-		newQuantity := 5
+		_ = "prod-001" // productID - for future implementation
+		_ = 5          // newQuantity - for future implementation
 
 		// TODO: Call cartService.UpdateItem(ctx, tenantID, sessionID, productID, newQuantity)
 		// cart, err := cartService.UpdateItem(ctx, tenantID, sessionID, productID, newQuantity)
@@ -60,7 +60,7 @@ func TestCartFlow_AddUpdateRemove(t *testing.T) {
 		// When: Remove item
 		// Then: Cart is empty
 
-		productID := "prod-001"
+		_ = "prod-001" // productID - for future implementation
 
 		// TODO: Call cartService.RemoveItem(ctx, tenantID, sessionID, productID)
 		// cart, err := cartService.RemoveItem(ctx, tenantID, sessionID, productID)
@@ -111,7 +111,7 @@ func TestCartFlow_AddUpdateRemove(t *testing.T) {
 		// When: Update quantity to 0
 		// Then: Item is removed from cart
 
-		productID := "prod-001"
+		_ = "prod-001" // productID - for future implementation
 
 		// TODO: Update quantity to 0
 		// cart, err := cartService.UpdateItem(ctx, tenantID, sessionID, productID, 0)
@@ -125,16 +125,16 @@ func TestCartFlow_Persistence(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-	tenantID := "550e8400-e29b-41d4-a716-446655440000"
-	sessionID := "test-session-persist"
+	_ = context.Background()                   // ctx - for future implementation
+	_ = "550e8400-e29b-41d4-a716-446655440000" // tenantID - for future implementation
+	_ = "test-session-persist"                 // sessionID - for future implementation
 
 	t.Run("Cart persists across requests", func(t *testing.T) {
 		// Given: Add item to cart
 		// When: Retrieve cart in new request
 		// Then: Cart contains previously added item
 
-		productID := "prod-persist"
+		_ = "prod-persist" // productID - for future implementation
 
 		// TODO: Add item
 		// _, err := cartService.AddItem(ctx, tenantID, sessionID, productID, "Test", 1, 10000)

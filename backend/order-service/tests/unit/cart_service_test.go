@@ -72,8 +72,8 @@ func TestCartService_AddItem(t *testing.T) {
 
 	t.Run("Reject add when inventory insufficient", func(t *testing.T) {
 		// Given: Product with insufficient inventory
-		tenantID := "tenant-1"
-		sessionID := "session-1"
+		_ = "tenant-1"  // tenantID - for future implementation
+		_ = "session-1" // sessionID - for future implementation
 		productID := "prod-1"
 		quantity := 100
 
@@ -100,7 +100,7 @@ func TestCartService_AddItem(t *testing.T) {
 }
 
 func TestCartService_UpdateItem(t *testing.T) {
-	ctx := context.Background()
+	_ = context.Background() // ctx - for future implementation
 
 	t.Run("Successfully update item quantity", func(t *testing.T) {
 		// Given: Cart with item (quantity=2)

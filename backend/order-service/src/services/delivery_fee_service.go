@@ -120,7 +120,7 @@ func (s *DeliveryFeeService) calculateDistanceBasedFee(distanceKm float64, confi
 // calculateZoneBasedFee calculates fee based on delivery zone
 // Implements T079: Zone-based fee lookup
 func (s *DeliveryFeeService) calculateZoneBasedFee(zoneID string, config *DeliveryFeeConfig) (int, error) {
-	if config.ZoneFees == nil || len(config.ZoneFees) == 0 {
+	if len(config.ZoneFees) == 0 {
 		log.Warn().Msg("No zone fees configured, using base fee")
 		return config.BaseFee, nil
 	}

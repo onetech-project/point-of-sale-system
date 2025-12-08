@@ -15,13 +15,13 @@ func TestInventoryReservation_Lifecycle(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	ctx := context.Background()
+	_ = context.Background() // ctx - for future implementation
 
 	t.Run("Create reservation with 15-minute TTL", func(t *testing.T) {
 		// Given: Product with available inventory (stock=10)
-		productID := "prod-inv-001"
-		quantity := 3
-		orderID := "order-001"
+		_ = "prod-inv-001" // productID - for future implementation
+		_ = 3              // quantity - for future implementation
+		_ = "order-001"    // orderID - for future implementation
 
 		// When: Create reservation
 		// TODO: reservation, err := inventoryService.CreateReservation(ctx, orderID, productID, quantity)
@@ -37,9 +37,9 @@ func TestInventoryReservation_Lifecycle(t *testing.T) {
 
 	t.Run("Available inventory decreases when reservation created", func(t *testing.T) {
 		// Given: Product with stock=10
-		productID := "prod-inv-002"
-		initialStock := 10
-		reserveQty := 3
+		_ = "prod-inv-002" // productID - for future implementation
+		_ = 10             // initialStock - for future implementation
+		_ = 3              // reserveQty - for future implementation
 
 		// When: Create reservation for 3 units
 		// TODO: _, err := inventoryService.CreateReservation(ctx, "order-002", productID, reserveQty)
@@ -53,9 +53,9 @@ func TestInventoryReservation_Lifecycle(t *testing.T) {
 
 	t.Run("Expired reservations release inventory", func(t *testing.T) {
 		// Given: Reservation that expired 1 minute ago
-		productID := "prod-inv-003"
-		orderID := "order-003"
-		quantity := 5
+		_ = "prod-inv-003" // productID - for future implementation
+		_ = "order-003"    // orderID - for future implementation
+		_ = 5              // quantity - for future implementation
 
 		// TODO: Create reservation with past expiry
 		// reservation := &Reservation{
@@ -76,9 +76,9 @@ func TestInventoryReservation_Lifecycle(t *testing.T) {
 
 	t.Run("Convert reservation on payment", func(t *testing.T) {
 		// Given: Active reservation for 3 units
-		productID := "prod-inv-004"
-		orderID := "order-004"
-		quantity := 3
+		_ = "prod-inv-004" // productID - for future implementation
+		_ = "order-004"    // orderID - for future implementation
+		_ = 3              // quantity - for future implementation
 
 		// TODO: Create reservation
 		// _, err := inventoryService.CreateReservation(ctx, orderID, productID, quantity)
@@ -102,14 +102,14 @@ func TestInventoryReservation_RaceConditions(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	ctx := context.Background()
+	_ = context.Background() // ctx - for future implementation
 
 	t.Run("SELECT FOR UPDATE prevents overselling", func(t *testing.T) {
 		// Given: Product with stock=5
 		// When: 3 concurrent orders for 3 units each
 		// Then: Only 1 order succeeds, others fail with insufficient inventory
 
-		productID := "prod-race-001"
+		_ = "prod-race-001" // productID - for future implementation
 
 		// TODO: Set initial stock to 5
 		// productRepo.UpdateStock(ctx, productID, 5)
@@ -118,7 +118,7 @@ func TestInventoryReservation_RaceConditions(t *testing.T) {
 		done := make(chan error, 3)
 		for i := 0; i < 3; i++ {
 			go func(orderNum int) {
-				orderID := "order-race-" + string(rune(orderNum))
+				_ = "order-race-" + string(rune(orderNum)) // orderID - for future implementation
 				// _, err := inventoryService.CreateReservation(ctx, orderID, productID, 3)
 				// done <- err
 				done <- nil // placeholder
