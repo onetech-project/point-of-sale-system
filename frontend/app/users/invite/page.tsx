@@ -9,7 +9,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES, type Role } from '@/constants/roles';
 
 export default function InviteUserPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>(ROLES.CASHIER);
@@ -20,16 +20,8 @@ export default function InviteUserPage() {
   const [loadingInvitations, setLoadingInvitations] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadInvitations();
-    }
-  }, [isAuthenticated]);
+    loadInvitations();
+  }, []);
 
   const loadInvitations = async () => {
     try {
@@ -71,17 +63,6 @@ export default function InviteUserPage() {
       setLoading(false);
     }
   };
-
-  if (isLoading || !isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   const getRoleColor = (role: string) => {
     switch (role) {

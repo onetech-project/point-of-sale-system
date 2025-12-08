@@ -18,10 +18,15 @@ func TenantScope() echo.MiddlewareFunc {
 			}
 
 			c.Request().Header.Set("X-Tenant-ID", tenantID.(string))
-			
+
 			userID := c.Get("user_id")
 			if userID != nil {
 				c.Request().Header.Set("X-User-ID", userID.(string))
+			}
+
+			email := c.Get("email")
+			if email != nil {
+				c.Request().Header.Set("X-User-Email", email.(string))
 			}
 
 			role := c.Get("role")

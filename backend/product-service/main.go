@@ -77,6 +77,12 @@ func main() {
 	stockHandler := api.NewStockHandler(productService, inventoryService)
 	stockHandler.RegisterRoutes(apiGroup)
 
+	// Public catalog endpoint (no authentication required)
+	catalogService := services.NewCatalogService(config.DB)
+	publicCatalogHandler := api.NewPublicCatalogHandler(catalogService, productService)
+	e.GET("/public/menu/:tenant_id/products", publicCatalogHandler.GetPublicMenu)
+	e.GET("/public/products/:tenant_id/:id/photo", publicCatalogHandler.GetPublicPhoto)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8086"

@@ -8,7 +8,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
+
 	"github.com/pos/tenant-service/api"
+	"github.com/pos/tenant-service/src/repository"
+	"github.com/pos/tenant-service/src/services"
 )
 
 func main() {
@@ -19,6 +22,7 @@ func main() {
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	// Note: CORS is handled by API Gateway, not by individual services
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -43,6 +47,20 @@ func main() {
 
 	tenantHandler := api.NewTenantHandler(db)
 	e.GET("/tenant", tenantHandler.GetTenant)
+
+	// Tenant configuration routes
+	configRepo := repository.NewTenantConfigRepository(db)
+	configService := services.NewTenantConfigService(configRepo, db)
+	configHandler := api.NewTenantConfigHandler(configService)
+
+	// Public routes
+	e.GET("/public/tenants/:tenant_id/config", configHandler.GetPublicTenantConfig)
+
+	// Admin routes - match API Gateway pattern with /api/v1 prefix
+	admin := e.Group("/api/v1/admin/tenants")
+	admin.PATCH("/:tenant_id/config", configHandler.UpdateTenantConfig)
+	admin.GET("/:tenant_id/midtrans-config", configHandler.GetMidtransConfig)
+	admin.PATCH("/:tenant_id/midtrans-config", configHandler.UpdateMidtransConfig)
 
 	port := os.Getenv("PORT")
 	if port == "" {

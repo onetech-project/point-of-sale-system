@@ -130,6 +130,12 @@ Used by docker-compose and as a reference for all services.
 - `ENABLE_TENANT_ISOLATION` - Enable tenant isolation (default: true)
 - `DEFAULT_TENANT_PLAN` - Default plan for new tenants (default: free)
 
+**Note on Midtrans Configuration:**
+- Midtrans credentials (server_key, client_key, merchant_id) are stored **per-tenant** in the database
+- Each tenant configures their own payment gateway through the admin UI at `/settings/payment`
+- No global Midtrans environment variables needed in tenant-service
+- See Order Service configuration for fallback/testing credentials
+
 ### Notification Service (.env)
 
 **Required Variables:**
@@ -144,6 +150,29 @@ Used by docker-compose and as a reference for all services.
 **Optional Variables:**
 - `SMS_PROVIDER` - SMS provider (twilio, etc.)
 - `FIREBASE_CREDENTIALS_PATH` - Firebase credentials for push notifications
+
+### Order Service (.env)
+
+**Required Variables:**
+- `PORT` - Server port (default: 8087)
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string for cart and caching
+- `TENANT_SERVICE_URL` - Tenant service URL to fetch payment configs
+
+**Midtrans Configuration (Fallback/Testing):**
+- `MIDTRANS_SERVER_KEY` - Fallback Midtrans server key (optional, tenant-specific keys preferred)
+- `MIDTRANS_CLIENT_KEY` - Fallback Midtrans client key (optional)
+- `MIDTRANS_ENVIRONMENT` - sandbox or production (default: sandbox)
+- `MIDTRANS_MERCHANT_ID` - Merchant ID (optional)
+
+**Google Maps API:**
+- `GOOGLE_MAPS_API_KEY` - For geocoding and delivery fee calculation
+
+**Important:** Order service now fetches tenant-specific Midtrans credentials from tenant-service at runtime. The environment variables above are only used as fallback if tenant hasn't configured their own credentials.
+
+**Cart Configuration:**
+- `CART_SESSION_TTL` - Cart expiration in seconds (default: 86400 = 24 hours)
+- `GEOCODING_CACHE_TTL` - Address geocoding cache TTL (default: 604800 = 7 days)
 
 ### Frontend (.env.local)
 
@@ -170,6 +199,57 @@ Used by docker-compose and as a reference for all services.
 5. Use production-grade SMTP credentials
 6. Enable rate limiting in production
 7. Set `ENVIRONMENT=production` in all services
+
+## Tenant-Specific Payment Configuration
+
+**New in Version 2.0:** Each tenant can now configure their own Midtrans payment credentials.
+
+### How It Works
+
+1. **Database Storage**: Midtrans credentials are stored in `tenant_configs` table with these fields:
+   - `midtrans_server_key` - Server key for backend API calls
+   - `midtrans_client_key` - Client key for frontend integration
+   - `midtrans_merchant_id` - Merchant identifier
+   - `midtrans_environment` - `sandbox` or `production`
+
+2. **Admin Configuration**: Tenant owners configure payment settings at `/settings/payment` in the admin UI
+
+3. **Runtime Fetching**: Order service fetches tenant-specific credentials when processing payments:
+   ```go
+   // Order service dynamically retrieves credentials per tenant
+   snapClient := GetSnapClientForTenant(ctx, tenantID)
+   ```
+
+4. **Fallback Mechanism**: If tenant hasn't configured credentials, order service uses fallback from `.env`:
+   - Development/Testing: Use shared sandbox credentials
+   - Production: Require tenant-specific credentials (no fallback)
+
+### Setting Up Tenant Payment Credentials
+
+**Via Admin UI (Recommended):**
+1. Login as tenant owner
+2. Navigate to Settings → Payment Settings
+3. Enter Midtrans credentials
+4. Select environment (sandbox/production)
+5. Save configuration
+
+**Via Database (Development):**
+```sql
+UPDATE tenant_configs 
+SET 
+  midtrans_server_key = 'SB-Mid-server-xxx',
+  midtrans_client_key = 'SB-Mid-client-xxx',
+  midtrans_merchant_id = 'G123456789',
+  midtrans_environment = 'sandbox'
+WHERE tenant_id = 'your-tenant-uuid';
+```
+
+### Security Considerations
+
+- **Encryption**: In production, consider encrypting `midtrans_server_key` at rest
+- **Access Control**: Only tenant owners can view/update payment credentials
+- **Audit Logging**: All credential updates are logged with user and timestamp
+- **API Isolation**: Each tenant's transactions use only their credentials (multi-tenant isolation)
 
 ## Running Services with Environment Variables
 

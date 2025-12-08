@@ -2,16 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/store/auth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
-import productService from '@/services/product';
+import { product } from '@/services/product';
 import { Category, CreateCategoryRequest, UpdateCategoryRequest } from '@/types/product';
 
 export default function CategoriesPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,22 +23,14 @@ export default function CategoriesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchCategories();
-    }
-  }, [isAuthenticated]);
+    fetchCategories();
+  }, []);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await productService.getCategories();
+      const data = await product.getCategories();
       setCategories(data);
     } catch (err: any) {
       console.error('Failed to fetch categories:', err);
@@ -83,7 +73,7 @@ export default function CategoriesPage() {
         name: formData.name.trim(),
         display_order: formData.display_order,
       };
-      await productService.createCategory(request);
+      await product.createCategory(request);
       await fetchCategories();
       resetForm();
     } catch (err: any) {
@@ -109,7 +99,7 @@ export default function CategoriesPage() {
         name: formData.name.trim(),
         display_order: formData.display_order,
       };
-      await productService.updateCategory(editingId, request);
+      await product.updateCategory(editingId, request);
       await fetchCategories();
       resetForm();
     } catch (err: any) {
@@ -128,7 +118,7 @@ export default function CategoriesPage() {
     }
 
     try {
-      await productService.deleteCategory(id);
+      await product.deleteCategory(id);
       await fetchCategories();
     } catch (err: any) {
       console.error('Failed to delete category:', err);
@@ -154,19 +144,17 @@ export default function CategoriesPage() {
     setIsCreating(true);
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   return (

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Invoice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background-color: #4F46E5;
+      color: white;
+      padding: 30px 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .order-ref {
+      background-color: #ffffff22;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .customer-info {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .info-label {
+      font-weight: bold;
+      color: #666;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    .items-table th {
+      background-color: #f5f5f5;
+      padding: 12px;
+      text-align: left;
+      font-weight: bold;
+      border-bottom: 2px solid #ddd;
+    }
+
+    .items-table td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .items-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .summary {
+      background-color: #f9f9f9;
+      padding: 20px;
+      border-radius: 5px;
+      margin-top: 20px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .summary-row.total {
+      border-top: 2px solid #ddd;
+      margin-top: 10px;
+      padding-top: 15px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #4F46E5;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 14px 28px;
+      background-color: #4F46E5;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      margin: 20px 0;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .button:hover {
+      background-color: #4338CA;
+    }
+
+    .footer {
+      background-color: #f5f5f5;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      border-top: 1px solid #ddd;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      background-color: #FEF3C7;
+      color: #92400E;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📄 Order Invoice</h1>
+      <div class="order-ref">{{.OrderReference}}</div>
+    </div>
+
+    <div class="content">
+      <div class="customer-info">
+        <h3 style="margin-top: 0; color: #4F46E5;">Customer Information</h3>
+        <div class="info-row">
+          <span class="info-label">Name:</span>
+          <span>{{.CustomerName}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Email:</span>
+          <span>{{.CustomerEmail}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Delivery Type:</span>
+          <span class="badge">{{.DeliveryType}}</span>
+        </div>
+        <div class="info-row" style="border-bottom: none;">
+          <span class="info-label">Order Date:</span>
+          <span>{{.CreatedAt}}</span>
+        </div>
+      </div>
+
+      <h3 style="color: #4F46E5;">Order Items</h3>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Price</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Items}}
+          <tr>
+            <td>{{.ProductName}}</td>
+            <td class="text-right">{{.Quantity}}</td>
+            <td class="text-right">Rp {{.UnitPrice}}</td>
+            <td class="text-right">Rp {{.TotalPrice}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+
+      <div class="summary">
+        <div class="summary-row">
+          <span>Subtotal:</span>
+          <span>Rp {{.SubtotalAmount}}</span>
+        </div>
+        {{if .DeliveryFee}}
+        <div class="summary-row">
+          <span>Delivery Fee:</span>
+          <span>Rp {{.DeliveryFee}}</span>
+        </div>
+        {{end}}
+        <div class="summary-row total">
+          <span>TOTAL:</span>
+          <span>Rp {{.TotalAmount}}</span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px;">
+        <a href="{{.OrderURL}}" class="button">View Order Status</a>
+      </div>
+
+      <p style="color: #666; font-size: 14px; margin-top: 30px;">
+        Thank you for your order! You can track your order status using the link above or by visiting our website with
+        your order reference number.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>This is an automated email. Please do not reply to this message.</p>
+      <p>&copy; 2024 POS System. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+
+</html>

@@ -2,59 +2,34 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/store/auth';
 import { useTranslation } from '@/i18n/provider';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
 import ProductList from '@/components/products/ProductList';
-import productService from '@/services/product';
+import { product } from '@/services/product';
 import { Category } from '@/types/product';
 import InventoryDashboard from '@/components/products/InventoryDashboard';
 
 export default function ProductsPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
   const { t } = useTranslation(['products', 'common']);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchCategories();
-    }
-  }, [isAuthenticated]);
+    fetchCategories();
+  }, []);
 
   const fetchCategories = async () => {
     try {
-      const data = await productService.getCategories();
+      const data = await product.getCategories();
       setCategories(data);
     } catch (err) {
       console.error('Failed to fetch categories:', err);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{t('common.loading', { ns: 'common' })}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   return (
     <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>

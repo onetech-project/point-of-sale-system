@@ -72,6 +72,15 @@ else
     echo "✓ backend/product-service/.env already exists"
 fi
 
+# Order Service
+if [ ! -f "backend/order-service/.env" ]; then
+    echo "Creating backend/order-service/.env file..."
+    cp backend/order-service/.env.example backend/order-service/.env
+    echo "✓ Created backend/order-service/.env"
+else
+    echo "✓ backend/order-service/.env already exists"
+fi
+
 # Frontend
 if [ ! -f "frontend/.env.local" ]; then
     echo "Creating frontend/.env.local file..."
@@ -95,6 +104,7 @@ echo "  - backend/user-service/.env (email configuration)"
 echo "  - backend/tenant-service/.env"
 echo "  - backend/notification-service/.env (email, SMS, Kafka)"
 echo "  - backend/product-service/.env"
+echo "  - backend/order-service/.env (Midtrans, Google Maps)"
 echo "  - frontend/.env.local (API URL)"
 echo ""
 echo "📖 For detailed configuration instructions, see: docs/ENVIRONMENT.md"

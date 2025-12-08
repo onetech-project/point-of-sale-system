@@ -2,21 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useAuth } from '@/store/auth';
 import { useTranslation } from '@/i18n/provider';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
 import ProductForm from '@/components/products/ProductForm';
 import StockAdjustmentModal from '@/components/products/StockAdjustmentModal';
-import productService from '@/services/product';
+import { product as productService } from '@/services/product';
 import { Product, UpdateProductRequest, StockAdjustmentRequest } from '@/types/product';
 import { formatNumber } from '@/utils/format';
 
 export default function ProductDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { t } = useTranslation(['products', 'common']);
   const productId = params?.id as string;
 
@@ -29,16 +27,10 @@ export default function ProductDetailPage() {
   const [showStockModal, setShowStockModal] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  useEffect(() => {
-    if (productId && isAuthenticated) {
+    if (productId) {
       fetchProduct();
     }
-  }, [productId, isAuthenticated]);
+  }, [productId]);
 
   const fetchProduct = async () => {
     try {
@@ -54,7 +46,7 @@ export default function ProductDetailPage() {
     }
   };
 
-  const handleUpdate = async (data: UpdateProductRequest) => {
+  const handleUpdateProduct = async (data: UpdateProductRequest) => {
     try {
       const updated = await productService.updateProduct(productId, data);
       setProduct(updated);
@@ -139,19 +131,17 @@ export default function ProductDetailPage() {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{t('common.loading', { ns: 'common' })}</p>
+      <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">{t('common.loading', { ns: 'common' })}</p>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   if (error || !product) {
@@ -278,10 +268,10 @@ export default function ProductDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">{t('products.details.stockStatus')}:</span>
                     <span className={`text-sm font-medium ${product.stock_quantity <= 0
-                        ? 'text-red-600'
-                        : product.stock_quantity <= 10
-                          ? 'text-yellow-600'
-                          : 'text-green-600'
+                      ? 'text-red-600'
+                      : product.stock_quantity <= 10
+                        ? 'text-yellow-600'
+                        : 'text-green-600'
                       }`}>
                       {product.stock_quantity <= 0 ? t('products.list.outOfStock') : product.stock_quantity <= 10 ? t('products.list.lowStock') : t('products.list.inStock')}
                     </span>
@@ -303,7 +293,7 @@ export default function ProductDetailPage() {
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('products.editProduct')}</h2>
                   <ProductForm
                     initialData={product}
-                    onSubmit={handleUpdate}
+                    onSubmit={handleUpdateProduct}
                     onCancel={() => setIsEditing(false)}
                     isEdit
                   />

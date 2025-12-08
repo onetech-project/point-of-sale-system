@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/provider';
-import productService from '@/services/product';
+import { product as productService } from '@/services/product';
 import { Product, ProductListParams } from '@/types/product';
 import { formatNumber } from '@/utils/format';
 

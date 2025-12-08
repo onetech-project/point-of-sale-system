@@ -1,0 +1,496 @@
+openapi: 3.0.3
+info:
+  title: Guest Order API
+  description: |
+    API for guest ordering flow including cart management, order creation, and order status retrieval.
+    All endpoints are public (no authentication required) but scoped to tenant.
+  version: 1.0.0
+  contact:
+    name: POS Backend Team
+
+servers:
+  - url: http://localhost:8084
+    description: Local development
+  - url: https://api.pos-system.com
+    description: Production
+
+tags:
+  - name: Cart
+    description: Guest cart operations
+  - name: Orders
+    description: Order creation and retrieval
+  - name: Checkout
+    description: Checkout flow with delivery type selection
+
+paths:
+  /public/menu/{tenant_id}/products:
+    get:
+      summary: Get public product catalog
+      description: Returns list of available products for a tenant's public menu
+      tags:
+        - Products
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by product category
+        - name: available_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Only show products with inventory > 0
+      responses:
+        "200":
+          description: Product list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicProduct"
+        "404":
+          $ref: "#/components/responses/TenantNotFound"
+
+  /public/cart/{tenant_id}:
+    get:
+      summary: Get guest cart contents
+      description: Retrieves current cart for the session
+      tags:
+        - Cart
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/SessionIdHeader"
+      responses:
+        "200":
+          description: Cart retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "404":
+          description: Cart not found (empty cart)
+
+  /public/cart/{tenant_id}/items:
+    post:
+      summary: Add item to cart
+      description: Adds a product to the guest cart with specified quantity
+      tags:
+        - Cart
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/SessionIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - product_id
+                - quantity
+              properties:
+                product_id:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+      responses:
+        "200":
+          description: Item added to cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Insufficient inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Insufficient inventory"
+                message: "Only 3 units available for this product"
+
+  /public/cart/{tenant_id}/items/{product_id}:
+    patch:
+      summary: Update cart item quantity
+      description: Updates the quantity of an existing cart item
+      tags:
+        - Cart
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/SessionIdHeader"
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Cart item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "404":
+          description: Item not in cart
+    delete:
+      summary: Remove item from cart
+      description: Removes a product from the cart
+      tags:
+        - Cart
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/SessionIdHeader"
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Item removed from cart
+        "404":
+          description: Item not in cart
+
+  /public/orders/{tenant_id}/checkout:
+    post:
+      summary: Create order and initiate payment
+      description: |
+        Creates a pending order with inventory reservations, validates delivery address if applicable,
+        calculates delivery fee, and initiates Midtrans payment.
+      tags:
+        - Checkout
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/SessionIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "201":
+          description: Order created, payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Inventory conflict or address not serviceable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /public/orders/{tenant_id}/{order_reference}:
+    get:
+      summary: Get order status
+      description: Retrieves order details by reference number
+      tags:
+        - Orders
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - name: order_reference
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^GO-[A-Z0-9]{6}$"
+          example: GO-ABC123
+      responses:
+        "200":
+          description: Order details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Order not found
+
+components:
+  parameters:
+    TenantIdPath:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Tenant identifier
+
+    SessionIdHeader:
+      name: X-Session-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Guest session identifier
+
+  schemas:
+    PublicProduct:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+          description: Price in smallest currency unit (IDR cents)
+        image_url:
+          type: string
+          format: uri
+        category:
+          type: string
+        available:
+          type: boolean
+        available_quantity:
+          type: integer
+          minimum: 0
+
+    Cart:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        subtotal:
+          type: integer
+          description: Sum of all item totals
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CartItem:
+      type: object
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: integer
+        total_price:
+          type: integer
+        added_at:
+          type: string
+          format: date-time
+
+    CheckoutRequest:
+      type: object
+      required:
+        - delivery_type
+        - customer_name
+        - customer_phone
+      properties:
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        customer_name:
+          type: string
+          minLength: 2
+          maxLength: 255
+        customer_phone:
+          type: string
+          pattern: '^\+?[0-9]{10,15}$'
+          example: "+628123456789"
+        delivery_address:
+          type: object
+          description: Required if delivery_type = delivery
+          required:
+            - address_text
+          properties:
+            address_text:
+              type: string
+              minLength: 10
+              maxLength: 500
+        table_number:
+          type: string
+          maxLength: 50
+          description: Optional for dine_in
+        notes:
+          type: string
+          maxLength: 500
+
+    CheckoutResponse:
+      type: object
+      properties:
+        order_reference:
+          type: string
+          example: GO-ABC123
+        order_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING]
+        subtotal_amount:
+          type: integer
+        delivery_fee:
+          type: integer
+        total_amount:
+          type: integer
+        payment_url:
+          type: string
+          format: uri
+          description: Midtrans Snap payment URL
+        expires_at:
+          type: string
+          format: date-time
+          description: Payment expiration time
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_reference:
+          type: string
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, PAID, COMPLETE, CANCELLED]
+        subtotal_amount:
+          type: integer
+        delivery_fee:
+          type: integer
+        total_amount:
+          type: integer
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        delivery_address:
+          $ref: "#/components/schemas/DeliveryAddress"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    DeliveryAddress:
+      type: object
+      properties:
+        address_text:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        is_serviceable:
+          type: boolean
+        distance_km:
+          type: number
+          format: double
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: integer
+        total_price:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    TenantNotFound:
+      description: Tenant not found or inactive
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "Tenant not found"
+            message: "The requested tenant does not exist or is inactive"
+
+    ValidationError:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "Validation failed"
+            message: "Invalid input data"
+            details:
+              customer_phone: "Invalid phone number format"

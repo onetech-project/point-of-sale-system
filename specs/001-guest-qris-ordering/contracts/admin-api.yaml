@@ -1,0 +1,467 @@
+openapi: 3.0.3
+info:
+  title: Admin Order Management API
+  description: |
+    API for tenant staff to manage guest orders in the admin dashboard.
+    Requires authentication and tenant scope validation.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8084
+    description: Local development
+  - url: https://api.pos-system.com
+    description: Production
+
+tags:
+  - name: Admin Orders
+    description: Order management for tenant staff
+
+paths:
+  /admin/orders:
+    get:
+      summary: List orders for tenant
+      description: |
+        Returns paginated list of orders for the authenticated user's tenant.
+        Supports filtering by status and date range.
+      tags:
+        - Admin Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, PAID, COMPLETE, CANCELLED]
+          description: Filter by order status
+        - name: delivery_type
+          in: query
+          schema:
+            type: string
+            enum: [pickup, delivery, dine_in]
+          description: Filter by delivery type
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for order search (inclusive)
+          example: "2025-12-01"
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for order search (inclusive)
+          example: "2025-12-31"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at_desc, created_at_asc, total_desc, total_asc]
+            default: created_at_desc
+      responses:
+        "200":
+          description: Order list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrderSummary"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/orders/{order_id}:
+    get:
+      summary: Get order details
+      description: Returns full details of a specific order
+      tags:
+        - Admin Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Order details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Order not found
+
+  /admin/orders/{order_id}/status:
+    patch:
+      summary: Update order status
+      description: |
+        Updates order status. Valid transitions:
+        - PAID → COMPLETE (mark as fulfilled)
+        - PAID → CANCELLED (refund/cancellation)
+        - PENDING → CANCELLED (cancellation before payment)
+      tags:
+        - Admin Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [COMPLETE, CANCELLED]
+                notes:
+                  type: string
+                  maxLength: 500
+                  description: Reason for status change or fulfillment notes
+            examples:
+              complete:
+                summary: Mark order as complete
+                value:
+                  status: COMPLETE
+                  notes: "Delivered by GrabExpress at 14:30"
+              cancel:
+                summary: Cancel paid order
+                value:
+                  status: CANCELLED
+                  notes: "Customer requested refund - out of stock"
+      responses:
+        "200":
+          description: Order status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "400":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Invalid transition"
+                message: "Cannot transition from PENDING to COMPLETE. Payment required."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Order not found
+
+  /admin/orders/{order_id}/notes:
+    post:
+      summary: Add note to order
+      description: Adds a staff note to the order (e.g., courier info, tracking number)
+      tags:
+        - Admin Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - note
+              properties:
+                note:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+            example:
+              note: "Tracking: JNE123456789"
+      responses:
+        "201":
+          description: Note added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  note_id:
+                    type: string
+                    format: uuid
+                  note:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+                  created_by:
+                    type: string
+                    description: Staff user ID
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Order not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from auth service
+
+  schemas:
+    OrderSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_reference:
+          type: string
+          example: GO-ABC123
+        status:
+          type: string
+          enum: [PENDING, PAID, COMPLETE, CANCELLED]
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+        total_amount:
+          type: integer
+          description: Total in smallest currency unit
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    OrderDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_reference:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, PAID, COMPLETE, CANCELLED]
+
+        # Amounts
+        subtotal_amount:
+          type: integer
+        delivery_fee:
+          type: integer
+        total_amount:
+          type: integer
+
+        # Customer info
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+
+        # Fulfillment
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        table_number:
+          type: string
+        delivery_address:
+          $ref: "#/components/schemas/DeliveryAddress"
+
+        # Items
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+
+        # Payment
+        payment_info:
+          $ref: "#/components/schemas/PaymentInfo"
+
+        # Notes
+        notes:
+          type: string
+        staff_notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffNote"
+
+        # Timestamps
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        product_sku:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: integer
+        total_price:
+          type: integer
+
+    DeliveryAddress:
+      type: object
+      properties:
+        address_text:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        distance_km:
+          type: number
+          format: double
+        service_area_zone:
+          type: string
+
+    PaymentInfo:
+      type: object
+      properties:
+        midtrans_transaction_id:
+          type: string
+        payment_type:
+          type: string
+        transaction_status:
+          type: string
+        settled_at:
+          type: string
+          format: date-time
+
+    StaffNote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          description: Staff user ID or name
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+          description: Total number of records
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "Unauthorized"
+            message: "Valid authentication token required"
+
+    Forbidden:
+      description: Insufficient permissions or wrong tenant
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "Forbidden"
+            message: "You do not have permission to access this order"
+
+security:
+  - bearerAuth: []

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../store/auth';
 import { ROLES, type Role } from '../../constants/roles';
+import SessionWarning from './SessionWarning';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ export default function ProtectedRoute({
     if (isLoading) return;
 
     if (requireAuth && !isAuthenticated) {
-      router.push('/auth/login');
+      router.push('/login');
       return;
     }
 
@@ -51,5 +52,10 @@ export default function ProtectedRoute({
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <SessionWarning />
+      {children}
+    </>
+  );
 }
