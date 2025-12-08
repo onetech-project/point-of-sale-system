@@ -114,8 +114,8 @@ func GetMidtransConfigForTenant(ctx context.Context, tenantID string) (*TenantMi
 func GetWebhookURL() string {
 	webhookURL := os.Getenv("MIDTRANS_WEBHOOK_URL")
 	if webhookURL == "" {
-		// Default to localhost for development
-		webhookURL = "http://localhost:8084/payments/midtrans/notification"
+		// Default to API gateway for development
+		webhookURL = "http://localhost:8080/api/v1/webhooks/payments/midtrans/notification"
 	}
 	return webhookURL
 }

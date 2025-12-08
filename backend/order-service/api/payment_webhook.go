@@ -96,5 +96,6 @@ func (h *PaymentWebhookHandler) HandleMidtransNotification(c echo.Context) error
 func (h *PaymentWebhookHandler) RegisterRoutes(e *echo.Echo) {
 	// Public webhook endpoint (no auth required - Midtrans sends notifications here)
 	// Signature verification is handled in the service layer
-	e.POST("/payments/midtrans/notification", h.HandleMidtransNotification)
+	// Route matches API gateway path: /api/v1/webhooks/payments/midtrans/notification
+	e.POST("/api/v1/webhooks/payments/midtrans/notification", h.HandleMidtransNotification)
 }
