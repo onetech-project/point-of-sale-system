@@ -134,10 +134,10 @@ import '../styles/globals.css';
 
 ## Files Modified
 
-1. `/specs/001-auth-multitenancy/spec.md` - Added 149 lines technical requirements
-2. `/specs/001-auth-multitenancy/plan.md` - Regenerated with 871 lines
-3. `/specs/001-auth-multitenancy/tasks.md` - Generated 268 tasks
-4. `/specs/001-auth-multitenancy/tasks.md.old` - Backup of previous version
+1. `/specs/002-auth-multitenancy/spec.md` - Added 149 lines technical requirements
+2. `/specs/002-auth-multitenancy/plan.md` - Regenerated with 871 lines
+3. `/specs/002-auth-multitenancy/tasks.md` - Generated 268 tasks
+4. `/specs/002-auth-multitenancy/tasks.md.old` - Backup of previous version
 
 ## Task Breakdown (300 Total) - Updated After Blocker Resolution
 
@@ -308,9 +308,9 @@ Infrastructure
 ## Contact & Resources
 
 **Documentation**:
-- Spec: `/specs/001-auth-multitenancy/spec.md`
-- Plan: `/specs/001-auth-multitenancy/plan.md`
-- Tasks: `/specs/001-auth-multitenancy/tasks.md`
+- Spec: `/specs/002-auth-multitenancy/spec.md`
+- Plan: `/specs/002-auth-multitenancy/plan.md`
+- Tasks: `/specs/002-auth-multitenancy/tasks.md`
 - Analysis: This document
 
 **Key Files**:

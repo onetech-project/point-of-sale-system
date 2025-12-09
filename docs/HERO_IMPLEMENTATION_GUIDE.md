@@ -405,9 +405,9 @@ Before proceeding to next phase, verify:
 
 ## 📞 SUPPORT FILES
 
-- **Full Tasks**: `specs/001-auth-multitenancy/tasks.md` (377 tasks)
-- **Architecture**: `specs/001-auth-multitenancy/plan.md`
-- **Requirements**: `specs/001-auth-multitenancy/spec.md`
+- **Full Tasks**: `specs/002-auth-multitenancy/tasks.md` (377 tasks)
+- **Architecture**: `specs/002-auth-multitenancy/plan.md`
+- **Requirements**: `specs/002-auth-multitenancy/spec.md`
 - **Quick Start**: `QUICK_START.md`
 - **Readiness Assessment**: `IMPLEMENTATION_READINESS.md`
 

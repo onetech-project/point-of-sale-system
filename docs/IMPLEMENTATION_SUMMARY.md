@@ -92,7 +92,7 @@ point-of-sale-system/
 ├── .git/
 ├── .github/
 ├── .specify/
-├── specs/001-auth-multitenancy/
+├── specs/002-auth-multitenancy/
 │   ├── checklists/requirements.md ✅
 │   ├── contracts/ (4 OpenAPI specs)
 │   ├── data-model.md

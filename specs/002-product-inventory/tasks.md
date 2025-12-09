@@ -1,6 +1,6 @@
 # Tasks: Product & Inventory Management
 
-**Input**: Design documents from `/specs/001-product-inventory/`
+**Input**: Design documents from `/specs/004-product-inventory/`
 **Prerequisites**: plan.md (✓), spec.md (✓), research.md (✓), data-model.md (✓), contracts/ (✓)
 
 **Tests**: Tests are included per constitution Test-First Development requirement (III)
@@ -315,7 +315,7 @@ Based on plan.md structure:
 - [X] T154 Performance optimization: Verify indexes are used in common queries (search by name, filter by category)
 - [X] T155 Security hardening: Validate all file uploads for malicious content in backend/product-service/src/services/product_service.go
 - [X] T156 Security hardening: Add CORS configuration in backend/product-service/main.go
-- [X] T157 Run quickstart.md validation: Test all API examples from specs/001-product-inventory/quickstart.md
+- [X] T157 Run quickstart.md validation: Test all API examples from specs/004-product-inventory/quickstart.md
 - [X] T158 Documentation: Update backend/product-service/README.md with deployment instructions
 - [X] T159 Documentation: Add JSDoc comments to frontend service methods in frontend/src/services/product.service.ts
 - [X] T160 Run full test suite and verify 80%+ code coverage requirement

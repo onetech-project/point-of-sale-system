@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-22
 - PostgreSQL with schema per service pattern, Redis for session/cart data (001-guest-qris-ordering)
 - Go 1.23.0 (backend microservices), Next.js 16 with TypeScript (frontend) + Echo v4 (API framework), PostgreSQL (persistent data), Redis (session/cart/cache), Midtrans Snap API (payment), Google Maps Geocoding API (address validation) (001-guest-qris-ordering)
 - PostgreSQL for orders/inventory/tenants (6 new tables), Redis for cart sessions and geocoding cache (001-guest-qris-ordering)
+- Go 1.23 (backend services), Node.js / Next.js 16 (frontend) + `labstack/echo` (HTTP server), `segmentio/kafka-go` for Kafka, PostgreSQL, Redis (for ephemeral state / presence), SMTP provider for email (or transactional email provider) (001-order-notifications)
+- PostgreSQL (existing migrations present), Notification table exists in `notification-service` repository. (001-order-notifications)
 
 - (001-auth-multitenancy)
 
@@ -30,9 +32,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 001-order-notifications: Added Go 1.23 (backend services), Node.js / Next.js 16 (frontend) + `labstack/echo` (HTTP server), `segmentio/kafka-go` for Kafka, PostgreSQL, Redis (for ephemeral state / presence), SMTP provider for email (or transactional email provider)
 - 001-guest-qris-ordering: Added Go 1.23.0 (backend microservices), Next.js 16 with TypeScript (frontend) + Echo v4 (API framework), PostgreSQL (persistent data), Redis (session/cart/cache), Midtrans Snap API (payment), Google Maps Geocoding API (address validation)
 - 001-guest-qris-ordering: Added Go 1.23.0 (backend), TypeScript/Next.js 16 (frontend) + Echo v4 (REST API), PostgreSQL (persistence), Redis (caching/sessions), Midtrans Go SDK (payment), Google Maps Geocoding API (address validation)
-- 001-product-inventory: Added Go 1.23.0 (backend services), Node.js 18+ / Next.js 16 / React 19 (frontend) + Echo v4 (HTTP framework), lib/pq (PostgreSQL driver), Redis v9, Kafka (event streaming), Axios (HTTP client)
 
 
 <!-- MANUAL ADDITIONS START -->

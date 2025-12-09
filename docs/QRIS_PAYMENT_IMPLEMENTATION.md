@@ -719,8 +719,8 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 
 ## Documentation References
 
-- **Midtrans QRIS API**: Contract at `specs/001-guest-qris-ordering/contracts/midtrans-generate-qris-api.yaml`
-- **Payment Webhook**: Contract at `specs/001-guest-qris-ordering/contracts/payment-webhook.yaml`
+- **Midtrans QRIS API**: Contract at `specs/003-guest-qris-ordering/contracts/midtrans-generate-qris-api.yaml`
+- **Payment Webhook**: Contract at `specs/003-guest-qris-ordering/contracts/payment-webhook.yaml`
 - **Backend Conventions**: `docs/BACKEND_CONVENTIONS.md`
 - **Frontend Conventions**: `docs/FRONTEND_CONVENTIONS.md`
 
@@ -760,7 +760,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 
 For issues or questions:
 1. Check Midtrans documentation: https://docs.midtrans.com
-2. Review implementation contracts in `specs/001-guest-qris-ordering/`
+2. Review implementation contracts in `specs/003-guest-qris-ordering/`
 3. Check backend logs: `docker logs order-service`
 4. Verify database state with queries above
 

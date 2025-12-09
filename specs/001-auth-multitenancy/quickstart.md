@@ -321,7 +321,7 @@ curl -X POST http://localhost:8000/api/auth/logout \
 
 ### Adding New Endpoint
 
-**1. Update OpenAPI Contract** (`specs/001-auth-multitenancy/contracts/<service>.yaml`)
+**1. Update OpenAPI Contract** (`specs/002-auth-multitenancy/contracts/<service>.yaml`)
 
 **2. Write Contract Test**:
 ```go

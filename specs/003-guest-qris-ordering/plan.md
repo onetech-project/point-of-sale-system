@@ -1,7 +1,7 @@
 # Implementation Plan: QRIS Guest Ordering System
 
 **Branch**: `001-guest-qris-ordering` | **Date**: 2025-12-03 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-guest-qris-ordering/spec.md`
+**Input**: Feature specification from `/specs/003-guest-qris-ordering/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
@@ -41,7 +41,7 @@ Implement a guest ordering system allowing unauthenticated customers to browse p
 ### Documentation (this feature)
 
 ```text
-specs/001-guest-qris-ordering/
+specs/003-guest-qris-ordering/
 ├── plan.md              # This file (/speckit.plan command output)
 ├── research.md          # Phase 0 output (/speckit.plan command)
 ├── data-model.md        # Phase 1 output (/speckit.plan command)

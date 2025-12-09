@@ -1,6 +1,6 @@
 # Tasks: User Authentication and Multi-Tenancy
 
-**Input**: Design documents from `/specs/001-auth-multitenancy/`
+**Input**: Design documents from `/specs/002-auth-multitenancy/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
 **Feature Branch**: `001-auth-multitenancy`
 **Date**: 2025-11-23

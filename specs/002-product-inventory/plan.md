@@ -1,7 +1,7 @@
 # Implementation Plan: Product & Inventory Management
 
 **Branch**: `001-product-inventory` | **Date**: 2025-12-01 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-product-inventory/spec.md`
+**Input**: Feature specification from `/specs/004-product-inventory/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
@@ -139,7 +139,7 @@ api-gateway/                   # Existing
 ├── middleware/               # Add product service routing
 └── main.go                   # Update routes for product service
 
-specs/001-product-inventory/  # This feature
+specs/004-product-inventory/  # This feature
 ├── plan.md                   # This file
 ├── research.md               # Phase 0 output (to be created)
 ├── data-model.md             # Phase 1 output (to be created)

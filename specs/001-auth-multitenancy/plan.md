@@ -1,7 +1,7 @@
 # Implementation Plan: User Authentication and Multi-Tenancy
 
-**Branch**: `001-auth-multitenancy` | **Date**: 2025-11-23 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-auth-multitenancy/spec.md`
+**Branch**: `002-auth-multitenancy` | **Date**: 2025-11-23 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/002-auth-multitenancy/spec.md`
 
 **Note**: This plan implements comprehensive authentication and multi-tenant architecture with modern frontend (Tailwind CSS), complete testing coverage, and accessibility standards.
 
@@ -120,7 +120,7 @@ Implement secure user authentication and multi-tenant architecture for the point
 ### Documentation (this feature)
 
 ```text
-specs/001-auth-multitenancy/
+specs/002-auth-multitenancy/
 ├── plan.md              # This file (/speckit.plan command output)
 ├── spec.md              # Feature specification (INPUT)
 ├── research.md          # Phase 0 output (technology decisions & best practices)
@@ -419,7 +419,7 @@ All architecture decisions align with constitution principles:
 
 ### Research Output Structure
 
-**File**: `specs/001-auth-multitenancy/research.md`
+**File**: `specs/002-auth-multitenancy/research.md`
 
 ```markdown
 # Research Findings: Authentication & Multi-Tenancy
@@ -448,7 +448,7 @@ All architecture decisions align with constitution principles:
 
 **Objective**: Define complete database schema with relationships, constraints, and indexes.
 
-**Output File**: `specs/001-auth-multitenancy/data-model.md`
+**Output File**: `specs/002-auth-multitenancy/data-model.md`
 
 **Required Content**:
 
@@ -489,7 +489,7 @@ All architecture decisions align with constitution principles:
 
 **Objective**: Define all REST API endpoints with OpenAPI 3.0 specifications.
 
-**Output Directory**: `specs/001-auth-multitenancy/contracts/`
+**Output Directory**: `specs/002-auth-multitenancy/contracts/`
 
 **Required Files**:
 
@@ -548,7 +548,7 @@ POST /api/v1/invitations/:token/accept # Accept invitation
 
 **Objective**: Document setup, development, and testing workflows.
 
-**Output File**: `specs/001-auth-multitenancy/quickstart.md`
+**Output File**: `specs/002-auth-multitenancy/quickstart.md`
 
 **Required Sections**:
 
@@ -657,7 +657,7 @@ cd /home/asrock/code/POS/point-of-sale-system
 
 **NOTE**: This phase is executed by `/speckit.tasks` command and is NOT part of `/speckit.plan`.
 
-The implementation phase will generate `specs/001-auth-multitenancy/tasks.md` with:
+The implementation phase will generate `specs/002-auth-multitenancy/tasks.md` with:
 - Detailed task breakdown for each service and component
 - Test-first development sequence
 - Integration checkpoints

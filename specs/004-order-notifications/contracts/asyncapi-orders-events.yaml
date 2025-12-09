@@ -1,0 +1,37 @@
+asyncapi: '2.6.0'
+info:
+  title: Orders Events
+  version: '1.0.0'
+  description: Kafka topic schema for order lifecycle events used by notification-service
+channels:
+  orders.events:
+    description: Topic for order lifecycle events
+    bindings:
+      kafka:
+        topic: orders.events
+components:
+  messages:
+    OrderEvent:
+      summary: Generic order event
+      payload:
+        type: object
+        required: [event_id, event_type, order_id, tenant_id, timestamp]
+        properties:
+          event_id:
+            type: string
+            format: uuid
+          event_type:
+            type: string
+            enum: [order_created, order_paid, order_status_updated]
+          order_id:
+            type: string
+            format: uuid
+          tenant_id:
+            type: string
+            format: uuid
+          timestamp:
+            type: string
+            format: date-time
+          payload:
+            type: object
+            description: Event-specific payload (order details, status, payment info)

@@ -265,9 +265,9 @@ migrate -path backend/migrations \
 - `README.md` - Main project documentation
 - `IMPLEMENTATION_STATUS.md` - Detailed task completion
 - `IMPLEMENTATION_SUMMARY.md` - Previous session summary
-- `specs/001-auth-multitenancy/tasks.md` - Task breakdown
-- `specs/001-auth-multitenancy/plan.md` - Architecture plan
-- `specs/001-auth-multitenancy/spec.md` - Feature specification
+- `specs/002-auth-multitenancy/tasks.md` - Task breakdown
+- `specs/002-auth-multitenancy/plan.md` - Architecture plan
+- `specs/002-auth-multitenancy/spec.md` - Feature specification
 
 ---
 

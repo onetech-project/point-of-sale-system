@@ -1,6 +1,6 @@
 # Tasks: User Authentication and Multi-Tenancy with Language Switcher
 
-**Input**: Design documents from `/specs/001-auth-multitenancy/`
+**Input**: Design documents from `/specs/002-auth-multitenancy/`
 **Prerequisites**: plan.md (✓), spec.md (✓), research.md (✓), data-model.md (✓), contracts/ (✓)
 
 **Tests**: Tests are included as required by the constitution (test-first development)

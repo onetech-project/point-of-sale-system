@@ -372,7 +372,7 @@ MAX_PHOTO_SIZE_MB=5
 ## API Documentation
 
 Full OpenAPI specification available at:
-- File: `specs/001-product-inventory/contracts/product-api.yaml`
+- File: `specs/004-product-inventory/contracts/product-api.yaml`
 - Interactive: Import YAML into Swagger UI or Postman
 
 ## Next Steps

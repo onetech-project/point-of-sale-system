@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # T157: Quickstart Validation Script
-# Tests all API examples from specs/001-product-inventory/quickstart.md
+# Tests all API examples from specs/004-product-inventory/quickstart.md
 # Run this script after product-service is running to validate all endpoints
 
 set -e

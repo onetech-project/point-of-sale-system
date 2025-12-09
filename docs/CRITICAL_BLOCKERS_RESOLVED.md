@@ -12,23 +12,23 @@ All 4 critical blockers have been successfully resolved. The system is now ready
 
 ## Blocker #1: Backend Technology Stack Mismatch ✅ RESOLVED
 
-**Issue**: Plan.md specified Node.js 20+ but tasks.md implemented Go backend
-
-**Root Cause**: Existing backend is already implemented in Go (confirmed by checking `/backend/` directory structure with Go files)
-
-**Resolution**: Updated plan.md to reflect Go backend architecture
+ Language/Version: Go 1.21+ for backend microservices, Node.js 18+ (TypeScript) for frontend
+ Backend Framework: Echo/Gin with middleware architecture
+ Database: GORM for type-safe queries and ORM
+ Testing: Go test with testify for backend (80% minimum), Jest + RTL for frontend (70% minimum)
+ API Documentation: Swagger/OpenAPI 3.0 with swaggo
 
 ### Changes Made:
 
-#### File: `specs/001-auth-multitenancy/plan.md`
-
+#### File: `specs/002-auth-multitenancy/plan.md`
+ Rate Limiting: Go rate limiter middleware (5 failed logins per 15 min per tenant)
 **Line 31-38: Backend Stack Updated**
 ```diff
 - Language/Version: Node.js 20+ (TypeScript) for API services
 - Framework: Express.js with middleware architecture
 + Language/Version: Go 1.21+ for backend microservices, Node.js 18+ (TypeScript) for frontend
 + Backend Framework: Echo/Gin with middleware architecture
-- ORM: Prisma or TypeORM for type-safe queries
+ Backend: Go test with testify/assert for all Go microservices
 + Database: GORM for type-safe queries and ORM
 - Testing: Jest with Supertest (80% minimum coverage)
 + Testing: Go test with testify for backend (80% minimum), Jest + RTL for frontend (70% minimum)
@@ -42,17 +42,19 @@ All 4 critical blockers have been successfully resolved. The system is now ready
 + Rate Limiting: Go rate limiter middleware (5 failed logins per 15 min per tenant)
 ```
 
-#### File: `specs/001-auth-multitenancy/spec.md`
+#### File: `specs/002-auth-multitenancy/spec.md`
 
 **Line 253: Testing Framework Updated**
 ```diff
 - Backend: Jest (Node.js services) and Go test (Go services)
 + Backend: Go test with testify/assert for all Go microservices
+ ⚠️ TEST-FIRST ORDER: Test frameworks MUST be set up before implementation code
 ```
 
+ T001-T006: Test framework setup (Go test, Jest, RTL, coverage reporting)
+ T006: Verify test frameworks work with sample tests
 **Impact**: 
 - ✅ Plan and tasks now aligned on Go backend
-- ✅ All references to Node.js-specific libraries removed
 - ✅ Go-specific tooling properly documented (GORM, testify, swaggo, golang-migrate)
 
 ---
@@ -60,37 +62,39 @@ All 4 critical blockers have been successfully resolved. The system is now ready
 ## Blocker #2: Missing Password Reset Flow ✅ RESOLVED
 
 **Issue**: FR-017 (password reset) had zero task coverage, critical MVP functionality missing
+ ### Tailwind CSS Setup (MUST Complete Before UI Components)
+ T024: Install Tailwind CSS dependencies
+ T025: PostCSS configuration
+ T026: Tailwind config (colors, spacing, breakpoints)
+ T027: Global styles with @tailwind directives
+ T028: Import globals.css in _app.js
+ T029: Verify Tailwind build works (checkpoint)
 
+ ### Database & Backend Infrastructure
+ T030-T047: Database migrations, utilities, middleware
 **Resolution**: Added comprehensive Phase 4.5 with 27 new tasks for password reset
+ ### Frontend Infrastructure (Depends on T024-T029 Tailwind Setup)
+ T048-T059: API client, contexts, hooks, utilities, types
 
 ### Changes Made:
 
-#### File: `specs/001-auth-multitenancy/tasks.md`
+#### File: `specs/002-auth-multitenancy/tasks.md`
 
 **Location**: Between Phase 4 (User Login) and Phase 5 (Session Management)
 
 **Added Phase 4.5: Password Reset Flow (27 tasks)**
 
-#### Backend Implementation (12 tasks):
+ Checkpoint: Foundation ready (including Tailwind CSS verified) - user story implementation can now begin in parallel
 - T268: PasswordResetToken model (token, user_id, tenant_id, expires_at, used)
 - T269: RequestReset service method (generate token, tenant scoping)
 - T270: ValidateToken service method (check expiry, tenant match)
-- T271: ResetPassword service method (validate, update password, invalidate token)
-- T272: POST /api/auth/password-reset/request handler
 - T273: POST /api/auth/password-reset/reset handler
 - T274: Password reset email template
-- T275-T277: Unit tests for all service methods
-- T278: Integration test for complete reset flow
-
-#### Frontend Implementation (9 tasks):
 - T279: PasswordResetRequestForm component (email input with Tailwind)
-- T280: PasswordResetForm component (new password, confirm password)
 - T281: Forgot password page (/auth/forgot-password)
 - T282: Reset password page (/auth/reset-password with token)
 - T283: API service methods (requestReset, resetPassword)
 - T284-T285: EN/ID translations for password reset
-- T286-T287: Unit tests for both forms
-
 #### Security & Edge Cases (5 tasks):
 - T288: Rate limiting (3 requests per hour per email)
 - T289: Token expiration cleanup job (delete tokens older than 24 hours)
@@ -103,41 +107,36 @@ All 4 critical blockers have been successfully resolved. The system is now ready
 - T294: User guide for password reset
 
 **Database Migration Added**:
-- T034: Create password_reset_tokens table migration (added to Phase 2)
+ T242: Verify rate limiting per email+tenant combination
 
+ T295 **[CRITICAL]** Implement automated query analyzer (static analysis)
+    - Fails if any query lacks tenant_id filter
+    - Located: backend/tests/analysis/query_analyzer_test.go
+    - Scans all .go files for database queries
+    - Verifies WHERE clauses include tenant_id
 **Coverage**: FR-017 now has 100% task coverage with proper tenant scoping and security measures
+ T296 **[CRITICAL]** Multi-tenant JOIN query isolation test
+    - Verifies all JOIN queries filter BOTH tables by tenant_id
+    - Located: backend/tests/integration/multi_tenant_join_test.go
+    - Tests complex queries with multiple table joins
+    - Ensures no cross-tenant data in JOIN results
 
+ T297 **[CRITICAL]** Continuous tenant isolation verification
+    - Adds T295 and T296 to CI/CD pipeline
+    - Located: .github/workflows/security-check.yml
+    - Runs on every commit (automated gate)
+    - Blocks merge if tenant_id filter missing
 ---
 
 ## Blocker #3: Dependency Ordering Issues ✅ RESOLVED
 
 **Issue**: 
-1. Tailwind setup (T012-T014) in Phase 1 could run after UI components in Phase 3
-2. Test frameworks not set up before implementation (Constitution violation)
 
-**Resolution**: Reorganized Phase 1 and Phase 2 with proper blocking dependencies
-
-### Changes Made:
-
-#### File: `specs/001-auth-multitenancy/tasks.md`
-
-**Phase 1 Reorganization:**
-
-```diff
-Phase 1: Setup (Shared Infrastructure)
+#### File: `specs/002-auth-multitenancy/tasks.md`
 
 + ⚠️ TEST-FIRST ORDER: Test frameworks MUST be set up before implementation code
-
-### Test Framework Setup (Must Complete First)
-+ T001-T006: Test framework setup (Go test, Jest, RTL, coverage reporting)
-+ T006: Verify test frameworks work with sample tests
-
 ### Project Structure (After Test Frameworks Ready)
 - T007-T023: Directory structure, module initialization, configuration
-```
-
-**Phase 2 Reorganization:**
-
 ```diff
 Phase 2: Foundational (Blocking Prerequisites)
 
@@ -189,7 +188,7 @@ T029: Verify Tailwind build works: Run `npm run dev` and check styling applies
 
 ### Changes Made:
 
-#### File: `specs/001-auth-multitenancy/tasks.md`
+#### File: `specs/002-auth-multitenancy/tasks.md`
 
 **Phase 12: Security Implementation - Added Critical Tasks**
 
@@ -319,16 +318,16 @@ Before proceeding to implementation, verify:
 
 ## Files Modified
 
-1. **specs/001-auth-multitenancy/plan.md**
+1. **specs/002-auth-multitenancy/plan.md**
    - Lines 31-38: Backend stack (Go, GORM, testify, swaggo)
    - Line 45: Rate limiting (Go middleware)
    - Total changes: 8 lines updated
 
-2. **specs/001-auth-multitenancy/spec.md**
+2. **specs/002-auth-multitenancy/spec.md**
    - Line 253: Backend testing (Go test with testify)
    - Total changes: 1 line updated
 
-3. **specs/001-auth-multitenancy/tasks.md**
+3. **specs/002-auth-multitenancy/tasks.md**
    - Phase 1: Reorganized (test frameworks first)
    - Phase 2: Added Tailwind setup section (T024-T029)
    - Phase 2: Added password reset migration (T034)
