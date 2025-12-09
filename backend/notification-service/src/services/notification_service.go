@@ -23,15 +23,17 @@ type NotificationService struct {
 	pushProvider  providers.PushProvider
 	templates     map[string]*template.Template
 	frontendURL   string
+	redisProvider *providers.RedisProvider
 }
 
-func NewNotificationService(db *sql.DB) *NotificationService {
+func NewNotificationService(db *sql.DB, redisProv *providers.RedisProvider) *NotificationService {
 	service := &NotificationService{
 		repo:          repository.NewNotificationRepository(db),
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
 		frontendURL:   getEnv("FRONTEND_DOMAIN", "http://localhost:3000"),
+		redisProvider: redisProv,
 	}
 
 	// Load all templates
