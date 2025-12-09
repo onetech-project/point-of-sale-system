@@ -56,6 +56,14 @@ This document resolves outstanding technical clarifications from the implementat
 4. Implement SSE contract (event names, payload shape, Last-Event-ID usage).  
 5. Create monitoring dashboards and alerting playbooks for consumer lag, email failure spikes, and SSE connection anomalies.
 
+## Action Item: Dedupe Store Decision (T023)
+
+- Objective: Decide whether dedupe/processed-event persistence should use Postgres `event_records` table or Redis (TTL or Streams) and document retention/replay semantics.
+- Criteria: write/read latency, persistence across restarts, storage costs, expected retention window for replay, complexity of implementation, and compatibility with existing migration/backup policies.
+- Deliverable: Update `specs/004-order-notifications/research.md` with chosen approach, TTL/retention numbers (e.g., keep last 24-72 hours or last N events per tenant), and update `specs/004-order-notifications/tasks.md` to reflect concrete migration file names and implementation steps (T003/T004).
+
+Notes: This is task `T023` in `tasks.md` and MUST be resolved before implementing T003/T004/T008 to ensure dedupe semantics are consistent across components.
+
 ## Resolved Unknowns Summary
 
 - SSE hosting: notification-service (initial) — OK to change if scaling/ops require.  

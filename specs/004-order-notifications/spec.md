@@ -1,6 +1,6 @@
 # Feature Specification: Order Notifications (Order Paid + Real-time Order List)
 
-**Feature Branch**: `001-order-notifications`  
+**Feature Branch**: `004-order-notifications`  
 **Created**: 2025-12-09  
 **Status**: Draft  
 **Input**: User description: "as a tenant admin (Owner/Manager/Cashier) i want to receive notification via email and in-app when order has been paid, also i want real-time order list update when order submitted or have updated status"
