@@ -1,5 +1,4 @@
 package contract
-package contract
 
 import "testing"
 

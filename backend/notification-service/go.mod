@@ -7,6 +7,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
 	github.com/segmentio/kafka-go v0.4.47
+	github.com/go-redis/redis/v8 v8.11.5
 )
 
 require (
