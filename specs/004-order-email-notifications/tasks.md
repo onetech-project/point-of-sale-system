@@ -114,9 +114,9 @@
 
 ### Tests for User Story 3 (TDD: Write tests FIRST)
 
-- [ ] T043 [P] [US3] Write contract test for GET /users/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
-- [ ] T044 [P] [US3] Write contract test for PATCH /users/:id/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
-- [ ] T045 [P] [US3] Write contract test for POST /notifications/test in backend/notification-service/tests/contract/test_notification_test.go (MUST FAIL initially)
+- [X] T043 [P] [US3] Write contract test for GET /users/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
+- [X] T044 [P] [US3] Write contract test for PATCH /users/:id/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
+- [X] T045 [P] [US3] Write contract test for POST /notifications/test in backend/notification-service/tests/contract/test_notification_test.go (MUST FAIL initially)
 - [ ] T046 [US3] Write integration test for notification settings workflow in frontend/tests/integration/notification-settings.test.tsx (MUST FAIL initially)
 - [ ] T047 [US3] Write E2E test for configuring notification preferences in frontend/tests/e2e/notification-config.spec.ts (MUST FAIL initially)
 
