@@ -182,10 +182,10 @@
 - [X] T080 [P] Add comprehensive error handling for SMTP failures in backend/notification-service/src/providers/providers.go
 - [X] T081 [P] Add monitoring metrics for notification delivery success/failure rates in backend/notification-service/src/services/notification_service.go
 - [X] T082 [P] Add logging for duplicate notification attempts with transaction_id in backend/notification-service/src/services/notification_service.go
-- [ ] T083 [P] Update API documentation with notification endpoints in docs/API.md
-- [ ] T084 [P] Update backend conventions documentation in docs/BACKEND_CONVENTIONS.md
-- [ ] T085 [P] Update frontend conventions documentation in docs/FRONTEND_CONVENTIONS.md
-- [ ] T086 [P] Create feature documentation in docs/ORDER_EMAIL_NOTIFICATIONS.md
+- [X] T083 [P] Update API documentation with notification endpoints in docs/API.md
+- [X] T084 [P] Update backend conventions documentation in docs/BACKEND_CONVENTIONS.md
+- [X] T085 [P] Update frontend conventions documentation in docs/FRONTEND_CONVENTIONS.md
+- [X] T086 [P] Create feature documentation in docs/ORDER_EMAIL_NOTIFICATIONS.md
 - [ ] T087 Add i18n translations for notification settings UI in frontend/public/locales/
 - [ ] T088 Code review and refactoring for notification-service changes
 - [ ] T089 Code review and refactoring for user-service changes
