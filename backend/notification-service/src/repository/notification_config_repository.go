@@ -99,3 +99,68 @@ func (r *NotificationConfigRepository) Update(ctx context.Context, config *Notif
 		config.TenantID,
 	).Scan(&config.UpdatedAt)
 }
+
+// GetNotificationConfig retrieves config as a map for API responses
+func (r *NotificationConfigRepository) GetNotificationConfig(tenantID string) (map[string]interface{}, error) {
+	ctx := context.Background()
+	config, err := r.GetByTenantID(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	
+	result := map[string]interface{}{
+		"tenant_id":                    config.TenantID,
+		"order_notifications_enabled": config.OrderNotificationsEnabled,
+		"test_mode":                    config.TestMode,
+	}
+	
+	if config.TestEmail != nil {
+		result["test_email"] = *config.TestEmail
+	} else {
+		result["test_email"] = nil
+	}
+	
+	if config.ID != "" {
+		result["id"] = config.ID
+		result["created_at"] = config.CreatedAt
+		result["updated_at"] = config.UpdatedAt
+	}
+	
+	return result, nil
+}
+
+// UpdateNotificationConfig updates config from a map
+func (r *NotificationConfigRepository) UpdateNotificationConfig(tenantID string, configMap map[string]interface{}) error {
+	ctx := context.Background()
+	
+	// Get existing config or create new one
+	config, err := r.GetByTenantID(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	
+	// Update fields from map
+	if val, ok := configMap["order_notifications_enabled"].(bool); ok {
+		config.OrderNotificationsEnabled = val
+	}
+	
+	if val, ok := configMap["test_mode"].(bool); ok {
+		config.TestMode = val
+	}
+	
+	if val, ok := configMap["test_email"].(string); ok {
+		config.TestEmail = &val
+	} else if configMap["test_email"] == nil {
+		config.TestEmail = nil
+	}
+	
+	// Save to database
+	if config.ID == "" {
+		// Create new config
+		config.TenantID = tenantID
+		return r.Create(ctx, config)
+	} else {
+		// Update existing config
+		return r.Update(ctx, config)
+	}
+}

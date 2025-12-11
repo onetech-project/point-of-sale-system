@@ -127,10 +127,10 @@
 - [X] T050 [P] [US3] Create POST /api/v1/notifications/test endpoint in backend/notification-service/api/handlers/test_notification_handler.go (verify T045 passes)
 - [X] T051 [P] [US3] Create GET /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
 - [X] T052 [P] [US3] Create PATCH /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
-- [ ] T053 [US3] Implement updateUserNotificationPreference() service method in backend/user-service/src/services/user_service.go
-- [ ] T054 [US3] Implement sendTestNotification() with sample order data in backend/notification-service/src/services/notification_service.go
-- [ ] T055 [US3] Implement getNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
-- [ ] T056 [US3] Implement updateNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
+- [X] T053 [US3] Implement updateUserNotificationPreference() service method in backend/user-service/src/services/user_service.go
+- [X] T054 [US3] Implement sendTestNotification() with sample order data in backend/notification-service/src/services/notification_service.go
+- [X] T055 [US3] Implement getNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
+- [X] T056 [US3] Implement updateNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
 - [ ] T057 [US3] Add rate limiting to test notification endpoint in backend/notification-service/api/middleware/rate_limit.go
 - [ ] T058 [P] [US3] Create NotificationSettings React component in frontend/src/components/admin/NotificationSettings.tsx
 - [ ] T059 [P] [US3] Create notification settings page at frontend/src/pages/admin/settings/notifications.tsx

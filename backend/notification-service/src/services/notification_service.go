@@ -657,3 +657,134 @@ func (s *NotificationService) renderTemplate(templateName string, data map[strin
 
 	return buf.String()
 }
+
+// SendTestNotification sends a test notification email with sample data
+func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, notificationType string) (string, error) {
+	ctx := context.Background()
+	
+	// Validate email format
+	if !utils.IsValidEmail(recipientEmail) {
+		return "", fmt.Errorf("invalid email format")
+	}
+	
+	var subject string
+	var body string
+	var err error
+	
+	switch notificationType {
+	case "staff_order_notification":
+		subject = "Test: New Order Notification"
+		
+		// Create sample staff notification data
+		testData := &models.StaffNotificationData{
+			OrderID:         "TEST-ORDER-" + time.Now().Format("20060102-150405"),
+			OrderReference:  "ORD-TEST-001",
+			TransactionID:   "TXN-TEST-" + time.Now().Format("150405"),
+			CustomerName:    "Test Customer",
+			CustomerEmail:   "test.customer@example.com",
+			CustomerPhone:   "+6281234567890",
+			DeliveryType:    "delivery",
+			DeliveryAddress: "Jl. Sudirman No. 123, Jakarta Pusat",
+			SubtotalAmount:  "150.000",
+			DeliveryFee:     "15.000",
+			TotalAmount:     "165.000",
+			PaymentMethod:   "qris",
+			PaidAt:          time.Now().Format("2006-01-02 15:04:05"),
+			Items: []models.StaffNotificationItem{
+				{
+					ProductName: "Nasi Goreng Special",
+					Quantity:    2,
+					UnitPrice:   "50.000",
+					TotalPrice:  "100.000",
+				},
+				{
+					ProductName: "Es Teh Manis",
+					Quantity:    2,
+					UnitPrice:   "10.000",
+					TotalPrice:  "20.000",
+				},
+				{
+					ProductName: "Kerupuk",
+					Quantity:    3,
+					UnitPrice:   "10.000",
+					TotalPrice:  "30.000",
+				},
+			},
+		}
+		
+		body, err = s.renderStaffNotificationTemplate(testData)
+		if err != nil {
+			return "", fmt.Errorf("failed to render staff notification template: %w", err)
+		}
+		
+	case "customer_receipt":
+		subject = "Test: Order Receipt"
+		
+		// Create sample customer receipt data
+		testData := &models.CustomerReceiptData{
+			OrderReference:     "ORD-TEST-002",
+			CustomerName:       "Test Customer",
+			CustomerEmail:      recipientEmail,
+			DeliveryType:       "delivery",
+			DeliveryAddress:    "Jl. Sudirman No. 123, Jakarta Pusat, DKI Jakarta",
+			SubtotalAmount:     "200.000",
+			DeliveryFee:        "20.000",
+			TotalAmount:        "220.000",
+			PaymentMethod:      "qris",
+			PaidAt:             time.Now().Format("2006-01-02 15:04:05"),
+			ShowPaidWatermark:  true,
+			Items: []models.CustomerReceiptItem{
+				{
+					ProductName: "Burger Beef Special",
+					Quantity:    2,
+					UnitPrice:   "75.000",
+					TotalPrice:  "150.000",
+				},
+				{
+					ProductName: "French Fries Large",
+					Quantity:    2,
+					UnitPrice:   "25.000",
+					TotalPrice:  "50.000",
+				},
+			},
+		}
+		
+		body, err = s.renderCustomerReceiptTemplate(testData)
+		if err != nil {
+			return "", fmt.Errorf("failed to render customer receipt template: %w", err)
+		}
+		
+	default:
+		return "", fmt.Errorf("unsupported notification type: %s", notificationType)
+	}
+	
+	// Create notification record
+	metadata := map[string]interface{}{
+		"is_test":           true,
+		"notification_type": notificationType,
+		"sent_at":           time.Now().Format(time.RFC3339),
+	}
+	
+	notification := &models.Notification{
+		TenantID:  tenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: recipientEmail,
+		Metadata:  metadata,
+	}
+	
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return "", fmt.Errorf("failed to create notification record: %w", err)
+	}
+	
+	// Send email
+	if err := s.sendEmail(ctx, notification); err != nil {
+		return notification.ID, fmt.Errorf("failed to send test email: %w", err)
+	}
+	
+	log.Printf("Test notification sent successfully: type=%s, recipient=%s, notification_id=%s", notificationType, recipientEmail, notification.ID)
+	
+	return notification.ID, nil
+}
