@@ -353,7 +353,7 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 
 	// Format currency helper
 	formatIDR := func(amount int) string {
-		return fmt.Sprintf("%s", formatCurrency(amount))
+		return formatCurrency(amount)
 	}
 
 	// Prepare template data

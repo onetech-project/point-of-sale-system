@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import notificationService, {
+import notificationService from '../../services/notification';
+import type {
   UserNotificationPreference,
   NotificationConfig,
-} from '../../services/notification';
+} from '../../types/notification';
 
 interface NotificationSettingsProps {
   authToken?: string;
