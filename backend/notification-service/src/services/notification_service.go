@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -437,8 +438,19 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 		return fmt.Errorf("failed to check duplicate notification: %w", err)
 	}
 	if alreadySent {
-		log.Printf("[ORDER_PAID] Duplicate notification detected for transaction %s - skipping",
-			orderEvent.Metadata.TransactionID)
+		// Log detailed duplicate detection for debugging and monitoring
+		log.Printf("[DUPLICATE_NOTIFICATION] transaction_id=%s order_id=%s tenant_id=%s payment_method=%s amount=%d - Skipping duplicate notification",
+			orderEvent.Metadata.TransactionID,
+			orderEvent.Metadata.OrderID,
+			orderEvent.TenantID,
+			orderEvent.Metadata.PaymentMethod,
+			orderEvent.Metadata.TotalAmount)
+
+		// Track duplicate attempts metric
+		s.trackMetric("notification.duplicate.prevented", 1, map[string]string{
+			"tenant_id":      orderEvent.TenantID,
+			"payment_method": orderEvent.Metadata.PaymentMethod,
+		})
 		return nil
 	}
 
@@ -621,18 +633,49 @@ func formatCurrency(amount int) string {
 }
 
 func (s *NotificationService) sendEmail(ctx context.Context, notification *models.Notification) error {
+	startTime := time.Now()
 	err := s.emailProvider.Send(notification.Recipient, notification.Subject, notification.Body, true)
+	duration := time.Since(startTime)
 
 	now := time.Now()
 	if err != nil {
+		// Extract error details if it's an EmailError
+		errorMsg := err.Error()
+		errorType := "unknown"
+		isRetryable := false
+
+		if emailErr, ok := err.(*providers.EmailError); ok {
+			errorType = s.getErrorTypeName(emailErr.Type)
+			isRetryable = emailErr.IsRetryable()
+		}
+
 		notification.Status = models.NotificationStatusFailed
 		notification.FailedAt = &now
-		errMsg := err.Error()
-		notification.ErrorMsg = &errMsg
+		notification.ErrorMsg = &errorMsg
 		notification.RetryCount++
+
+		// Log detailed error with metrics
+		log.Printf("[EMAIL_SEND_FAILED] ID=%d Type=%s Retryable=%v RetryCount=%d Duration=%s Error=%v",
+			notification.ID, errorType, isRetryable, notification.RetryCount, duration, err)
+
+		// Update metrics
+		s.trackMetric("notification.email.failed", 1, map[string]string{
+			"error_type": errorType,
+			"retryable":  fmt.Sprintf("%v", isRetryable),
+		})
 	} else {
 		notification.Status = models.NotificationStatusSent
 		notification.SentAt = &now
+
+		// Log success with metrics
+		log.Printf("[EMAIL_SEND_SUCCESS] ID=%d Duration=%s RetryCount=%d",
+			notification.ID, duration, notification.RetryCount)
+
+		// Update metrics
+		s.trackMetric("notification.email.sent", 1, map[string]string{
+			"retry_count": fmt.Sprintf("%d", notification.RetryCount),
+		})
+		s.trackMetric("notification.email.duration_ms", duration.Milliseconds(), nil)
 	}
 
 	if updateErr := s.repo.UpdateStatus(ctx, notification.ID, notification.Status, notification.SentAt, notification.FailedAt, notification.ErrorMsg); updateErr != nil {
@@ -640,6 +683,37 @@ func (s *NotificationService) sendEmail(ctx context.Context, notification *model
 	}
 
 	return err
+}
+
+func (s *NotificationService) getErrorTypeName(errorType providers.EmailErrorType) string {
+	switch errorType {
+	case providers.EmailErrorTypeConnection:
+		return "connection"
+	case providers.EmailErrorTypeAuth:
+		return "auth"
+	case providers.EmailErrorTypeTimeout:
+		return "timeout"
+	case providers.EmailErrorTypeInvalidRecipient:
+		return "invalid_recipient"
+	case providers.EmailErrorTypeRateLimited:
+		return "rate_limited"
+	default:
+		return "unknown"
+	}
+}
+
+// trackMetric tracks notification metrics (placeholder for actual metrics system)
+// In production, this would integrate with Prometheus, StatsD, or similar
+func (s *NotificationService) trackMetric(name string, value int64, tags map[string]string) {
+	tagStr := ""
+	if tags != nil && len(tags) > 0 {
+		tagPairs := []string{}
+		for k, v := range tags {
+			tagPairs = append(tagPairs, fmt.Sprintf("%s=%s", k, v))
+		}
+		tagStr = fmt.Sprintf(" [%s]", strings.Join(tagPairs, ", "))
+	}
+	log.Printf("[METRIC] %s=%d%s", name, value, tagStr)
 }
 
 func (s *NotificationService) renderTemplate(templateName string, data map[string]interface{}) string {
