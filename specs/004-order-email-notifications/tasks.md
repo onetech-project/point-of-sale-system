@@ -187,10 +187,10 @@
 - [X] T085 [P] Update frontend conventions documentation in docs/FRONTEND_CONVENTIONS.md
 - [X] T086 [P] Create feature documentation in docs/ORDER_EMAIL_NOTIFICATIONS.md
 - [X] T087 Add i18n translations for notification settings UI in frontend/public/locales/
-- [ ] T088 Code review and refactoring for notification-service changes
-- [ ] T089 Code review and refactoring for user-service changes
-- [ ] T090 Code review and refactoring for order-service changes
-- [ ] T091 Code review and refactoring for frontend changes
+- [X] T088 Code review and refactoring for notification-service changes
+- [X] T089 Code review and refactoring for user-service changes
+- [X] T090 Code review and refactoring for order-service changes
+- [X] T091 Code review and refactoring for frontend changes
 - [ ] T092 Run quickstart.md validation to verify all implementation steps
 - [ ] T093 Performance testing for email delivery under load (1000 orders/hour)
 - [ ] T094 Security audit for notification endpoints (auth, authorization, rate limiting)
