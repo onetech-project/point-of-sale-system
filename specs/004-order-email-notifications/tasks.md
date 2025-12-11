@@ -151,10 +151,10 @@
 
 ### Tests for User Story 4 (TDD: Write tests FIRST)
 
-- [ ] T064 [P] [US4] Write contract test for GET /notifications/history in backend/notification-service/tests/contract/notification_history_test.go (MUST FAIL initially)
-- [ ] T065 [P] [US4] Write contract test for POST /notifications/:id/resend in backend/notification-service/tests/contract/resend_notification_test.go (MUST FAIL initially)
-- [ ] T066 [US4] Write integration test for notification history workflow in frontend/tests/integration/notification-history.test.tsx (MUST FAIL initially)
-- [ ] T067 [US4] Write E2E test for viewing and resending notifications in frontend/tests/e2e/notification-history.spec.ts (MUST FAIL initially)
+- [X] T064 [P] [US4] Write contract test for GET /notifications/history in backend/notification-service/tests/contract/notification_history_test.go (MUST FAIL initially)
+- [X] T065 [P] [US4] Write contract test for POST /notifications/:id/resend in backend/notification-service/tests/contract/resend_notification_test.go (MUST FAIL initially)
+- [X] T066 [US4] Write integration test for notification history workflow in frontend/tests/integration/notification-history.test.tsx (MUST FAIL initially)
+- [X] T067 [US4] Write E2E test for viewing and resending notifications in frontend/tests/e2e/notification-history.spec.ts (MUST FAIL initially)
 
 ### Implementation for User Story 4
 
