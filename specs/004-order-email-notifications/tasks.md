@@ -117,16 +117,16 @@
 - [X] T043 [P] [US3] Write contract test for GET /users/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
 - [X] T044 [P] [US3] Write contract test for PATCH /users/:id/notification-preferences in backend/user-service/tests/contract/notification_preferences_test.go (MUST FAIL initially)
 - [X] T045 [P] [US3] Write contract test for POST /notifications/test in backend/notification-service/tests/contract/test_notification_test.go (MUST FAIL initially)
-- [ ] T046 [US3] Write integration test for notification settings workflow in frontend/tests/integration/notification-settings.test.tsx (MUST FAIL initially)
-- [ ] T047 [US3] Write E2E test for configuring notification preferences in frontend/tests/e2e/notification-config.spec.ts (MUST FAIL initially)
+- [X] T046 [US3] Write integration test for notification settings workflow in frontend/tests/integration/notification-settings.test.tsx (MUST FAIL initially)
+- [X] T047 [US3] Write E2E test for configuring notification preferences in frontend/tests/e2e/notification-config.spec.ts (MUST FAIL initially)
 
 ### Implementation for User Story 3
 
-- [ ] T048 [P] [US3] Create GET /api/v1/users/notification-preferences endpoint in backend/user-service/api/handlers/notification_preferences_handler.go (verify T043 passes)
-- [ ] T049 [P] [US3] Create PATCH /api/v1/users/:user_id/notification-preferences endpoint in backend/user-service/api/handlers/notification_preferences_handler.go (verify T044 passes)
-- [ ] T050 [P] [US3] Create POST /api/v1/notifications/test endpoint in backend/notification-service/api/handlers/test_notification_handler.go (verify T045 passes)
-- [ ] T051 [P] [US3] Create GET /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
-- [ ] T052 [P] [US3] Create PATCH /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
+- [X] T048 [P] [US3] Create GET /api/v1/users/notification-preferences endpoint in backend/user-service/api/handlers/notification_preferences_handler.go (verify T043 passes)
+- [X] T049 [P] [US3] Create PATCH /api/v1/users/:user_id/notification-preferences endpoint in backend/user-service/api/handlers/notification_preferences_handler.go (verify T044 passes)
+- [X] T050 [P] [US3] Create POST /api/v1/notifications/test endpoint in backend/notification-service/api/handlers/test_notification_handler.go (verify T045 passes)
+- [X] T051 [P] [US3] Create GET /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
+- [X] T052 [P] [US3] Create PATCH /api/v1/notifications/config endpoint in backend/notification-service/api/handlers/notification_config_handler.go
 - [ ] T053 [US3] Implement updateUserNotificationPreference() service method in backend/user-service/src/services/user_service.go
 - [ ] T054 [US3] Implement sendTestNotification() with sample order data in backend/notification-service/src/services/notification_service.go
 - [ ] T055 [US3] Implement getNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
