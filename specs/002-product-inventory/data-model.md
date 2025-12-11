@@ -1,6 +1,6 @@
 # Data Model: Product & Inventory Management
 
-**Feature Branch**: `001-product-inventory`  
+**Feature Branch**: `002-product-inventory`  
 **Date**: 2025-12-01  
 **Phase**: 1 - Design & Contracts
 

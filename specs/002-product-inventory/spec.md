@@ -1,6 +1,6 @@
 # Feature Specification: Product & Inventory Management
 
-**Feature Branch**: `001-product-inventory`  
+**Feature Branch**: `002-product-inventory`  
 **Created**: 2025-12-01  
 **Status**: Draft  
 **Input**: User description: "Product & Inventory Management

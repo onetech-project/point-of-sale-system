@@ -142,7 +142,7 @@ The QRIS Guest Ordering System has been **successfully implemented** with all fu
    - Configuration
    - Troubleshooting
 
-2. ✅ **Quickstart Guide**: `specs/001-guest-qris-ordering/quickstart.md`
+2. ✅ **Quickstart Guide**: `specs/003-guest-qris-ordering/quickstart.md`
    - Prerequisites
    - Environment setup
    - Quick start (5 minutes)
@@ -333,13 +333,13 @@ The QRIS Guest Ordering System has been **successfully implemented** with all fu
 ### Documentation Files
 
 **Specification**:
-- `specs/001-guest-qris-ordering/plan.md`
-- `specs/001-guest-qris-ordering/tasks.md` (updated - all tasks marked)
-- `specs/001-guest-qris-ordering/quickstart.md`
-- `specs/001-guest-qris-ordering/VALIDATION_RESULTS.md` (new)
-- `specs/001-guest-qris-ordering/POLISH_TASKS_SUMMARY.md` (new)
-- `specs/001-guest-qris-ordering/validate-quickstart.sh` (new)
-- `specs/001-guest-qris-ordering/IMPLEMENTATION_COMPLETE.md` (this file)
+- `specs/003-guest-qris-ordering/plan.md`
+- `specs/003-guest-qris-ordering/tasks.md` (updated - all tasks marked)
+- `specs/003-guest-qris-ordering/quickstart.md`
+- `specs/003-guest-qris-ordering/VALIDATION_RESULTS.md` (new)
+- `specs/003-guest-qris-ordering/POLISH_TASKS_SUMMARY.md` (new)
+- `specs/003-guest-qris-ordering/validate-quickstart.sh` (new)
+- `specs/003-guest-qris-ordering/IMPLEMENTATION_COMPLETE.md` (this file)
 
 **Main Documentation**:
 - `docs/QRIS_GUEST_ORDERING.md` (new - 552 lines)

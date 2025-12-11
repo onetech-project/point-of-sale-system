@@ -1,7 +1,7 @@
 # Tasks: QRIS Guest Ordering System
 
-**Feature Branch**: `001-guest-qris-ordering`  
-**Input**: Design documents from `/specs/001-guest-qris-ordering/`  
+**Feature Branch**: `003-guest-qris-ordering`  
+**Input**: Design documents from `/specs/003-guest-qris-ordering/`  
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
 
 **Test Strategy**: Following constitution Principle III (Test-First Development), contract, integration, and unit tests MUST be written before implementation code. Tests are integrated into each user story phase below.

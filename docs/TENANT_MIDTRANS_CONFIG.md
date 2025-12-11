@@ -582,8 +582,8 @@ log.Info().
 ## Related Documentation
 
 - [Environment Configuration](ENVIRONMENT.md)
-- [Guest QRIS Ordering Feature](../specs/001-guest-qris-ordering/spec.md)
-- [Payment Webhook Handling](../specs/001-guest-qris-ordering/contracts/payment-webhook.yaml)
+- [Guest QRIS Ordering Feature](../specs/003-guest-qris-ordering/spec.md)
+- [Payment Webhook Handling](../specs/003-guest-qris-ordering/contracts/payment-webhook.yaml)
 - [Midtrans Integration Guide](https://docs.midtrans.com/)
 
 ## Support

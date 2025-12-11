@@ -1,6 +1,6 @@
 # Quickstart Guide: Product & Inventory Management
 
-**Feature Branch**: `001-product-inventory`  
+**Feature Branch**: `002-product-inventory`  
 **Last Updated**: 2025-12-01
 
 ## Overview
@@ -372,7 +372,7 @@ MAX_PHOTO_SIZE_MB=5
 ## API Documentation
 
 Full OpenAPI specification available at:
-- File: `specs/001-product-inventory/contracts/product-api.yaml`
+- File: `specs/002-product-inventory/contracts/product-api.yaml`
 - Interactive: Import YAML into Swagger UI or Postman
 
 ## Next Steps
