@@ -50,6 +50,8 @@ func main() {
 	// API handlers
 	testNotificationHandler := api.NewTestNotificationHandler(notificationService)
 	notificationConfigHandler := api.NewNotificationConfigHandler(notificationConfigRepo)
+	notificationHistoryHandler := api.NewNotificationHistoryHandler(notificationService)
+	resendNotificationHandler := api.NewResendNotificationHandler(notificationService)
 
 	// API routes with rate limiting
 	apiV1 := e.Group("/api/v1")
@@ -60,6 +62,10 @@ func main() {
 	// Notification config endpoints with normal rate limiting
 	apiV1.GET("/notifications/config", notificationConfigHandler.GetNotificationConfig, apimiddleware.RateLimit())
 	apiV1.PATCH("/notifications/config", notificationConfigHandler.PatchNotificationConfig, apimiddleware.RateLimit())
+
+	// Notification history endpoints
+	apiV1.GET("/notifications/history", notificationHistoryHandler.GetNotificationHistory, apimiddleware.RateLimit())
+	apiV1.POST("/notifications/:notification_id/resend", resendNotificationHandler.ResendNotification, apimiddleware.RateLimit())
 
 	// Kafka configuration
 	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")

@@ -788,3 +788,134 @@ func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, not
 
 	return notification.ID, nil
 }
+
+// GetNotificationHistory retrieves notification history with filters and pagination
+func (s *NotificationService) GetNotificationHistory(tenantID string, filters map[string]interface{}) (map[string]interface{}, error) {
+	// Extract pagination parameters
+	page := filters["page"].(int)
+	pageSize := filters["page_size"].(int)
+	offset := (page - 1) * pageSize
+
+	// Build query filters
+	queryFilters := make(map[string]interface{})
+	queryFilters["tenant_id"] = tenantID
+	queryFilters["limit"] = pageSize
+	queryFilters["offset"] = offset
+
+	// Add optional filters
+	if orderRef, ok := filters["order_reference"]; ok {
+		queryFilters["order_reference"] = orderRef
+	}
+	if status, ok := filters["status"]; ok {
+		queryFilters["status"] = status
+	}
+	if notifType, ok := filters["type"]; ok {
+		queryFilters["type"] = notifType
+	}
+	if startDate, ok := filters["start_date"]; ok {
+		queryFilters["start_date"] = startDate
+	}
+	if endDate, ok := filters["end_date"]; ok {
+		queryFilters["end_date"] = endDate
+	}
+
+	// Get notifications from repository
+	notifications, err := s.repo.GetNotificationHistory(queryFilters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get notification history: %w", err)
+	}
+
+	// Get total count for pagination
+	totalCount, err := s.repo.CountNotifications(queryFilters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count notifications: %w", err)
+	}
+
+	// Calculate total pages
+	totalPages := (totalCount + pageSize - 1) / pageSize
+
+	// Build response
+	result := map[string]interface{}{
+		"notifications": notifications,
+		"pagination": map[string]interface{}{
+			"current_page": page,
+			"page_size":    pageSize,
+			"total_items":  totalCount,
+			"total_pages":  totalPages,
+		},
+	}
+
+	return result, nil
+}
+
+// ResendNotification resends a failed notification
+func (s *NotificationService) ResendNotification(tenantID, notificationID string) (map[string]interface{}, error) {
+	// Get notification by ID
+	notification, err := s.repo.GetByID(notificationID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("notification not found")
+		}
+		return nil, fmt.Errorf("failed to get notification: %w", err)
+	}
+
+	// Verify tenant ownership
+	if notification.TenantID != tenantID {
+		return nil, fmt.Errorf("forbidden")
+	}
+
+	// Check if notification already sent
+	if notification.Status == "sent" {
+		return nil, fmt.Errorf("already sent")
+	}
+
+	// Check max retries
+	maxRetries := 3
+	if notification.RetryCount >= maxRetries {
+		return map[string]interface{}{
+			"retry_count": notification.RetryCount,
+			"max_retries": maxRetries,
+		}, fmt.Errorf("max retries exceeded")
+	}
+
+	// Increment retry count
+	notification.RetryCount++
+
+	// Update notification status to pending
+	notification.Status = "pending"
+	if err := s.repo.Update(notification); err != nil {
+		return nil, fmt.Errorf("failed to update notification: %w", err)
+	}
+
+	// Attempt to resend
+	ctx := context.Background()
+	if err := s.sendEmail(ctx, notification); err != nil {
+		// Mark as failed
+		notification.Status = "failed"
+		errorMsg := err.Error()
+		notification.ErrorMsg = &errorMsg
+		s.repo.Update(notification)
+		return nil, fmt.Errorf("failed to resend notification: %w", err)
+	}
+
+	// Mark as sent
+	notification.Status = "sent"
+	now := time.Now()
+	notification.SentAt = &now
+	if err := s.repo.Update(notification); err != nil {
+		log.Printf("Warning: Failed to update notification status after sending: %v", err)
+	}
+
+	log.Printf("Notification resent successfully: notification_id=%s, retry_count=%d", notificationID, notification.RetryCount)
+
+	// Build response
+	result := map[string]interface{}{
+		"notification_id": notificationID,
+		"status":          "sent",
+		"sent_at":         notification.SentAt.Format(time.RFC3339),
+		"retry_count":     notification.RetryCount,
+		"message":         "Notification resent successfully",
+	}
+
+	return result, nil
+}

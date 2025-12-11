@@ -158,11 +158,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T068 [P] [US4] Create GET /api/v1/notifications/history endpoint with pagination in backend/notification-service/api/handlers/notification_history_handler.go (verify T064 passes)
-- [ ] T069 [P] [US4] Create POST /api/v1/notifications/:notification_id/resend endpoint in backend/notification-service/api/handlers/resend_notification_handler.go (verify T065 passes)
-- [ ] T070 [US4] Implement getNotificationHistory() with filtering in backend/notification-service/src/services/notification_service.go
-- [ ] T071 [US4] Implement resendNotification() with retry count check in backend/notification-service/src/services/notification_service.go
-- [ ] T072 [US4] Add query builder for notification history filters in backend/notification-service/src/repositories/notification_repository.go
+- [X] T068 [P] [US4] Create GET /api/v1/notifications/history endpoint with pagination in backend/notification-service/api/handlers/notification_history_handler.go (verify T064 passes)
+- [X] T069 [P] [US4] Create POST /api/v1/notifications/:notification_id/resend endpoint in backend/notification-service/api/handlers/resend_notification_handler.go (verify T065 passes)
+- [X] T070 [US4] Implement getNotificationHistory() with filtering in backend/notification-service/src/services/notification_service.go
+- [X] T071 [US4] Implement resendNotification() with retry count check in backend/notification-service/src/services/notification_service.go
+- [X] T072 [US4] Add query builder for notification history filters in backend/notification-service/src/repositories/notification_repository.go
 - [ ] T073 [P] [US4] Create NotificationHistory React component in frontend/src/components/admin/NotificationHistory.tsx
 - [ ] T074 [P] [US4] Create notification history page at frontend/src/pages/admin/notifications/history.tsx
 - [ ] T075 [US4] Implement API calls to notification history endpoints in frontend/src/services/notification-api.ts
