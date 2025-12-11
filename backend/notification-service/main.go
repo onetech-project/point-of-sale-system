@@ -13,7 +13,9 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/notification-service/api"
+	apimiddleware "github.com/pos/notification-service/api/middleware"
 	"github.com/pos/notification-service/src/queue"
+	"github.com/pos/notification-service/src/repository"
 	"github.com/pos/notification-service/src/services"
 )
 
@@ -41,6 +43,23 @@ func main() {
 
 	// Notification service
 	notificationService := services.NewNotificationService(db)
+
+	// Repositories
+	notificationConfigRepo := repository.NewNotificationConfigRepository(db)
+
+	// API handlers
+	testNotificationHandler := api.NewTestNotificationHandler(notificationService)
+	notificationConfigHandler := api.NewNotificationConfigHandler(notificationConfigRepo)
+
+	// API routes with rate limiting
+	apiV1 := e.Group("/api/v1")
+
+	// Test notification endpoint with stricter rate limiting (5 requests/min)
+	apiV1.POST("/notifications/test", testNotificationHandler.SendTestNotification, apimiddleware.RateLimitForTestNotifications())
+
+	// Notification config endpoints with normal rate limiting
+	apiV1.GET("/notifications/config", notificationConfigHandler.GetNotificationConfig, apimiddleware.RateLimit())
+	apiV1.PATCH("/notifications/config", notificationConfigHandler.PatchNotificationConfig, apimiddleware.RateLimit())
 
 	// Kafka configuration
 	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")

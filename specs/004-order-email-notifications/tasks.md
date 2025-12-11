@@ -131,13 +131,13 @@
 - [X] T054 [US3] Implement sendTestNotification() with sample order data in backend/notification-service/src/services/notification_service.go
 - [X] T055 [US3] Implement getNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
 - [X] T056 [US3] Implement updateNotificationConfig() repository method in backend/notification-service/src/repositories/notification_config_repository.go
-- [ ] T057 [US3] Add rate limiting to test notification endpoint in backend/notification-service/api/middleware/rate_limit.go
-- [ ] T058 [P] [US3] Create NotificationSettings React component in frontend/src/components/admin/NotificationSettings.tsx
-- [ ] T059 [P] [US3] Create notification settings page at frontend/src/pages/admin/settings/notifications.tsx
-- [ ] T060 [US3] Implement API calls to user-service notification-preferences endpoints in frontend/src/services/user-api.ts
-- [ ] T061 [US3] Implement API calls to notification-service config endpoints in frontend/src/services/notification-api.ts
-- [ ] T062 [US3] Add "Send Test Email" button with confirmation modal in frontend/src/components/admin/NotificationSettings.tsx (verify T046 passes)
-- [ ] T063 [US3] Add staff list with toggle switches for notification preferences in frontend/src/components/admin/NotificationSettings.tsx (verify T047 passes)
+- [X] T057 [US3] Add rate limiting to test notification endpoint in backend/notification-service/api/middleware/rate_limit.go
+- [X] T058 [P] [US3] Create NotificationSettings React component in frontend/src/components/admin/NotificationSettings.tsx
+- [X] T059 [P] [US3] Create notification settings page at frontend/src/pages/admin/settings/notifications.tsx
+- [X] T060 [US3] Implement API calls to user-service notification-preferences endpoints in frontend/src/services/user-api.ts
+- [X] T061 [US3] Implement API calls to notification-service config endpoints in frontend/src/services/notification-api.ts
+- [X] T062 [US3] Add "Send Test Email" button with confirmation modal in frontend/src/components/admin/NotificationSettings.tsx (verify T046 passes)
+- [X] T063 [US3] Add staff list with toggle switches for notification preferences in frontend/src/components/admin/NotificationSettings.tsx (verify T047 passes)
 
 **Checkpoint**: Notification preferences working - admins can configure staff notifications through dashboard
 

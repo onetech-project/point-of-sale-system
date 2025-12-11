@@ -25,7 +25,7 @@ func NewUserService(db *sql.DB) *UserService {
 // GetUsersWithNotificationPreferences returns all users in a tenant with their notification preferences
 func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]map[string]interface{}, error) {
 	ctx := context.Background()
-	
+
 	// Query to get all users with notification preferences
 	query := `
 		SELECT 
@@ -41,29 +41,29 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 		  AND deleted_at IS NULL
 		ORDER BY name ASC
 	`
-	
+
 	rows, err := s.db.QueryContext(ctx, query, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var users []map[string]interface{}
 	for rows.Next() {
 		var (
-			userID                   string
-			name                     string
-			email                    string
-			role                     string
+			userID                    string
+			name                      string
+			email                     string
+			role                      string
 			receiveOrderNotifications bool
-			createdAt                string
-			updatedAt                string
+			createdAt                 string
+			updatedAt                 string
 		)
-		
+
 		if err := rows.Scan(&userID, &name, &email, &role, &receiveOrderNotifications, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
-		
+
 		users = append(users, map[string]interface{}{
 			"user_id":                     userID,
 			"name":                        name,
@@ -74,18 +74,18 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 			"updated_at":                  updatedAt,
 		})
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating users: %w", err)
 	}
-	
+
 	return users, nil
 }
 
 // UpdateUserNotificationPreference updates a user's notification preference
 func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, receive bool) error {
 	ctx := context.Background()
-	
+
 	// First check if user exists and belongs to this tenant
 	checkQuery := `
 		SELECT user_id
@@ -94,7 +94,7 @@ func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, 
 		  AND tenant_id = $2
 		  AND deleted_at IS NULL
 	`
-	
+
 	var existingUserID string
 	err := s.db.QueryRowContext(ctx, checkQuery, userID, tenantID).Scan(&existingUserID)
 	if err == sql.ErrNoRows {
@@ -103,7 +103,7 @@ func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, 
 	if err != nil {
 		return fmt.Errorf("failed to check user: %w", err)
 	}
-	
+
 	// Update the preference
 	updateQuery := `
 		UPDATE users
@@ -113,20 +113,20 @@ func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, 
 		  AND tenant_id = $3
 		  AND deleted_at IS NULL
 	`
-	
+
 	result, err := s.db.ExecContext(ctx, updateQuery, receive, userID, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to update notification preference: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
-	
+
 	if rowsAffected == 0 {
 		return fmt.Errorf("no rows updated")
 	}
-	
+
 	return nil
 }

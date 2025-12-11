@@ -661,20 +661,20 @@ func (s *NotificationService) renderTemplate(templateName string, data map[strin
 // SendTestNotification sends a test notification email with sample data
 func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, notificationType string) (string, error) {
 	ctx := context.Background()
-	
+
 	// Validate email format
 	if !utils.IsValidEmail(recipientEmail) {
 		return "", fmt.Errorf("invalid email format")
 	}
-	
+
 	var subject string
 	var body string
 	var err error
-	
+
 	switch notificationType {
 	case "staff_order_notification":
 		subject = "Test: New Order Notification"
-		
+
 		// Create sample staff notification data
 		testData := &models.StaffNotificationData{
 			OrderID:         "TEST-ORDER-" + time.Now().Format("20060102-150405"),
@@ -711,28 +711,28 @@ func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, not
 				},
 			},
 		}
-		
+
 		body, err = s.renderStaffNotificationTemplate(testData)
 		if err != nil {
 			return "", fmt.Errorf("failed to render staff notification template: %w", err)
 		}
-		
+
 	case "customer_receipt":
 		subject = "Test: Order Receipt"
-		
+
 		// Create sample customer receipt data
 		testData := &models.CustomerReceiptData{
-			OrderReference:     "ORD-TEST-002",
-			CustomerName:       "Test Customer",
-			CustomerEmail:      recipientEmail,
-			DeliveryType:       "delivery",
-			DeliveryAddress:    "Jl. Sudirman No. 123, Jakarta Pusat, DKI Jakarta",
-			SubtotalAmount:     "200.000",
-			DeliveryFee:        "20.000",
-			TotalAmount:        "220.000",
-			PaymentMethod:      "qris",
-			PaidAt:             time.Now().Format("2006-01-02 15:04:05"),
-			ShowPaidWatermark:  true,
+			OrderReference:    "ORD-TEST-002",
+			CustomerName:      "Test Customer",
+			CustomerEmail:     recipientEmail,
+			DeliveryType:      "delivery",
+			DeliveryAddress:   "Jl. Sudirman No. 123, Jakarta Pusat, DKI Jakarta",
+			SubtotalAmount:    "200.000",
+			DeliveryFee:       "20.000",
+			TotalAmount:       "220.000",
+			PaymentMethod:     "qris",
+			PaidAt:            time.Now().Format("2006-01-02 15:04:05"),
+			ShowPaidWatermark: true,
 			Items: []models.CustomerReceiptItem{
 				{
 					ProductName: "Burger Beef Special",
@@ -748,23 +748,23 @@ func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, not
 				},
 			},
 		}
-		
+
 		body, err = s.renderCustomerReceiptTemplate(testData)
 		if err != nil {
 			return "", fmt.Errorf("failed to render customer receipt template: %w", err)
 		}
-		
+
 	default:
 		return "", fmt.Errorf("unsupported notification type: %s", notificationType)
 	}
-	
+
 	// Create notification record
 	metadata := map[string]interface{}{
 		"is_test":           true,
 		"notification_type": notificationType,
 		"sent_at":           time.Now().Format(time.RFC3339),
 	}
-	
+
 	notification := &models.Notification{
 		TenantID:  tenantID,
 		Type:      models.NotificationTypeEmail,
@@ -774,17 +774,17 @@ func (s *NotificationService) SendTestNotification(tenantID, recipientEmail, not
 		Recipient: recipientEmail,
 		Metadata:  metadata,
 	}
-	
+
 	if err := s.repo.Create(ctx, notification); err != nil {
 		return "", fmt.Errorf("failed to create notification record: %w", err)
 	}
-	
+
 	// Send email
 	if err := s.sendEmail(ctx, notification); err != nil {
 		return notification.ID, fmt.Errorf("failed to send test email: %w", err)
 	}
-	
+
 	log.Printf("Test notification sent successfully: type=%s, recipient=%s, notification_id=%s", notificationType, recipientEmail, notification.ID)
-	
+
 	return notification.ID, nil
 }
