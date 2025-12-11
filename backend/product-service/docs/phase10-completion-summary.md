@@ -230,7 +230,7 @@ cd backend/product-service/docs
 ### Files Modified
 1. `backend/product-service/src/services/product_service.go` (security hardening)
 2. `backend/product-service/main.go` (CORS configuration)
-3. `specs/001-product-inventory/tasks.md` (mark tasks complete)
+3. `specs/002-product-inventory/tasks.md` (mark tasks complete)
 
 ## Next Steps
 

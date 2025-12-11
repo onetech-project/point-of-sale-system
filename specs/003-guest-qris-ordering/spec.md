@@ -1,6 +1,6 @@
 # Feature Specification: QRIS Guest Ordering System
 
-**Feature Branch**: `001-guest-qris-ordering`  
+**Feature Branch**: `003-guest-qris-ordering`  
 **Created**: 2025-12-03  
 **Status**: Draft  
 **Input**: User description: "Customers open a tenant-specific public menu URL, browse/select items, and place an order. At checkout they choose a tenant-allowed delivery_type (pickup | delivery | dine_in), provide contact and address if delivery, and proceed to QRIS payment (Midtrans). Midtrans will notify our /payments/midtrans/notification endpoint when payment completes. After PAID, tenant staff handle courier ordering outside the system and then update order status in the admin dashboard to COMPLETE when delivery finished."

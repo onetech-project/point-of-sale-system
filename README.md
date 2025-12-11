@@ -165,7 +165,7 @@ point-of-sale-system/
 │   └── stop-all.sh           # Stop all services
 ├── docker-compose.yml        # PostgreSQL, Redis, 🆕 Order Service containers
 └── specs/                    # Feature specifications and documentation
-    ├── 001-guest-qris-ordering/  # 🆕 QRIS guest ordering spec
+    ├── 003-guest-qris-ordering/  # 🆕 QRIS guest ordering spec
     │   ├── plan.md
     │   ├── tasks.md
     │   ├── quickstart.md
@@ -366,7 +366,7 @@ curl http://localhost:8084/api/v1/public/$TENANT_ID/cart \
   -H "X-Session-Id: test-session-123"
 
 # 5. Run validation script
-cd specs/001-guest-qris-ordering
+cd specs/003-guest-qris-ordering
 ./validate-quickstart.sh
 ```
 
@@ -378,7 +378,7 @@ cd specs/001-guest-qris-ordering
 4. Check webhook notifications in order-service logs
 
 **Documentation**: [docs/QRIS_GUEST_ORDERING.md](docs/QRIS_GUEST_ORDERING.md)  
-**Quickstart Guide**: [specs/001-guest-qris-ordering/quickstart.md](specs/001-guest-qris-ordering/quickstart.md)
+**Quickstart Guide**: [specs/003-guest-qris-ordering/quickstart.md](specs/003-guest-qris-ordering/quickstart.md)
 
 ## 🔐 Security Features
 
