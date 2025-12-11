@@ -191,11 +191,11 @@
 - [X] T089 Code review and refactoring for user-service changes
 - [X] T090 Code review and refactoring for order-service changes
 - [X] T091 Code review and refactoring for frontend changes
-- [ ] T092 Run quickstart.md validation to verify all implementation steps
-- [ ] T093 Performance testing for email delivery under load (1000 orders/hour)
-- [ ] T094 Security audit for notification endpoints (auth, authorization, rate limiting)
-- [ ] T095 Update CHANGELOG.md with feature summary
-- [ ] T096 Create deployment checklist for production rollout
+- [X] T092 Run quickstart.md validation to verify all implementation steps
+- [X] T093 Performance testing for email delivery under load (1000 orders/hour)
+- [X] T094 Security audit for notification endpoints (auth, authorization, rate limiting)
+- [X] T095 Update CHANGELOG.md with feature summary
+- [X] T096 Create deployment checklist for production rollout
 
 ---
 
