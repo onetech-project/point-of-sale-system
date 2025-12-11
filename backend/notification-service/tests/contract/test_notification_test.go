@@ -1,7 +1,6 @@
 package contract
 
 import (
-	"context"
 	"testing"
 )
 
@@ -20,7 +19,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-admin-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "test@example.com",
+				"recipient_email":   "test@example.com",
 				"notification_type": "staff_order_notification",
 			},
 			expectedStatus: 200,
@@ -28,11 +27,11 @@ func TestSendTestNotification(t *testing.T) {
 				if success, ok := body["success"].(bool); !ok || !success {
 					t.Error("Expected success: true in response")
 				}
-				
+
 				if message, ok := body["message"].(string); !ok || message == "" {
 					t.Error("Expected success message in response")
 				}
-				
+
 				if notificationID, ok := body["notification_id"].(string); !ok || notificationID == "" {
 					t.Error("Expected notification_id in response")
 				}
@@ -43,7 +42,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-admin-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "customer@example.com",
+				"recipient_email":   "customer@example.com",
 				"notification_type": "customer_receipt",
 			},
 			expectedStatus: 200,
@@ -58,7 +57,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-admin-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "invalid-email",
+				"recipient_email":   "invalid-email",
 				"notification_type": "staff_order_notification",
 			},
 			expectedStatus: 400,
@@ -66,7 +65,7 @@ func TestSendTestNotification(t *testing.T) {
 				if _, exists := body["error"]; !exists {
 					t.Error("Expected error message in response")
 				}
-				
+
 				errorMsg := body["error"].(string)
 				if !contains(errorMsg, "email") && !contains(errorMsg, "invalid") {
 					t.Error("Expected error message to mention email validation")
@@ -92,7 +91,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-admin-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "test@example.com",
+				"recipient_email":   "test@example.com",
 				"notification_type": "invalid_type",
 			},
 			expectedStatus: 400,
@@ -107,7 +106,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "",
 			requestBody: map[string]interface{}{
-				"recipient_email": "test@example.com",
+				"recipient_email":   "test@example.com",
 				"notification_type": "staff_order_notification",
 			},
 			expectedStatus: 401,
@@ -122,7 +121,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-staff-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "test@example.com",
+				"recipient_email":   "test@example.com",
 				"notification_type": "staff_order_notification",
 			},
 			expectedStatus: 403,
@@ -137,7 +136,7 @@ func TestSendTestNotification(t *testing.T) {
 			tenantID:  "tenant-123",
 			authToken: "valid-admin-token",
 			requestBody: map[string]interface{}{
-				"recipient_email": "test@example.com",
+				"recipient_email":   "test@example.com",
 				"notification_type": "staff_order_notification",
 			},
 			expectedStatus: 429,
@@ -145,7 +144,7 @@ func TestSendTestNotification(t *testing.T) {
 				if _, exists := body["error"]; !exists {
 					t.Error("Expected error message in response")
 				}
-				
+
 				// Should indicate rate limit
 				errorMsg := body["error"].(string)
 				if !contains(errorMsg, "rate") && !contains(errorMsg, "limit") && !contains(errorMsg, "too many") {
@@ -162,23 +161,23 @@ func TestSendTestNotification(t *testing.T) {
 
 			// TODO: Uncomment when implementation is ready
 			// ctx := context.Background()
-			
+
 			// bodyBytes, _ := json.Marshal(tt.requestBody)
 			// req := httptest.NewRequest("POST", "/api/v1/notifications/test", bytes.NewReader(bodyBytes))
 			// req.Header.Set("Authorization", "Bearer "+tt.authToken)
 			// req.Header.Set("X-Tenant-ID", tt.tenantID)
 			// req.Header.Set("Content-Type", "application/json")
-			
+
 			// rec := httptest.NewRecorder()
 			// server.ServeHTTP(rec, req)
-			
+
 			// if rec.Code != tt.expectedStatus {
 			// 	t.Errorf("Expected status %d, got %d", tt.expectedStatus, rec.Code)
 			// }
-			
+
 			// var body map[string]interface{}
 			// json.Unmarshal(rec.Body.Bytes(), &body)
-			
+
 			// if tt.validateBody != nil {
 			// 	tt.validateBody(t, body)
 			// }
@@ -197,23 +196,23 @@ func TestRateLimitingForTestNotifications(t *testing.T) {
 
 		// TODO: Uncomment when implementation is ready
 		// ctx := context.Background()
-		
+
 		// Send multiple requests rapidly
 		// for i := 0; i < 10; i++ {
 		// 	requestBody := map[string]interface{}{
 		// 		"recipient_email": fmt.Sprintf("test%d@example.com", i),
 		// 		"notification_type": "staff_order_notification",
 		// 	}
-		// 	
+		//
 		// 	bodyBytes, _ := json.Marshal(requestBody)
 		// 	req := httptest.NewRequest("POST", "/api/v1/notifications/test", bytes.NewReader(bodyBytes))
 		// 	req.Header.Set("Authorization", "Bearer valid-admin-token")
 		// 	req.Header.Set("X-Tenant-ID", "tenant-123")
 		// 	req.Header.Set("Content-Type", "application/json")
-		// 	
+		//
 		// 	rec := httptest.NewRecorder()
 		// 	server.ServeHTTP(rec, req)
-		// 	
+		//
 		// 	// First few requests should succeed (200)
 		// 	// Later requests should be rate limited (429)
 		// 	if i < 5 {
