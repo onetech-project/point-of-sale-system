@@ -98,3 +98,29 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*mode
 
 	return notification, err
 }
+
+// HasSentOrderNotification checks if a notification has already been sent for a given transaction_id
+// This prevents duplicate notifications for the same order payment
+func (r *NotificationRepository) HasSentOrderNotification(ctx context.Context, tenantID, transactionID string) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM notifications
+			WHERE tenant_id = $1
+			  AND event_type LIKE 'order.paid%'
+			  AND metadata @> jsonb_build_object('transaction_id', $2)
+			  AND status IN ('sent', 'pending')
+		)`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, tenantID, transactionID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+// QueryRows executes a query and returns the result set
+func (r *NotificationRepository) QueryRows(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return r.db.QueryContext(ctx, query, args...)
+}

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Order Paid - {{.OrderID}}</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f0f2f5;
+    }
+
+    .container {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px 25px;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 26px;
+      font-weight: 600;
+    }
+
+    .badge {
+      display: inline-block;
+      background-color: #10b981;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .order-reference {
+      background-color: rgba(255, 255, 255, 0.2);
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .content {
+      padding: 30px 25px;
+    }
+
+    .alert-box {
+      background-color: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 15px 20px;
+      margin-bottom: 25px;
+      border-radius: 5px;
+    }
+
+    .alert-box p {
+      margin: 0;
+      color: #92400e;
+      font-weight: 500;
+    }
+
+    .info-section {
+      margin-bottom: 25px;
+    }
+
+    .info-section h2 {
+      color: #667eea;
+      font-size: 18px;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      background-color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .info-value {
+      font-size: 15px;
+      color: #111827;
+      font-weight: 500;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background-color: white;
+    }
+
+    .items-table thead {
+      background-color: #f3f4f6;
+    }
+
+    .items-table th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #374151;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .items-table td {
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 14px;
+    }
+
+    .items-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .items-table .quantity {
+      text-align: center;
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .items-table .price {
+      text-align: right;
+      font-weight: 500;
+    }
+
+    .totals {
+      background-color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      font-size: 15px;
+    }
+
+    .total-row.subtotal {
+      color: #6b7280;
+    }
+
+    .total-row.delivery {
+      color: #6b7280;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .total-row.grand-total {
+      font-size: 20px;
+      font-weight: bold;
+      color: #111827;
+      padding-top: 15px;
+    }
+
+    .payment-info {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 25px;
+      text-align: center;
+    }
+
+    .payment-info h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .payment-method {
+      font-size: 20px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .timestamp {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .footer {
+      background-color: #f9fafb;
+      padding: 20px 25px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 13px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .footer p {
+      margin: 5px 0;
+    }
+
+    @media only screen and (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .items-table {
+        font-size: 12px;
+      }
+
+      .items-table th,
+      .items-table td {
+        padding: 8px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🔔 New Order Paid!</h1>
+      <div class="badge">PAYMENT CONFIRMED</div>
+      <div class="order-reference">{{.OrderID}}</div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Alert Box -->
+      <div class="alert-box">
+        <p>⚡ A new order has been paid and requires preparation. Please review the details below.</p>
+      </div>
+
+      <!-- Customer Information -->
+      <div class="info-section">
+        <h2>Customer Details</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Customer Name</div>
+            <div class="info-value">{{.CustomerName}}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Phone</div>
+            <div class="info-value">{{.CustomerPhone}}</div>
+          </div>
+          {{if .CustomerEmail}}
+          <div class="info-item">
+            <div class="info-label">Email</div>
+            <div class="info-value">{{.CustomerEmail}}</div>
+          </div>
+          {{end}}
+          <div class="info-item">
+            <div class="info-label">Delivery Type</div>
+            <div class="info-value">{{.DeliveryType}}</div>
+          </div>
+          {{if .DeliveryAddress}}
+          <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">Delivery Address</div>
+            <div class="info-value">{{.DeliveryAddress}}</div>
+          </div>
+          {{end}}
+          {{if .TableNumber}}
+          <div class="info-item">
+            <div class="info-label">Table Number</div>
+            <div class="info-value">{{.TableNumber}}</div>
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+      <!-- Order Items -->
+      <div class="info-section">
+        <h2>Order Items</h2>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="quantity">Qty</th>
+              <th class="price">Unit Price</th>
+              <th class="price">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Items}}
+            <tr>
+              <td>{{.ProductName}}</td>
+              <td class="quantity">{{.Quantity}}</td>
+              <td class="price">Rp {{formatCurrency .UnitPrice}}</td>
+              <td class="price">Rp {{formatCurrency .TotalPrice}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="totals">
+          <div class="total-row subtotal">
+            <span>Subtotal:</span>
+            <span>Rp {{.SubtotalAmount}}</span>
+          </div>
+          {{if .DeliveryFee}}
+          <div class="total-row delivery">
+            <span>Delivery Fee:</span>
+            <span>Rp {{.DeliveryFee}}</span>
+          </div>
+          {{end}}
+          <div class="total-row grand-total">
+            <span>TOTAL PAID:</span>
+            <span>Rp {{.TotalAmount}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Information -->
+      <div class="payment-info">
+        <h3>Payment Confirmed</h3>
+        <div class="payment-method">{{.PaymentMethod}}</div>
+        <div class="timestamp">Paid at: {{.PaidAt}}</div>
+        <div class="timestamp">Transaction ID: {{.TransactionID}}</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>This is an automated notification for staff members.</p>
+      <p>Please start preparing this order as soon as possible.</p>
+    </div>
+  </div>
+</body>
+
+</html>

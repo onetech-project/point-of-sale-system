@@ -15,6 +15,7 @@ import (
 	"github.com/pos/notification-service/src/models"
 	"github.com/pos/notification-service/src/providers"
 	"github.com/pos/notification-service/src/repository"
+	"github.com/pos/notification-service/src/utils"
 )
 
 type NotificationService struct {
@@ -62,9 +63,12 @@ func (s *NotificationService) loadTemplates() error {
 		"order_invoice.html",
 	}
 
+	// Get custom template functions
+	funcMap := utils.GetTemplateFuncMap()
+
 	for _, filename := range templateFiles {
 		templatePath := filepath.Join(templateDir, filename)
-		tmpl, err := template.ParseFiles(templatePath)
+		tmpl, err := template.New(filename).Funcs(funcMap).ParseFiles(templatePath)
 		if err != nil {
 			return fmt.Errorf("failed to parse template %s: %w", filename, err)
 		}
@@ -100,6 +104,8 @@ func (s *NotificationService) HandleEvent(ctx context.Context, eventData []byte)
 		return s.handleTeamInvitation(ctx, event)
 	case "order.invoice":
 		return s.handleOrderInvoice(ctx, event)
+	case "order.paid":
+		return s.handleOrderPaid(ctx, event)
 	default:
 		log.Printf("Unknown event type: %s", event.EventType)
 		return nil
@@ -400,6 +406,39 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 	}
 
 	return s.sendEmail(ctx, notification)
+}
+
+// handleOrderPaid processes order.paid events and sends notifications to staff
+func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.NotificationEvent) error {
+	// Parse the OrderPaidEvent from the generic event data
+	eventJSON, err := json.Marshal(event.Data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event data: %w", err)
+	}
+
+	var orderEvent models.OrderPaidEvent
+	if err := json.Unmarshal(eventJSON, &orderEvent); err != nil {
+		return fmt.Errorf("failed to unmarshal order.paid event: %w", err)
+	}
+
+	// Validate the event
+	if err := models.ValidateOrderPaidEvent(&orderEvent); err != nil {
+		return fmt.Errorf("invalid order.paid event: %w", err)
+	}
+
+	log.Printf("Processing order.paid event for order %s (transaction: %s)",
+		orderEvent.Metadata.OrderID, orderEvent.Metadata.TransactionID)
+
+	// TODO: This is a placeholder - will be completed in Phase 3 (User Story 1)
+	// Need to:
+	// 1. Check notification_configs for tenant (T013 done)
+	// 2. Query users with receive_order_notifications=true (T014 pending)
+	// 3. Check for duplicate notifications by transaction_id (T015 pending)
+	// 4. Send email to each staff member using order_notification template
+	// 5. Create notification records in database
+
+	log.Printf("order.paid handler placeholder executed for tenant %s", orderEvent.TenantID)
+	return nil
 }
 
 // formatCurrency formats an amount in IDR currency

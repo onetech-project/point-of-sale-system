@@ -61,6 +61,10 @@ func main() {
 	// Start consumer in background
 	go consumer.Start(ctx)
 
+	// Start retry worker in background
+	retryWorker := services.NewRetryWorker(db, notificationService)
+	go retryWorker.Start(ctx)
+
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

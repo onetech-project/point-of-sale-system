@@ -18,13 +18,13 @@
 
 **Purpose**: Project initialization and database schema
 
-- [ ] T001 Create database migration 000023_add_order_notification_prefs.up.sql in backend/migrations/
-- [ ] T002 Create database migration 000023_add_order_notification_prefs.down.sql in backend/migrations/
-- [ ] T003 Create database migration 000024_create_notification_configs.up.sql in backend/migrations/
-- [ ] T004 Create database migration 000024_create_notification_configs.down.sql in backend/migrations/
-- [ ] T005 Create database migration 000025_add_notification_indexes.up.sql in backend/migrations/
-- [ ] T006 Create database migration 000025_add_notification_indexes.down.sql in backend/migrations/
-- [ ] T007 Apply migrations to development database and verify schema changes
+- [X] T001 Create database migration 000023_add_order_notification_prefs.up.sql in backend/migrations/
+- [X] T002 Create database migration 000023_add_order_notification_prefs.down.sql in backend/migrations/
+- [X] T003 Create database migration 000024_create_notification_configs.up.sql in backend/migrations/
+- [X] T004 Create database migration 000024_create_notification_configs.down.sql in backend/migrations/
+- [X] T005 Create database migration 000025_add_notification_indexes.up.sql in backend/migrations/
+- [X] T006 Create database migration 000025_add_notification_indexes.down.sql in backend/migrations/
+- [X] T007 Apply migrations to development database and verify schema changes
 - [ ] T008 [P] Create migration test file backend/migrations/tests/migration_test.go to validate schema
 - [ ] T009 [P] Update notification-service dependencies in backend/notification-service/go.mod if needed
 
@@ -36,15 +36,15 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Create OrderPaidEvent struct in backend/notification-service/src/models/events.go
-- [ ] T011 Add JSON Schema validation for OrderPaidEvent in backend/notification-service/src/models/event_validation.go
-- [ ] T012 [P] Extend Kafka consumer to handle order.paid event type in backend/notification-service/src/queue/kafka_consumer.go
-- [ ] T013 [P] Create NotificationConfig repository in backend/notification-service/src/repositories/notification_config_repository.go
-- [ ] T014 [P] Extend User repository to query receive_order_notifications field in backend/user-service/src/repositories/user_repository.go
-- [ ] T015 Implement duplicate notification check by transaction_id in backend/notification-service/src/services/notification_service.go
-- [ ] T016 [P] Create email template helpers (formatCurrency, etc.) in backend/notification-service/src/utils/template_helpers.go
-- [ ] T017 [P] Add retry worker background goroutine in backend/notification-service/main.go
-- [ ] T018 Implement exponential backoff retry logic in backend/notification-service/src/services/retry_worker.go
+- [X] T010 Create OrderPaidEvent struct in backend/notification-service/src/models/events.go
+- [X] T011 Add JSON Schema validation for OrderPaidEvent in backend/notification-service/src/models/event_validation.go
+- [X] T012 [P] Extend Kafka consumer to handle order.paid event type in backend/notification-service/src/queue/kafka_consumer.go
+- [X] T013 [P] Create NotificationConfig repository in backend/notification-service/src/repositories/notification_config_repository.go
+- [X] T014 [P] Extend User repository to query receive_order_notifications field in backend/user-service/src/repositories/user_repository.go
+- [X] T015 Implement duplicate notification check by transaction_id in backend/notification-service/src/services/notification_service.go
+- [X] T016 [P] Create email template helpers (formatCurrency, etc.) in backend/notification-service/src/utils/template_helpers.go
+- [X] T017 [P] Add retry worker background goroutine in backend/notification-service/main.go
+- [X] T018 Implement exponential backoff retry logic in backend/notification-service/src/services/retry_worker.go
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -58,13 +58,13 @@
 
 ### Tests for User Story 1 (TDD: Write tests FIRST)
 
-- [ ] T019 [P] [US1] Write unit test for renderStaffNotificationTemplate() in backend/notification-service/src/services/template_service_test.go (MUST FAIL initially)
-- [ ] T020 [P] [US1] Write unit test for handleOrderPaidEvent() with mock Kafka message in backend/notification-service/src/handlers/order_paid_handler_test.go (MUST FAIL initially)
-- [ ] T021 [US1] Write integration test for end-to-end staff notification flow in backend/notification-service/tests/integration/staff_notification_test.go (MUST FAIL initially)
+- [X] T019 [P] [US1] Write unit test for renderStaffNotificationTemplate() in backend/notification-service/src/services/template_service_test.go (MUST FAIL initially)
+- [X] T020 [P] [US1] Write unit test for handleOrderPaidEvent() with mock Kafka message in backend/notification-service/src/handlers/order_paid_handler_test.go (MUST FAIL initially)
+- [X] T021 [US1] Write integration test for end-to-end staff notification flow in backend/notification-service/tests/integration/staff_notification_test.go (MUST FAIL initially)
 
 ### Implementation for User Story 1
 
-- [ ] T022 [P] [US1] Create staff notification HTML template in backend/notification-service/templates/order_staff_notification.html
+- [X] T022 [P] [US1] Create staff notification HTML template in backend/notification-service/templates/order_staff_notification.html
 - [ ] T023 [P] [US1] Create StaffNotificationData struct in backend/notification-service/src/models/notification_data.go
 - [ ] T024 [US1] Implement renderStaffNotificationTemplate() in backend/notification-service/src/services/template_service.go (verify T019 passes)
 - [ ] T025 [US1] Implement handleOrderPaidEvent() to process order.paid events in backend/notification-service/src/handlers/order_paid_handler.go (verify T020 passes)
