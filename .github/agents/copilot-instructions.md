@@ -30,9 +30,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 004-order-email-notifications: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 003-guest-qris-ordering: Added Go 1.23.0 (backend microservices), Next.js 16 with TypeScript (frontend) + Echo v4 (API framework), PostgreSQL (persistent data), Redis (session/cart/cache), Midtrans Snap API (payment), Google Maps Geocoding API (address validation)
 - 003-guest-qris-ordering: Added Go 1.23.0 (backend), TypeScript/Next.js 16 (frontend) + Echo v4 (REST API), PostgreSQL (persistence), Redis (caching/sessions), Midtrans Go SDK (payment), Google Maps Geocoding API (address validation)
-- 002-product-inventory: Added Go 1.23.0 (backend services), Node.js 18+ / Next.js 16 / React 19 (frontend) + Echo v4 (HTTP framework), lib/pq (PostgreSQL driver), Redis v9, Kafka (event streaming), Axios (HTTP client)
 
 
 <!-- MANUAL ADDITIONS START -->
