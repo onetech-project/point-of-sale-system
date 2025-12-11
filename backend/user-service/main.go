@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/pos/user-service/api"
 	"github.com/pos/user-service/src/queue"
+	"github.com/pos/user-service/src/services"
 )
 
 func main() {
@@ -51,6 +52,12 @@ func main() {
 	e.GET("/invitations", invitationHandler.ListInvitations)
 	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)
 	e.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
+
+	// Notification preferences endpoints
+	userService := services.NewUserService(db)
+	notificationPrefsHandler := api.NewNotificationPreferencesHandler(userService)
+	e.GET("/api/v1/users/notification-preferences", notificationPrefsHandler.GetNotificationPreferences)
+	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
 
 	// Start server
 	port := getEnv("PORT", "8083")

@@ -25,7 +25,32 @@
       "confirm_test_message": "Ini akan mengirim notifikasi pesanan sampel untuk memverifikasi konfigurasi email Anda.",
       "cancel": "Batal",
       "loading": "Memuat...",
-      "load_error": "Gagal memuat pengaturan notifikasi"
+      "load_error": "Gagal memuat pengaturan notifikasi",
+      "viewHistory": "Lihat Riwayat Notifikasi",
+      "error": {
+        "fetch": "Gagal mengambil pengaturan notifikasi"
+      },
+      "global": {
+        "title": "Pengaturan Notifikasi Global",
+        "description": "Kelola preferensi notifikasi global untuk semua anggota staf"
+      },
+      "testEmail": {
+        "button": "Kirim Email Uji Coba",
+        "sending": "Mengirim...",
+        "success": "Email uji coba berhasil dikirim!",
+        "error": "Gagal mengirim email uji coba",
+        "rate_limit": "Terlalu banyak email uji coba. Harap tunggu sebelum mencoba lagi.",
+        "disabled": "Notifikasi email dinonaktifkan. Aktifkan di pengaturan untuk mengirim email uji coba."
+      },
+      "staff": {
+        "name": "Anggota Staf",
+        "email": "Email",
+        "notifications_enabled": "Notifikasi Diaktifkan",
+        "no_staff": "Tidak ada anggota staf ditemukan",
+        "title": "Preferensi Email Staf",
+        "description": "Kontrol staf mana yang menerima email notifikasi pesanan",
+        "empty": "Tidak ada anggota staf yang tersedia untuk dikonfigurasi."
+      }
     },
     "history": {
       "title": "Riwayat Notifikasi",

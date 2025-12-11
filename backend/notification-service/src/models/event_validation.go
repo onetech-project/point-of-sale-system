@@ -31,9 +31,9 @@ func ValidateOrderPaidEvent(event *OrderPaidEvent) error {
 		return fmt.Errorf("timestamp is required")
 	}
 
-	// Validate metadata
-	if err := ValidateOrderPaidEventMetadata(&event.Metadata); err != nil {
-		return fmt.Errorf("metadata validation failed: %w", err)
+	// Validate data
+	if err := ValidateOrderPaidEventMetadata(&event.Data); err != nil {
+		return fmt.Errorf("data validation failed: %w", err)
 	}
 
 	return nil
@@ -107,6 +107,10 @@ func ValidateOrderPaidEventMetadata(metadata *OrderPaidEventMetadata) error {
 
 	if metadata.PaidAt.IsZero() {
 		return fmt.Errorf("paid_at is required")
+	}
+
+	if metadata.CreatedAt.IsZero() {
+		return fmt.Errorf("created_at is required")
 	}
 
 	return nil

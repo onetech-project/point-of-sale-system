@@ -140,6 +140,21 @@ func main() {
 	// Webhook routes (no auth, but signature verification in order-service)
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
 
+	// Notification service routes (owner/manager only)
+	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8085")
+	notificationGroup := protected.Group("/api/v1")
+	notificationGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	notificationGroup.Any("/notifications*", proxyWildcard(notificationServiceURL))
+
+	// User notification preferences routes (owner/manager only)
+	userNotificationGroup := protected.Group("/api/v1/users")
+	userNotificationGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	userNotificationGroup.GET("/notification-preferences", proxyHandler(userServiceURL, "/api/v1/users/notification-preferences"))
+	userNotificationGroup.PATCH("/:user_id/notification-preferences", func(c echo.Context) error {
+		userID := c.Param("user_id")
+		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
+	})
+
 	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
@@ -170,6 +185,17 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 			}
 			if c.Param("id") != "" {
 				req.URL.Path = "/invitations/" + c.Param("id") + "/resend"
+			}
+
+			// Forward context values as headers
+			if tenantID := c.Get("tenant_id"); tenantID != nil {
+				req.Header.Set("X-Tenant-ID", tenantID.(string))
+			}
+			if userID := c.Get("user_id"); userID != nil {
+				req.Header.Set("X-User-ID", userID.(string))
+			}
+			if role := c.Get("role"); role != nil {
+				req.Header.Set("X-User-Role", role.(string))
 			}
 		}
 
@@ -205,15 +231,15 @@ func proxyWildcard(targetURL string) echo.HandlerFunc {
 			req.URL.Scheme = target.Scheme
 			req.URL.Host = target.Host
 
-			// Preserve authentication headers from TenantScope middleware
-			if tenantID := c.Request().Header.Get("X-Tenant-ID"); tenantID != "" {
-				req.Header.Set("X-Tenant-ID", tenantID)
+			// Forward context values from auth middleware as headers
+			if tenantID := c.Get("tenant_id"); tenantID != nil {
+				req.Header.Set("X-Tenant-ID", tenantID.(string))
 			}
-			if userID := c.Request().Header.Get("X-User-ID"); userID != "" {
-				req.Header.Set("X-User-ID", userID)
+			if userID := c.Get("user_id"); userID != nil {
+				req.Header.Set("X-User-ID", userID.(string))
 			}
-			if role := c.Request().Header.Get("X-User-Role"); role != "" {
-				req.Header.Set("X-User-Role", role)
+			if role := c.Get("role"); role != nil {
+				req.Header.Set("X-User-Role", role.(string))
 			}
 		}
 

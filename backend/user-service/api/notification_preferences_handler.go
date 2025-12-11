@@ -26,9 +26,26 @@ func NewNotificationPreferencesHandler(userService interface {
 
 // GetNotificationPreferences handles GET /api/v1/users/notification-preferences
 func (h *NotificationPreferencesHandler) GetNotificationPreferences(c echo.Context) error {
-	// Get tenant ID from context (set by auth middleware)
-	tenantID := c.Get("tenant_id").(string)
+	// Get tenant ID from header (set by API gateway)
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	c.Logger().Infof("[DEBUG] X-Tenant-ID header: %s", tenantID)
 
+	if tenantID == "" {
+		// Fallback to context if header not present
+		if tenantIDVal := c.Get("tenant_id"); tenantIDVal != nil {
+			tenantID = tenantIDVal.(string)
+			c.Logger().Infof("[DEBUG] Got tenant_id from context: %s", tenantID)
+		}
+	}
+
+	if tenantID == "" {
+		c.Logger().Error("[DEBUG] No tenant ID found in header or context")
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized - tenant ID not found",
+		})
+	}
+
+	c.Logger().Infof("[DEBUG] Using tenant ID: %s", tenantID)
 	// Get all users with their notification preferences
 	users, err := h.userService.GetUsersWithNotificationPreferences(tenantID)
 	if err != nil {
@@ -44,8 +61,19 @@ func (h *NotificationPreferencesHandler) GetNotificationPreferences(c echo.Conte
 
 // PatchNotificationPreferences handles PATCH /api/v1/users/:user_id/notification-preferences
 func (h *NotificationPreferencesHandler) PatchNotificationPreferences(c echo.Context) error {
-	// Get tenant ID from context
-	tenantID := c.Get("tenant_id").(string)
+	// Get tenant ID from header (set by API gateway)
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		// Fallback to context if header not present
+		if tenantIDVal := c.Get("tenant_id"); tenantIDVal != nil {
+			tenantID = tenantIDVal.(string)
+		}
+	}
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized - tenant ID not found",
+		})
+	}
 
 	// Get user ID from path parameter
 	userID := c.Param("user_id")

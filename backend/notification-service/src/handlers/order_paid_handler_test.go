@@ -24,7 +24,7 @@ func TestHandleOrderPaidEvent(t *testing.T) {
 				EventType: "order.paid",
 				TenantID:  "tenant-1",
 				Timestamp: now,
-				Metadata: models.OrderPaidEventMetadata{
+				Data: models.OrderPaidEventMetadata{
 					OrderID:        "ORD-12345",
 					OrderReference: "REF-12345",
 					TransactionID:  "TXN-67890",
@@ -70,7 +70,7 @@ func TestHandleOrderPaidEvent(t *testing.T) {
 				EventType: "order.paid",
 				TenantID:  "tenant-1",
 				Timestamp: now,
-				Metadata: models.OrderPaidEventMetadata{
+				Data: models.OrderPaidEventMetadata{
 					OrderID:        "ORD-54321",
 					OrderReference: "REF-54321",
 					TransactionID:  "TXN-98765",
@@ -107,7 +107,7 @@ func TestHandleOrderPaidEvent(t *testing.T) {
 				EventType: "order.paid",
 				TenantID:  "", // Missing tenant_id
 				Timestamp: now,
-				Metadata: models.OrderPaidEventMetadata{
+				Data: models.OrderPaidEventMetadata{
 					OrderID:        "ORD-99999",
 					OrderReference: "REF-99999",
 					TransactionID:  "TXN-99999",

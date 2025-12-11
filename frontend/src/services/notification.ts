@@ -14,10 +14,10 @@ import type {
 class NotificationService {
   // User notification preferences
   async getUserNotificationPreferences(): Promise<UserNotificationPreference[]> {
-    const response = await apiClient.get<{ success: boolean; data: { users: UserNotificationPreference[] } }>(
+    const response = await apiClient.get<{ users: UserNotificationPreference[] }>(
       '/api/v1/users/notification-preferences'
     );
-    return response.data.users;
+    return response.users || [];
   }
 
   async updateUserNotificationPreference(
@@ -29,36 +29,36 @@ class NotificationService {
 
   // Notification config
   async getNotificationConfig(): Promise<NotificationConfig> {
-    const response = await apiClient.get<{ success: boolean; data: NotificationConfig }>(
+    const response = await apiClient.get<NotificationConfig>(
       '/api/v1/notifications/config'
     );
-    return response.data;
+    return response;
   }
 
   async updateNotificationConfig(data: UpdateNotificationConfigRequest): Promise<NotificationConfig> {
-    const response = await apiClient.patch<{ success: boolean; data: NotificationConfig }>(
+    const response = await apiClient.patch<NotificationConfig>(
       '/api/v1/notifications/config',
       data
     );
-    return response.data;
+    return response;
   }
 
   // Test notifications
   async sendTestNotification(data: SendTestNotificationRequest): Promise<TestNotificationResponse> {
-    const response = await apiClient.post<{ success: boolean; data: TestNotificationResponse }>(
+    const response = await apiClient.post<TestNotificationResponse>(
       '/api/v1/notifications/test',
       data
     );
-    return response.data;
+    return response;
   }
 
   // Notification history
   async getNotificationHistory(filters?: NotificationHistoryFilters): Promise<NotificationHistoryResponse> {
-    const response = await apiClient.get<{ success: boolean; data: NotificationHistoryResponse }>(
+    const response = await apiClient.get<NotificationHistoryResponse>(
       '/api/v1/notifications/history',
       { params: filters }
     );
-    return response.data;
+    return response;
   }
 
   async resendNotification(notificationId: string): Promise<void> {

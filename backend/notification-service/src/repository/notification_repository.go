@@ -108,7 +108,7 @@ func (r *NotificationRepository) HasSentOrderNotification(ctx context.Context, t
 			SELECT 1 FROM notifications
 			WHERE tenant_id = $1
 			  AND event_type LIKE 'order.paid%'
-			  AND metadata @> jsonb_build_object('transaction_id', $2)
+			  AND metadata @> jsonb_build_object('transaction_id', $2::text)
 			  AND status IN ('sent', 'pending')
 		)`
 

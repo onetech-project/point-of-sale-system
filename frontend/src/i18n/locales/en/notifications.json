@@ -25,7 +25,32 @@
       "confirm_test_message": "This will send a sample order notification to verify your email configuration.",
       "cancel": "Cancel",
       "loading": "Loading...",
-      "load_error": "Failed to load notification settings"
+      "load_error": "Failed to load notification settings",
+      "viewHistory": "View Notification History",
+      "error": {
+        "fetch": "Error fetching notification settings"
+      },
+      "global": {
+        "title": "Global Notification Settings",
+        "description": "Manage global notification preferences for all staff members"
+      },
+      "testEmail": {
+        "button": "Send Test Email",
+        "sending": "Sending...",
+        "success": "Test email sent successfully!",
+        "error": "Failed to send test email",
+        "rate_limit": "Too many test emails. Please wait before trying again.",
+        "disabled": "Email notifications are disabled. Enable them in settings to send test emails."
+      },
+      "staff": {
+        "name": "Staff Member",
+        "email": "Email",
+        "notifications_enabled": "Notifications Enabled",
+        "no_staff": "No staff members found",
+        "title": "Staff Email Preferences",
+        "description": "Control which staff members receive order notification emails",
+        "empty": "No staff members available to configure."
+      }
     },
     "history": {
       "title": "Notification History",
@@ -63,7 +88,10 @@
       "resend_conflict": "This notification was already sent successfully",
       "resend_rate_limit": "Maximum retry attempts (3) exceeded",
       "resend_forbidden": "You don't have permission to resend this notification",
-      "resend_not_found": "Notification not found"
+      "resend_not_found": "Notification not found",
+      "resend_already_sent": "This notification has already been sent successfully.",
+      "resend_failed": "Failed to resend notification. Please try again.",
+      "empty": "No notifications available to display."
     },
     "status": {
       "sent": "Sent",

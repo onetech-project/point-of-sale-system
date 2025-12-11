@@ -26,8 +26,19 @@ func NewNotificationConfigHandler(configRepo interface {
 
 // GetNotificationConfig handles GET /api/v1/notifications/config
 func (h *NotificationConfigHandler) GetNotificationConfig(c echo.Context) error {
-	// Get tenant ID from context (set by auth middleware)
-	tenantID := c.Get("tenant_id").(string)
+	// Get tenant ID from header (set by API gateway)
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		// Fallback to context if header not present
+		if tenantIDVal := c.Get("tenant_id"); tenantIDVal != nil {
+			tenantID = tenantIDVal.(string)
+		}
+	}
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized - tenant ID not found",
+		})
+	}
 
 	// Get notification config
 	config, err := h.configRepo.GetNotificationConfig(tenantID)
@@ -44,8 +55,19 @@ func (h *NotificationConfigHandler) GetNotificationConfig(c echo.Context) error 
 
 // PatchNotificationConfig handles PATCH /api/v1/notifications/config
 func (h *NotificationConfigHandler) PatchNotificationConfig(c echo.Context) error {
-	// Get tenant ID from context
-	tenantID := c.Get("tenant_id").(string)
+	// Get tenant ID from header (set by API gateway)
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		// Fallback to context if header not present
+		if tenantIDVal := c.Get("tenant_id"); tenantIDVal != nil {
+			tenantID = tenantIDVal.(string)
+		}
+	}
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized - tenant ID not found",
+		})
+	}
 
 	// Parse request body
 	var config map[string]interface{}

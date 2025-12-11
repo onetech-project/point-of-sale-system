@@ -8,7 +8,7 @@ type OrderPaidEvent struct {
 	EventType string                 `json:"event_type" validate:"required"` // "order.paid"
 	TenantID  string                 `json:"tenant_id" validate:"required"`
 	Timestamp time.Time              `json:"timestamp" validate:"required"`
-	Metadata  OrderPaidEventMetadata `json:"metadata" validate:"required"`
+	Data      OrderPaidEventMetadata `json:"data" validate:"required"`
 }
 
 // OrderPaidEventMetadata contains the order details for the event
@@ -28,6 +28,7 @@ type OrderPaidEventMetadata struct {
 	TotalAmount     int         `json:"total_amount" validate:"required,min=0"`
 	PaymentMethod   string      `json:"payment_method" validate:"required"`
 	PaidAt          time.Time   `json:"paid_at" validate:"required"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required"`
 }
 
 // OrderItem represents an item in an order

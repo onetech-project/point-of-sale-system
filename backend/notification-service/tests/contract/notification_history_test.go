@@ -151,7 +151,7 @@ func TestGetNotificationHistory(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications/history", nil)
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
+		e.NewContext(req, rec)
 		// No tenant_id set
 
 		// TODO: Call handler when implemented

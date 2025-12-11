@@ -125,7 +125,20 @@ func (s *OrderService) UpdateOrderStatus(
 
 	// Publish order.paid event to Kafka if status changed to PAID
 	if newStatus == models.OrderStatusPaid {
-		if err := s.publishOrderPaidEvent(ctx, order); err != nil {
+		// Reload order to get the updated timestamps and ensure all fields are fresh
+		updatedOrder, err := s.orderRepo.GetOrderByID(ctx, orderID)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("order_id", orderID).
+				Msg("Failed to reload order after status update")
+			// Fall back to using the original order object
+			updatedOrder = order
+			updatedOrder.PaidAt = paidAt
+			updatedOrder.Status = newStatus
+		}
+
+		if err := s.publishOrderPaidEvent(ctx, updatedOrder); err != nil {
 			log.Error().
 				Err(err).
 				Str("order_id", orderID).
@@ -228,6 +241,19 @@ func (s *OrderService) publishOrderPaidEvent(ctx context.Context, order *models.
 		return nil
 	}
 
+	// Debug: Log customer email status
+	if order.CustomerEmail == nil {
+		log.Warn().
+			Str("order_id", order.ID).
+			Str("order_reference", order.OrderReference).
+			Msg("Customer email is nil - notification will not be sent to customer")
+	} else {
+		log.Info().
+			Str("order_id", order.ID).
+			Str("customer_email", *order.CustomerEmail).
+			Msg("Customer email found - will send notification")
+	}
+
 	// Get order items
 	items, err := s.orderRepo.GetOrderItemsByOrderID(ctx, order.ID)
 	if err != nil {
@@ -273,16 +299,42 @@ func (s *OrderService) publishOrderPaidEvent(ctx context.Context, order *models.
 		}
 	}
 
-	// Handle optional customer email
-	customerEmail := ""
-	if order.CustomerEmail != nil {
-		customerEmail = *order.CustomerEmail
+	// Determine paid_at timestamp
+	paidAtTime := time.Now()
+	if order.PaidAt != nil {
+		paidAtTime = *order.PaidAt
 	}
 
-	// Handle optional table number
-	tableNumber := ""
-	if order.TableNumber != nil {
-		tableNumber = *order.TableNumber
+	// Build data payload
+	dataPayload := map[string]interface{}{
+		"order_id":        order.ID,
+		"order_reference": order.OrderReference,
+		"transaction_id":  transactionID,
+		"customer_name":   order.CustomerName,
+		"customer_phone":  order.CustomerPhone,
+		"delivery_type":   order.DeliveryType,
+		"items":           eventItems,
+		"subtotal_amount": order.SubtotalAmount,
+		"delivery_fee":    order.DeliveryFee,
+		"total_amount":    order.TotalAmount,
+		"payment_method":  paymentMethod,
+		"paid_at":         paidAtTime.Format(time.RFC3339),
+		"created_at":      order.CreatedAt.Format(time.RFC3339),
+	}
+
+	// Add optional customer email only if provided
+	if order.CustomerEmail != nil && *order.CustomerEmail != "" {
+		dataPayload["customer_email"] = *order.CustomerEmail
+	}
+
+	// Add optional delivery address for delivery orders
+	if order.DeliveryType == models.DeliveryTypeDelivery && deliveryAddress != "" {
+		dataPayload["delivery_address"] = deliveryAddress
+	}
+
+	// Add optional table number for dine-in orders
+	if order.TableNumber != nil && *order.TableNumber != "" {
+		dataPayload["table_number"] = *order.TableNumber
 	}
 
 	// Prepare event payload
@@ -291,23 +343,7 @@ func (s *OrderService) publishOrderPaidEvent(ctx context.Context, order *models.
 		"event_type": "order.paid",
 		"tenant_id":  order.TenantID,
 		"timestamp":  time.Now().Format(time.RFC3339),
-		"metadata": map[string]interface{}{
-			"order_id":         order.ID,
-			"order_reference":  order.OrderReference,
-			"transaction_id":   transactionID,
-			"customer_name":    order.CustomerName,
-			"customer_phone":   order.CustomerPhone,
-			"customer_email":   customerEmail,
-			"delivery_type":    order.DeliveryType,
-			"delivery_address": deliveryAddress,
-			"table_number":     tableNumber,
-			"items":            eventItems,
-			"subtotal_amount":  order.SubtotalAmount,
-			"delivery_fee":     order.DeliveryFee,
-			"total_amount":     order.TotalAmount,
-			"payment_method":   paymentMethod,
-			"paid_at":          order.PaidAt,
-		},
+		"data":       dataPayload,
 	}
 
 	// Publish to Kafka

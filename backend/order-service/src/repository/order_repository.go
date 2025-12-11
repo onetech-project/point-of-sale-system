@@ -25,7 +25,7 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReference string) (*models.GuestOrder, error) {
 	query := `
 SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
-       customer_name, customer_phone, delivery_type, table_number, notes,
+       customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
        created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
 FROM guest_orders
 WHERE order_reference = $1
@@ -42,6 +42,7 @@ WHERE order_reference = $1
 		&order.TotalAmount,
 		&order.CustomerName,
 		&order.CustomerPhone,
+		&order.CustomerEmail,
 		&order.DeliveryType,
 		&order.TableNumber,
 		&order.Notes,
@@ -73,7 +74,7 @@ WHERE order_reference = $1
 func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID string) (*models.GuestOrder, error) {
 	query := `
 SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
-       customer_name, customer_phone, delivery_type, table_number, notes,
+       customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
        created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
 FROM guest_orders
 WHERE id = $1
@@ -90,6 +91,7 @@ WHERE id = $1
 		&order.TotalAmount,
 		&order.CustomerName,
 		&order.CustomerPhone,
+		&order.CustomerEmail,
 		&order.DeliveryType,
 		&order.TableNumber,
 		&order.Notes,
@@ -191,7 +193,7 @@ func (r *OrderRepository) ListOrdersByTenant(
 ) ([]*models.GuestOrder, error) {
 	query := `
 SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
-       customer_name, customer_phone, delivery_type, table_number, notes,
+       customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
        created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
 FROM guest_orders
 WHERE tenant_id = $1
@@ -232,6 +234,7 @@ WHERE tenant_id = $1
 			&order.TotalAmount,
 			&order.CustomerName,
 			&order.CustomerPhone,
+			&order.CustomerEmail,
 			&order.DeliveryType,
 			&order.TableNumber,
 			&order.Notes,

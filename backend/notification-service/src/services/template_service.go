@@ -65,8 +65,8 @@ func (s *NotificationService) renderCustomerReceiptTemplate(data *models.Custome
 
 // convertOrderEventToStaffData converts OrderPaidEvent to StaffNotificationData
 func convertOrderEventToStaffData(event *models.OrderPaidEvent) *models.StaffNotificationData {
-	items := make([]models.StaffNotificationItem, len(event.Metadata.Items))
-	for i, item := range event.Metadata.Items {
+	items := make([]models.StaffNotificationItem, len(event.Data.Items))
+	for i, item := range event.Data.Items {
 		items[i] = models.StaffNotificationItem{
 			ProductName: item.ProductName,
 			Quantity:    item.Quantity,
@@ -76,33 +76,34 @@ func convertOrderEventToStaffData(event *models.OrderPaidEvent) *models.StaffNot
 	}
 
 	deliveryFee := ""
-	if event.Metadata.DeliveryFee > 0 {
-		deliveryFee = utils.FormatCurrency(event.Metadata.DeliveryFee)
+	if event.Data.DeliveryFee > 0 {
+		deliveryFee = utils.FormatCurrency(event.Data.DeliveryFee)
 	}
 
 	return &models.StaffNotificationData{
-		OrderID:         event.Metadata.OrderID,
-		OrderReference:  event.Metadata.OrderReference,
-		TransactionID:   event.Metadata.TransactionID,
-		CustomerName:    event.Metadata.CustomerName,
-		CustomerEmail:   event.Metadata.CustomerEmail,
-		CustomerPhone:   event.Metadata.CustomerPhone,
-		DeliveryType:    event.Metadata.DeliveryType,
-		DeliveryAddress: event.Metadata.DeliveryAddress,
-		TableNumber:     event.Metadata.TableNumber,
+		OrderID:         event.Data.OrderID,
+		OrderReference:  event.Data.OrderReference,
+		TransactionID:   event.Data.TransactionID,
+		CustomerName:    event.Data.CustomerName,
+		CustomerEmail:   event.Data.CustomerEmail,
+		CustomerPhone:   event.Data.CustomerPhone,
+		DeliveryType:    event.Data.DeliveryType,
+		DeliveryAddress: event.Data.DeliveryAddress,
+		TableNumber:     event.Data.TableNumber,
 		Items:           items,
-		SubtotalAmount:  utils.FormatCurrency(event.Metadata.SubtotalAmount),
+		SubtotalAmount:  utils.FormatCurrency(event.Data.SubtotalAmount),
 		DeliveryFee:     deliveryFee,
-		TotalAmount:     utils.FormatCurrency(event.Metadata.TotalAmount),
-		PaymentMethod:   event.Metadata.PaymentMethod,
-		PaidAt:          event.Metadata.PaidAt.Format(time.RFC3339),
+		TotalAmount:     utils.FormatCurrency(event.Data.TotalAmount),
+		PaymentMethod:   event.Data.PaymentMethod,
+		PaidAt:          event.Data.PaidAt.Format(time.RFC3339),
+		CreatedAt:       event.Data.CreatedAt.Format(time.RFC3339),
 	}
 }
 
 // convertOrderEventToCustomerData converts OrderPaidEvent to CustomerReceiptData
-func convertOrderEventToCustomerData(event *models.OrderPaidEvent) *models.CustomerReceiptData {
-	items := make([]models.CustomerReceiptItem, len(event.Metadata.Items))
-	for i, item := range event.Metadata.Items {
+func convertOrderEventToCustomerData(event *models.OrderPaidEvent, frontendURL string) *models.CustomerReceiptData {
+	items := make([]models.CustomerReceiptItem, len(event.Data.Items))
+	for i, item := range event.Data.Items {
 		items[i] = models.CustomerReceiptItem{
 			ProductName: item.ProductName,
 			Quantity:    item.Quantity,
@@ -112,23 +113,25 @@ func convertOrderEventToCustomerData(event *models.OrderPaidEvent) *models.Custo
 	}
 
 	deliveryFee := ""
-	if event.Metadata.DeliveryFee > 0 {
-		deliveryFee = utils.FormatCurrency(event.Metadata.DeliveryFee)
+	if event.Data.DeliveryFee > 0 {
+		deliveryFee = utils.FormatCurrency(event.Data.DeliveryFee)
 	}
 
 	return &models.CustomerReceiptData{
-		OrderReference:    event.Metadata.OrderReference,
-		CustomerName:      event.Metadata.CustomerName,
-		CustomerEmail:     event.Metadata.CustomerEmail,
-		DeliveryType:      event.Metadata.DeliveryType,
-		DeliveryAddress:   event.Metadata.DeliveryAddress,
-		TableNumber:       event.Metadata.TableNumber,
+		OrderReference:    event.Data.OrderReference,
+		CustomerName:      event.Data.CustomerName,
+		CustomerEmail:     event.Data.CustomerEmail,
+		DeliveryType:      event.Data.DeliveryType,
+		DeliveryAddress:   event.Data.DeliveryAddress,
+		TableNumber:       event.Data.TableNumber,
 		Items:             items,
-		SubtotalAmount:    utils.FormatCurrency(event.Metadata.SubtotalAmount),
+		SubtotalAmount:    utils.FormatCurrency(event.Data.SubtotalAmount),
 		DeliveryFee:       deliveryFee,
-		TotalAmount:       utils.FormatCurrency(event.Metadata.TotalAmount),
-		PaymentMethod:     event.Metadata.PaymentMethod,
-		PaidAt:            event.Metadata.PaidAt.Format("2006-01-02 15:04:05"),
+		TotalAmount:       utils.FormatCurrency(event.Data.TotalAmount),
+		PaymentMethod:     event.Data.PaymentMethod,
+		PaidAt:            event.Data.PaidAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:         event.Data.CreatedAt.Format("2006-01-02 15:04:05"), // Use PaidAt as CreatedAt for guest orders
+		OrderURL:          fmt.Sprintf("%s/orders/%s", frontendURL, event.Data.OrderReference),
 		ShowPaidWatermark: true,
 	}
 }

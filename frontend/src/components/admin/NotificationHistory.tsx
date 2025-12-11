@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@/i18n/provider';
 import notificationService from '../../services/notification';
 import type {
   NotificationHistoryItem,
@@ -7,7 +7,7 @@ import type {
 } from '../../types/notification';
 
 export const NotificationHistory: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['notifications', 'common']);
 
   const [notifications, setNotifications] = useState<NotificationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +59,7 @@ export const NotificationHistory: React.FC = () => {
       setTotalItems(response.pagination.total_items);
     } catch (err: any) {
       console.error('Failed to fetch notification history:', err);
-      setError(t('notifications.history.error.fetch') || 'Failed to load notification history');
+      setError(t('notifications.history.load_error') || 'Failed to load notification history');
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ export const NotificationHistory: React.FC = () => {
 
       await notificationService.resendNotification(notificationId);
 
-      setResendSuccess(t('notifications.history.resend.success') || 'Notification resent successfully');
+      setResendSuccess(t('notifications.history.resend_success') || 'Notification resent successfully');
 
       // Refresh history
       setTimeout(() => {
@@ -90,17 +90,17 @@ export const NotificationHistory: React.FC = () => {
 
       if (err.response?.status === 429) {
         setResendError(
-          t('notifications.history.resend.error.rateLimit') ||
+          t('notifications.history.resend_rate_limit') ||
           'Too many requests. Please try again later.'
         );
       } else if (err.response?.status === 409) {
         setResendError(
-          t('notifications.history.resend.error.alreadySent') ||
+          t('notifications.history.resend_already_sent') ||
           'This notification has already been sent successfully.'
         );
       } else {
         setResendError(
-          t('notifications.history.resend.error.failed') || 'Failed to resend notification. Please try again.'
+          t('notifications.history.resend_failed') || 'Failed to resend notification. Please try again.'
         );
       }
     } finally {
@@ -132,7 +132,7 @@ export const NotificationHistory: React.FC = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{t('common.loading') || 'Loading...'}</p>
+          <p className="mt-4 text-gray-600">{t('common.loading', { ns: 'common' }) || 'Loading...'}</p>
         </div>
       </div>
     );
@@ -157,7 +157,7 @@ export const NotificationHistory: React.FC = () => {
             {/* Order Reference Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('notifications.history.filters.orderReference') || 'Order Reference'}
+                {t('notifications.history.filter_order_ref') || 'Order Reference'}
               </label>
               <input
                 type="text"
@@ -171,7 +171,7 @@ export const NotificationHistory: React.FC = () => {
             {/* Status Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('notifications.history.filters.status') || 'Status'}
+                {t('notifications.history.filter_status') || 'Status'}
               </label>
               <select
                 name="status"
@@ -179,7 +179,7 @@ export const NotificationHistory: React.FC = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">{t('notifications.history.filters.allStatuses') || 'All Statuses'}</option>
+                <option value="">{t('notifications.history.filter_status') || 'All Statuses'}</option>
                 <option value="sent">{t('notifications.history.status.sent') || 'Sent'}</option>
                 <option value="failed">{t('notifications.history.status.failed') || 'Failed'}</option>
                 <option value="pending">{t('notifications.history.status.pending') || 'Pending'}</option>
@@ -190,14 +190,14 @@ export const NotificationHistory: React.FC = () => {
             {/* Type Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('notifications.history.filters.type') || 'Type'}
+                {t('notifications.history.filter_type') || 'Type'}
               </label>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">{t('notifications.history.filters.allTypes') || 'All Types'}</option>
+                <option value="">{t('notifications.history.filter_type') || 'All Types'}</option>
                 <option value="order_staff">{t('notifications.history.type.staff') || 'Staff Notification'}</option>
                 <option value="order_customer">{t('notifications.history.type.customer') || 'Customer Receipt'}</option>
               </select>
@@ -206,7 +206,7 @@ export const NotificationHistory: React.FC = () => {
             {/* Start Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('notifications.history.filters.startDate') || 'Start Date'}
+                {t('notifications.history.filter_start_date') || 'Start Date'}
               </label>
               <input
                 type="date"
@@ -220,7 +220,7 @@ export const NotificationHistory: React.FC = () => {
             {/* End Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('notifications.history.filters.endDate') || 'End Date'}
+                {t('notifications.history.filter_end_date') || 'End Date'}
               </label>
               <input
                 type="date"
@@ -237,7 +237,7 @@ export const NotificationHistory: React.FC = () => {
                 onClick={handleSearch}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {t('notifications.history.filters.search') || 'Search'}
+                {t('notifications.history.search') || 'Search'}
               </button>
             </div>
           </div>
@@ -299,23 +299,23 @@ export const NotificationHistory: React.FC = () => {
                         {t('notifications.history.recipient') || 'To'}: {notification.recipient}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        {t('notifications.history.created') || 'Created'}: {formatDate(notification.created_at)}
+                        {t('notifications.history.created_at') || 'Created'}: {formatDate(notification.created_at)}
                       </p>
                       {notification.sent_at && (
                         <p className="text-xs text-gray-500">
-                          {t('notifications.history.sent') || 'Sent'}: {formatDate(notification.sent_at)}
+                          {t('notifications.history.sent_at') || 'Sent'}: {formatDate(notification.sent_at)}
                         </p>
                       )}
                       {notification.failed_at && (
                         <p className="text-xs text-red-600">
-                          {t('notifications.history.failed') || 'Failed'}: {formatDate(notification.failed_at)}
+                          {t('notifications.history.failed_at') || 'Failed'}: {formatDate(notification.failed_at)}
                         </p>
                       )}
 
                       {/* Retry count */}
                       {notification.retry_count > 0 && (
                         <p className="text-xs text-gray-500" data-testid="retry-count">
-                          {t('notifications.history.retries') || 'Retries'}: {notification.retry_count}
+                          {t('notifications.history.retry_count') || 'Retries'}: {notification.retry_count}
                         </p>
                       )}
 
@@ -328,8 +328,8 @@ export const NotificationHistory: React.FC = () => {
                             className="text-sm text-blue-600 hover:text-blue-800 focus:outline-none"
                           >
                             {expandedId === notification.id
-                              ? t('notifications.history.hideError') || 'Hide error details'
-                              : t('notifications.history.showError') || 'Show error details'}
+                              ? t('notifications.history.hide_error') || 'Hide error details'
+                              : t('notifications.history.show_error') || 'Show error details'}
                           </button>
                           {expandedId === notification.id && (
                             <div data-testid="error-message" className="mt-2 p-3 bg-red-50 rounded-md">
@@ -377,11 +377,11 @@ export const NotificationHistory: React.FC = () => {
                 disabled={currentPage === 1}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {t('common.previous') || 'Previous'}
+                {t('common.previous', { ns: 'common' }) || 'Previous'}
               </button>
 
               <span className="text-sm text-gray-600" data-testid="current-page">
-                {t('notifications.history.page') || 'Page'} {currentPage} {t('common.of') || 'of'} {totalPages}
+                {t('notifications.history.page') || 'Page'} {currentPage} {t('common.of', { ns: 'common' }) || 'of'} {totalPages}
               </span>
 
               <button
@@ -389,7 +389,7 @@ export const NotificationHistory: React.FC = () => {
                 disabled={currentPage === totalPages}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {t('common.next') || 'Next'}
+                {t('common.next', { ns: 'common' }) || 'Next'}
               </button>
             </div>
           </div>

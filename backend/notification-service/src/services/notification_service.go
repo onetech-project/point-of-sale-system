@@ -412,10 +412,19 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 
 // handleOrderPaid processes order.paid events and sends notifications to staff
 func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.NotificationEvent) error {
-	// Parse the OrderPaidEvent from the generic event data
-	eventJSON, err := json.Marshal(event.Data)
+	// Convert the generic NotificationEvent to OrderPaidEvent
+	// We need to reconstruct the full event structure
+	fullEvent := map[string]interface{}{
+		"event_id":   event.EventID,
+		"event_type": event.EventType,
+		"tenant_id":  event.TenantID,
+		"timestamp":  event.Timestamp,
+		"data":       event.Data,
+	}
+
+	eventJSON, err := json.Marshal(fullEvent)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event data: %w", err)
+		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	var orderEvent models.OrderPaidEvent
@@ -429,10 +438,10 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 	}
 
 	log.Printf("[ORDER_PAID] Processing event for order %s (transaction: %s, tenant: %s)",
-		orderEvent.Metadata.OrderID, orderEvent.Metadata.TransactionID, orderEvent.TenantID)
+		orderEvent.Data.OrderID, orderEvent.Data.TransactionID, orderEvent.TenantID)
 
 	// Check for duplicate notifications
-	alreadySent, err := s.repo.HasSentOrderNotification(ctx, orderEvent.TenantID, orderEvent.Metadata.TransactionID)
+	alreadySent, err := s.repo.HasSentOrderNotification(ctx, orderEvent.TenantID, orderEvent.Data.TransactionID)
 	if err != nil {
 		log.Printf("[ORDER_PAID] Error checking duplicate: %v", err)
 		return fmt.Errorf("failed to check duplicate notification: %w", err)
@@ -440,16 +449,16 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 	if alreadySent {
 		// Log detailed duplicate detection for debugging and monitoring
 		log.Printf("[DUPLICATE_NOTIFICATION] transaction_id=%s order_id=%s tenant_id=%s payment_method=%s amount=%d - Skipping duplicate notification",
-			orderEvent.Metadata.TransactionID,
-			orderEvent.Metadata.OrderID,
+			orderEvent.Data.TransactionID,
+			orderEvent.Data.OrderID,
 			orderEvent.TenantID,
-			orderEvent.Metadata.PaymentMethod,
-			orderEvent.Metadata.TotalAmount)
+			orderEvent.Data.PaymentMethod,
+			orderEvent.Data.TotalAmount)
 
 		// Track duplicate attempts metric
 		s.trackMetric("notification.duplicate.prevented", 1, map[string]string{
 			"tenant_id":      orderEvent.TenantID,
-			"payment_method": orderEvent.Metadata.PaymentMethod,
+			"payment_method": orderEvent.Data.PaymentMethod,
 		})
 		return nil
 	}
@@ -461,14 +470,14 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 	}
 
 	// Send customer receipt if email provided
-	if orderEvent.Metadata.CustomerEmail != "" {
+	if orderEvent.Data.CustomerEmail != "" {
 		if err := s.sendCustomerReceipt(ctx, &orderEvent); err != nil {
 			log.Printf("[ORDER_PAID] Failed to send customer receipt: %v", err)
 			// Don't fail the whole operation if customer receipt fails
 		}
 	}
 
-	log.Printf("[ORDER_PAID] Successfully processed order.paid event for order %s", orderEvent.Metadata.OrderID)
+	log.Printf("[ORDER_PAID] Successfully processed order.paid event for order %s", orderEvent.Data.OrderID)
 	return nil
 }
 
@@ -511,7 +520,7 @@ func (s *NotificationService) sendStaffNotifications(ctx context.Context, orderE
 		return fmt.Errorf("failed to render staff notification template: %w", err)
 	}
 
-	subject := fmt.Sprintf("New Order Paid - %s", orderEvent.Metadata.OrderReference)
+	subject := fmt.Sprintf("New Order Paid - %s", orderEvent.Data.OrderReference)
 
 	// Send notification to each staff member
 	successCount := 0
@@ -521,11 +530,11 @@ func (s *NotificationService) sendStaffNotifications(ctx context.Context, orderE
 		// Create notification metadata
 		metadata := map[string]interface{}{
 			"event_type":     "order.paid.staff",
-			"order_id":       orderEvent.Metadata.OrderID,
-			"transaction_id": orderEvent.Metadata.TransactionID,
-			"customer_name":  orderEvent.Metadata.CustomerName,
-			"total_amount":   orderEvent.Metadata.TotalAmount,
-			"payment_method": orderEvent.Metadata.PaymentMethod,
+			"order_id":       orderEvent.Data.OrderID,
+			"transaction_id": orderEvent.Data.TransactionID,
+			"customer_name":  orderEvent.Data.CustomerName,
+			"total_amount":   orderEvent.Data.TotalAmount,
+			"payment_method": orderEvent.Data.PaymentMethod,
 		}
 
 		notification := &models.Notification{
@@ -558,15 +567,15 @@ func (s *NotificationService) sendStaffNotifications(ctx context.Context, orderE
 // sendCustomerReceipt sends email receipt to customer
 func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEvent *models.OrderPaidEvent) error {
 	// Validate email format
-	if !utils.IsValidEmail(orderEvent.Metadata.CustomerEmail) {
-		log.Printf("[ORDER_PAID] Invalid email format for customer receipt: %s", orderEvent.Metadata.CustomerEmail)
-		return fmt.Errorf("invalid email format: %s", orderEvent.Metadata.CustomerEmail)
+	if !utils.IsValidEmail(orderEvent.Data.CustomerEmail) {
+		log.Printf("[ORDER_PAID] Invalid email format for customer receipt: %s", orderEvent.Data.CustomerEmail)
+		return fmt.Errorf("invalid email format: %s", orderEvent.Data.CustomerEmail)
 	}
 
-	log.Printf("[ORDER_PAID] Sending customer receipt to %s", orderEvent.Metadata.CustomerEmail)
+	log.Printf("[ORDER_PAID] Sending customer receipt to %s", orderEvent.Data.CustomerEmail)
 
 	// Convert event to template data
-	customerData := convertOrderEventToCustomerData(orderEvent)
+	customerData := convertOrderEventToCustomerData(orderEvent, s.frontendURL)
 
 	// Render template
 	body, err := s.renderCustomerReceiptTemplate(customerData)
@@ -574,15 +583,15 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 		return fmt.Errorf("failed to render customer receipt template: %w", err)
 	}
 
-	subject := fmt.Sprintf("Order Receipt - %s", orderEvent.Metadata.OrderReference)
+	subject := fmt.Sprintf("Order Receipt - %s", orderEvent.Data.OrderReference)
 
 	// Create notification metadata
 	metadata := map[string]interface{}{
 		"event_type":     "order.paid.customer",
-		"order_id":       orderEvent.Metadata.OrderID,
-		"transaction_id": orderEvent.Metadata.TransactionID,
-		"customer_email": orderEvent.Metadata.CustomerEmail,
-		"total_amount":   orderEvent.Metadata.TotalAmount,
+		"order_id":       orderEvent.Data.OrderID,
+		"transaction_id": orderEvent.Data.TransactionID,
+		"customer_email": orderEvent.Data.CustomerEmail,
+		"total_amount":   orderEvent.Data.TotalAmount,
 	}
 
 	notification := &models.Notification{
@@ -591,7 +600,7 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 		Status:    models.NotificationStatusPending,
 		Subject:   subject,
 		Body:      body,
-		Recipient: orderEvent.Metadata.CustomerEmail,
+		Recipient: orderEvent.Data.CustomerEmail,
 		Metadata:  metadata,
 	}
 
@@ -603,7 +612,7 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 		return fmt.Errorf("failed to send customer receipt: %w", err)
 	}
 
-	log.Printf("[ORDER_PAID] Successfully sent customer receipt to %s", orderEvent.Metadata.CustomerEmail)
+	log.Printf("[ORDER_PAID] Successfully sent customer receipt to %s", orderEvent.Data.CustomerEmail)
 	return nil
 }
 

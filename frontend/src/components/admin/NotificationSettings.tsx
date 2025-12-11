@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/i18n/provider';
 import notificationService from '../../services/notification';
 import type {
   UserNotificationPreference,
@@ -11,7 +12,8 @@ interface NotificationSettingsProps {
 }
 
 export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['notifications', 'common']);
+  const router = useRouter();
 
   const [users, setUsers] = useState<UserNotificationPreference[]>([]);
   const [config, setConfig] = useState<NotificationConfig | null>(null);
@@ -45,7 +47,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
       setConfig(configData);
     } catch (err: any) {
       console.error('Failed to fetch notification settings:', err);
-      setError(t('notifications.settings.error.fetch') || 'Failed to load notification settings');
+      setError(t('notifications.settings.load_error') || 'Failed to load notification settings');
     } finally {
       setLoading(false);
     }
@@ -68,7 +70,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
       );
     } catch (err: any) {
       console.error('Failed to update notification preference:', err);
-      setError(t('notifications.settings.error.update') || 'Failed to update notification preference');
+      setError(t('notifications.settings.save_error') || 'Failed to update notification preference');
     } finally {
       setUpdating(false);
     }
@@ -88,7 +90,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
       setConfig(updatedConfig);
     } catch (err: any) {
       console.error('Failed to update notification config:', err);
-      setError(t('notifications.settings.error.updateConfig') || 'Failed to update notification settings');
+      setError(t('notifications.settings.save_error') || 'Failed to update notification settings');
     } finally {
       setUpdating(false);
     }
@@ -149,7 +151,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{t('common.loading') || 'Loading...'}</p>
+          <p className="mt-4 text-gray-600">{t('common.loading', { ns: 'common' }) || 'Loading...'}</p>
         </div>
       </div>
     );
@@ -159,13 +161,31 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-md">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {t('notifications.settings.title') || 'Email Notification Settings'}
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            {t('notifications.settings.description') ||
-              'Configure which staff members receive email notifications when orders are paid.'}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {t('notifications.settings.title') || 'Email Notification Settings'}
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                {t('notifications.settings.description') ||
+                  'Configure which staff members receive email notifications when orders are paid.'}
+              </p>
+            </div>
+            <button
+              onClick={() => router.push('/settings/notifications/history')}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>{t('notifications.settings.viewHistory') || 'View History'}</span>
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -325,7 +345,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = () => {
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
                   disabled={testEmailSending}
                 >
-                  {t('common.cancel') || 'Cancel'}
+                  {t('common.cancel', { ns: 'common' }) || 'Cancel'}
                 </button>
                 <button
                   onClick={handleSendTestEmail}

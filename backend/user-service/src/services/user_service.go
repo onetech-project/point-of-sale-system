@@ -29,8 +29,8 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 	// Query to get all users with notification preferences
 	query := `
 		SELECT 
-			user_id,
-			name,
+			id,
+			(first_name) || ' ' || (last_name) AS name,
 			email,
 			role,
 			receive_order_notifications,
@@ -38,7 +38,6 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 			updated_at
 		FROM users
 		WHERE tenant_id = $1
-		  AND deleted_at IS NULL
 		ORDER BY name ASC
 	`
 

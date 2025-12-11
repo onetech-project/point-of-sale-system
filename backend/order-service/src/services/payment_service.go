@@ -459,29 +459,15 @@ func (s *PaymentService) ProcessNotification(ctx context.Context, notification *
 // Implements T061: Order status update for settlement
 // Implements T062: Inventory reservation conversion
 func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tenantID string, notification *MidtransNotification) error {
-	// Begin transaction for atomic updates
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to begin transaction")
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Step 1: Update order status to PAID with paid_at timestamp
-	now := time.Now()
-	err = s.orderRepo.UpdateOrderStatus(ctx, tx, orderID, models.OrderStatusPaid, &now, nil, nil)
+	// Step 1: Update order status to PAID using OrderService
+	// This will handle the transaction, timestamp updates, AND publish order.paid event to Kafka
+	err := s.orderService.UpdateOrderStatus(ctx, orderID, models.OrderStatusPaid)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("order_id", orderID).
 			Msg("Failed to update order status to PAID")
 		return fmt.Errorf("failed to update order status: %w", err)
-	}
-
-	// Commit transaction for order status update
-	if err := tx.Commit(); err != nil {
-		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to commit order status update")
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	// Step 2: Convert inventory reservations to permanent allocations
@@ -522,16 +508,9 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 		// Continue with order status update even if release fails
 	}
 
-	// Step 2: Update order status to CANCELLED
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to begin transaction")
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	now := time.Now()
-	err = s.orderRepo.UpdateOrderStatus(ctx, tx, orderID, models.OrderStatusCancelled, nil, nil, &now)
+	// Step 2: Update order status to CANCELLED using OrderService
+	// This will handle the transaction and timestamp updates
+	err = s.orderService.UpdateOrderStatus(ctx, orderID, models.OrderStatusCancelled)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -540,33 +519,26 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 		return fmt.Errorf("failed to update order status: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to commit order cancellation")
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	// Step 3: Add system note explaining the cancellation reason
+	var noteMessage string
+	switch strings.ToLower(notification.TransactionStatus) {
+	case "expire":
+		noteMessage = "Order automatically cancelled due to payment expiration. Payment was not completed within the allocated time."
+	case "cancel":
+		noteMessage = "Order cancelled due to payment cancellation by customer or payment gateway."
+	case "deny":
+		noteMessage = "Order cancelled due to payment denial by payment gateway."
+	default:
+		noteMessage = fmt.Sprintf("Order cancelled due to payment failure (status: %s).", notification.TransactionStatus)
 	}
 
-	// Step 3: Add system note explaining the cancellation reason
-	if s.orderService != nil {
-		var noteMessage string
-		switch strings.ToLower(notification.TransactionStatus) {
-		case "expire":
-			noteMessage = "Order automatically cancelled due to payment expiration. Payment was not completed within the allocated time."
-		case "cancel":
-			noteMessage = "Order cancelled due to payment cancellation by customer or payment gateway."
-		case "deny":
-			noteMessage = "Order cancelled due to payment denial by payment gateway."
-		default:
-			noteMessage = fmt.Sprintf("Order cancelled due to payment failure (status: %s).", notification.TransactionStatus)
-		}
-
-		err = s.orderService.AddOrderNote(ctx, orderID, noteMessage, "System")
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("order_id", orderID).
-				Msg("Failed to add system note for payment failure")
-			// Don't fail the webhook if note creation fails
-		}
+	err = s.orderService.AddOrderNote(ctx, orderID, noteMessage, "System")
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("order_id", orderID).
+			Msg("Failed to add system note for payment failure")
+		// Don't fail the webhook if note creation fails
 	}
 
 	log.Info().

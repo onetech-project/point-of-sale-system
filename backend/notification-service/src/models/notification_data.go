@@ -17,6 +17,7 @@ type StaffNotificationData struct {
 	TotalAmount     string                  `json:"total_amount"`
 	PaymentMethod   string                  `json:"payment_method"`
 	PaidAt          string                  `json:"paid_at"`
+	CreatedAt       string                  `json:"created_at"` // Order creation time
 }
 
 // StaffNotificationItem represents an order item in staff notification
@@ -41,6 +42,8 @@ type CustomerReceiptData struct {
 	TotalAmount       string                `json:"total_amount"`
 	PaymentMethod     string                `json:"payment_method"`
 	PaidAt            string                `json:"paid_at"`
+	CreatedAt         string                `json:"created_at"` // Order creation time
+	OrderURL          string                `json:"order_url"`  // URL to track order
 	ShowPaidWatermark bool                  `json:"show_paid_watermark"`
 }
 
