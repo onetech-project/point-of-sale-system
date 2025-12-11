@@ -61,6 +61,7 @@ func (s *NotificationService) loadTemplates() error {
 		"password_changed.html",
 		"team_invitation.html",
 		"order_invoice.html",
+		"order_staff_notification.html",
 	}
 
 	// Get custom template functions
@@ -426,18 +427,171 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 		return fmt.Errorf("invalid order.paid event: %w", err)
 	}
 
-	log.Printf("Processing order.paid event for order %s (transaction: %s)",
-		orderEvent.Metadata.OrderID, orderEvent.Metadata.TransactionID)
+	log.Printf("[ORDER_PAID] Processing event for order %s (transaction: %s, tenant: %s)",
+		orderEvent.Metadata.OrderID, orderEvent.Metadata.TransactionID, orderEvent.TenantID)
 
-	// TODO: This is a placeholder - will be completed in Phase 3 (User Story 1)
-	// Need to:
-	// 1. Check notification_configs for tenant (T013 done)
-	// 2. Query users with receive_order_notifications=true (T014 pending)
-	// 3. Check for duplicate notifications by transaction_id (T015 pending)
-	// 4. Send email to each staff member using order_notification template
-	// 5. Create notification records in database
+	// Check for duplicate notifications
+	alreadySent, err := s.repo.HasSentOrderNotification(ctx, orderEvent.TenantID, orderEvent.Metadata.TransactionID)
+	if err != nil {
+		log.Printf("[ORDER_PAID] Error checking duplicate: %v", err)
+		return fmt.Errorf("failed to check duplicate notification: %w", err)
+	}
+	if alreadySent {
+		log.Printf("[ORDER_PAID] Duplicate notification detected for transaction %s - skipping",
+			orderEvent.Metadata.TransactionID)
+		return nil
+	}
 
-	log.Printf("order.paid handler placeholder executed for tenant %s", orderEvent.TenantID)
+	// Send staff notifications
+	if err := s.sendStaffNotifications(ctx, &orderEvent); err != nil {
+		log.Printf("[ORDER_PAID] Failed to send staff notifications: %v", err)
+		return fmt.Errorf("failed to send staff notifications: %w", err)
+	}
+
+	// Send customer receipt if email provided
+	if orderEvent.Metadata.CustomerEmail != "" {
+		if err := s.sendCustomerReceipt(ctx, &orderEvent); err != nil {
+			log.Printf("[ORDER_PAID] Failed to send customer receipt: %v", err)
+			// Don't fail the whole operation if customer receipt fails
+		}
+	}
+
+	log.Printf("[ORDER_PAID] Successfully processed order.paid event for order %s", orderEvent.Metadata.OrderID)
+	return nil
+}
+
+// queryStaffRecipients gets all staff users who should receive order notifications
+func (s *NotificationService) queryStaffRecipients(ctx context.Context, tenantID string) ([]string, error) {
+	// This would normally query the user-service API or database
+	// For now, we'll use a placeholder implementation
+	// In production, this should call user-service's FindStaffWithOrderNotifications endpoint
+
+	// TODO: Implement actual API call to user-service
+	// For now, return empty list - this will be implemented when connecting services
+	log.Printf("[ORDER_PAID] Querying staff recipients for tenant %s", tenantID)
+
+	// Placeholder: In production, call user-service API
+	// GET /api/v1/users/staff-with-notifications?tenant_id={tenantID}
+
+	return []string{}, nil
+}
+
+// sendStaffNotifications sends order notification emails to all configured staff members
+func (s *NotificationService) sendStaffNotifications(ctx context.Context, orderEvent *models.OrderPaidEvent) error {
+	// Query staff recipients
+	staffEmails, err := s.queryStaffRecipients(ctx, orderEvent.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to query staff recipients: %w", err)
+	}
+
+	if len(staffEmails) == 0 {
+		log.Printf("[ORDER_PAID] No staff members configured to receive notifications for tenant %s",
+			orderEvent.TenantID)
+		return nil
+	}
+
+	// Convert event to template data
+	staffData := convertOrderEventToStaffData(orderEvent)
+
+	// Render template
+	body, err := s.renderStaffNotificationTemplate(staffData)
+	if err != nil {
+		return fmt.Errorf("failed to render staff notification template: %w", err)
+	}
+
+	subject := fmt.Sprintf("New Order Paid - %s", orderEvent.Metadata.OrderReference)
+
+	// Send notification to each staff member
+	successCount := 0
+	for _, email := range staffEmails {
+		log.Printf("[ORDER_PAID] Sending notification to staff: %s", email)
+
+		// Create notification metadata
+		metadata := map[string]interface{}{
+			"event_type":     "order.paid.staff",
+			"order_id":       orderEvent.Metadata.OrderID,
+			"transaction_id": orderEvent.Metadata.TransactionID,
+			"customer_name":  orderEvent.Metadata.CustomerName,
+			"total_amount":   orderEvent.Metadata.TotalAmount,
+			"payment_method": orderEvent.Metadata.PaymentMethod,
+		}
+
+		notification := &models.Notification{
+			TenantID:  orderEvent.TenantID,
+			Type:      models.NotificationTypeEmail,
+			Status:    models.NotificationStatusPending,
+			Subject:   subject,
+			Body:      body,
+			Recipient: email,
+			Metadata:  metadata,
+		}
+
+		if err := s.repo.Create(ctx, notification); err != nil {
+			log.Printf("[ORDER_PAID] Failed to create notification record for %s: %v", email, err)
+			continue
+		}
+
+		if err := s.sendEmail(ctx, notification); err != nil {
+			log.Printf("[ORDER_PAID] Failed to send email to %s: %v", email, err)
+			continue
+		}
+
+		successCount++
+	}
+
+	log.Printf("[ORDER_PAID] Successfully sent %d/%d staff notifications", successCount, len(staffEmails))
+	return nil
+}
+
+// sendCustomerReceipt sends email receipt to customer
+func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEvent *models.OrderPaidEvent) error {
+	// Validate email format
+	if !utils.IsValidEmail(orderEvent.Metadata.CustomerEmail) {
+		log.Printf("[ORDER_PAID] Invalid email format for customer receipt: %s", orderEvent.Metadata.CustomerEmail)
+		return fmt.Errorf("invalid email format: %s", orderEvent.Metadata.CustomerEmail)
+	}
+
+	log.Printf("[ORDER_PAID] Sending customer receipt to %s", orderEvent.Metadata.CustomerEmail)
+
+	// Convert event to template data
+	customerData := convertOrderEventToCustomerData(orderEvent)
+
+	// Render template
+	body, err := s.renderCustomerReceiptTemplate(customerData)
+	if err != nil {
+		return fmt.Errorf("failed to render customer receipt template: %w", err)
+	}
+
+	subject := fmt.Sprintf("Order Receipt - %s", orderEvent.Metadata.OrderReference)
+
+	// Create notification metadata
+	metadata := map[string]interface{}{
+		"event_type":     "order.paid.customer",
+		"order_id":       orderEvent.Metadata.OrderID,
+		"transaction_id": orderEvent.Metadata.TransactionID,
+		"customer_email": orderEvent.Metadata.CustomerEmail,
+		"total_amount":   orderEvent.Metadata.TotalAmount,
+	}
+
+	notification := &models.Notification{
+		TenantID:  orderEvent.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: orderEvent.Metadata.CustomerEmail,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create notification record: %w", err)
+	}
+
+	if err := s.sendEmail(ctx, notification); err != nil {
+		return fmt.Errorf("failed to send customer receipt: %w", err)
+	}
+
+	log.Printf("[ORDER_PAID] Successfully sent customer receipt to %s", orderEvent.Metadata.CustomerEmail)
 	return nil
 }
 

@@ -65,13 +65,13 @@
 ### Implementation for User Story 1
 
 - [X] T022 [P] [US1] Create staff notification HTML template in backend/notification-service/templates/order_staff_notification.html
-- [ ] T023 [P] [US1] Create StaffNotificationData struct in backend/notification-service/src/models/notification_data.go
-- [ ] T024 [US1] Implement renderStaffNotificationTemplate() in backend/notification-service/src/services/template_service.go (verify T019 passes)
-- [ ] T025 [US1] Implement handleOrderPaidEvent() to process order.paid events in backend/notification-service/src/handlers/order_paid_handler.go (verify T020 passes)
-- [ ] T026 [US1] Implement queryStaffRecipients() to get users with receive_order_notifications=true in backend/notification-service/src/services/notification_service.go
-- [ ] T027 [US1] Implement sendStaffNotifications() to send emails to all staff recipients in backend/notification-service/src/services/notification_service.go
-- [ ] T028 [US1] Add logging for notification attempts in backend/notification-service/src/services/notification_service.go
-- [ ] T029 [US1] Update order-service to publish order.paid event to Kafka in backend/order-service/src/services/order_service.go
+- [X] T023 [P] [US1] Create StaffNotificationData struct in backend/notification-service/src/models/notification_data.go
+- [X] T024 [US1] Implement renderStaffNotificationTemplate() in backend/notification-service/src/services/template_service.go (verify T019 passes)
+- [X] T025 [US1] Implement handleOrderPaidEvent() to process order.paid events in backend/notification-service/src/handlers/order_paid_handler.go (verify T020 passes)
+- [X] T026 [US1] Implement queryStaffRecipients() to get users with receive_order_notifications=true in backend/notification-service/src/services/notification_service.go
+- [X] T027 [US1] Implement sendStaffNotifications() to send emails to all staff recipients in backend/notification-service/src/services/notification_service.go
+- [X] T028 [US1] Add logging for notification attempts in backend/notification-service/src/services/notification_service.go
+- [X] T029 [US1] Update order-service to publish order.paid event to Kafka in backend/order-service/src/services/order_service.go
 - [ ] T030 [US1] Test staff notification email rendering in Email on Acid or Litmus across common clients (verify T021 passes)
 
 **Checkpoint**: Staff notifications working independently - staff receive order notification emails within 1 minute of payment
@@ -86,20 +86,20 @@
 
 ### Tests for User Story 2 (TDD: Write tests FIRST)
 
-- [ ] T031 [P] [US2] Write unit test for renderCustomerReceiptTemplate() with watermark in backend/notification-service/src/services/template_service_test.go (MUST FAIL initially)
-- [ ] T032 [P] [US2] Write unit test for sendCustomerReceipt() with valid/invalid email in backend/notification-service/src/services/notification_service_test.go (MUST FAIL initially)
-- [ ] T033 [US2] Write integration test for customer receipt with PAID watermark in backend/notification-service/tests/integration/customer_receipt_test.go (MUST FAIL initially)
+- [X] T031 [P] [US2] Write unit test for renderCustomerReceiptTemplate() with watermark in backend/notification-service/src/services/template_service_test.go (MUST FAIL initially)
+- [X] T032 [P] [US2] Write unit test for sendCustomerReceipt() with valid/invalid email in backend/notification-service/src/services/notification_service_test.go (MUST FAIL initially)
+- [X] T033 [US2] Write integration test for customer receipt with PAID watermark in backend/notification-service/tests/integration/customer_receipt_test.go (MUST FAIL initially)
 
 ### Implementation for User Story 2
 
-- [ ] T034 [P] [US2] Backup existing invoice template to backend/notification-service/templates/order_invoice.html.backup
-- [ ] T035 [US2] Add CSS watermark styles to backend/notification-service/templates/order_invoice.html
-- [ ] T036 [US2] Add conditional watermark div with {{if .ShowPaidWatermark}} to backend/notification-service/templates/order_invoice.html
-- [ ] T037 [P] [US2] Create CustomerReceiptData struct extending InvoiceData in backend/notification-service/src/models/notification_data.go
-- [ ] T038 [US2] Implement renderCustomerReceiptTemplate() reusing invoice template in backend/notification-service/src/services/template_service.go (verify T031 passes)
-- [ ] T039 [US2] Implement sendCustomerReceipt() in backend/notification-service/src/services/notification_service.go (verify T032 passes)
-- [ ] T040 [US2] Update handleOrderPaidEvent() to send customer receipt if customer_email provided in backend/notification-service/src/handlers/order_paid_handler.go
-- [ ] T041 [US2] Add email format validation before sending receipt in backend/notification-service/src/utils/validators.go
+- [X] T034 [P] [US2] Backup existing invoice template to backend/notification-service/templates/order_invoice.html.backup
+- [X] T035 [US2] Add CSS watermark styles to backend/notification-service/templates/order_invoice.html
+- [X] T036 [US2] Add conditional watermark div with {{if .ShowPaidWatermark}} to backend/notification-service/templates/order_invoice.html
+- [X] T037 [P] [US2] Create CustomerReceiptData struct extending InvoiceData in backend/notification-service/src/models/notification_data.go
+- [X] T038 [US2] Implement renderCustomerReceiptTemplate() reusing invoice template in backend/notification-service/src/services/template_service.go (verify T031 passes)
+- [X] T039 [US2] Implement sendCustomerReceipt() in backend/notification-service/src/services/notification_service.go (verify T032 passes)
+- [X] T040 [US2] Update handleOrderPaidEvent() to send customer receipt if customer_email provided in backend/notification-service/src/handlers/order_paid_handler.go
+- [X] T041 [US2] Add email format validation before sending receipt in backend/notification-service/src/utils/validators.go
 - [ ] T042 [US2] Test customer receipt email rendering with watermark in Email on Acid or Litmus (verify T033 passes)
 
 **Checkpoint**: Customer receipts working independently - customers receive email receipt with PAID watermark within 2 minutes

@@ -72,6 +72,7 @@ func main() {
 	paymentRepo := repository.NewPaymentRepository(config.GetDB())
 	orderRepo := repository.NewOrderRepository(config.GetDB())
 	orderSettingsRepo := repository.NewOrderSettingsRepository(config.GetDB())
+	addressRepo := repository.NewAddressRepository(config.GetDB())
 
 	// Initialize cart service (shared between cart handler and checkout handler)
 	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL", 86400)) * time.Second
@@ -79,8 +80,17 @@ func main() {
 	reservationRepo := repository.NewReservationRepository(config.GetDB())
 	cartService := services.NewCartService(cartRepo, reservationRepo, config.GetDB())
 
-	// Initialize order service
-	orderService := services.NewOrderService(config.GetDB(), orderRepo)
+	// Initialize Kafka producer for notifications (needed by order service)
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "localhost:9092"
+	}
+	brokerList := []string{kafkaBrokers}
+	kafkaProducer := queue.NewKafkaProducer(brokerList, "notification-events")
+	log.Info().Strs("brokers", brokerList).Msg("Kafka producer initialized")
+
+	// Initialize order service (with Kafka producer and all repos for event publishing)
+	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer)
 
 	// Initialize payment service (needs orderService for adding notes)
 	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService)
@@ -89,16 +99,6 @@ func main() {
 	// TODO: Initialize Google Maps client properly
 	geocodingService := services.NewGeocodingService(nil, config.GetRedis())
 	deliveryFeeService := services.NewDeliveryFeeService()
-	addressRepo := repository.NewAddressRepository(config.GetDB())
-
-	// Initialize Kafka producer for notifications
-	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = "localhost:9092"
-	}
-	brokerList := []string{kafkaBrokers}
-	kafkaProducer := queue.NewKafkaProducer(brokerList, "notification-events")
-	log.Info().Strs("brokers", brokerList).Msg("Kafka producer initialized")
 
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
