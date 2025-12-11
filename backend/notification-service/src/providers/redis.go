@@ -51,3 +51,68 @@ func (r *RedisProvider) PublishToStream(streamName string, fieldValues map[strin
 func (r *RedisProvider) Close() error {
 	return r.client.Close()
 }
+
+// StreamMessage is a simplified representation of a Redis stream message.
+type StreamMessage struct {
+	ID     string
+	Values map[string]interface{}
+}
+
+// ReadStream reads messages from a Redis stream starting after lastID.
+// If lastID is "$" then only new messages will be returned when they arrive.
+// block is a time.Duration for how long to block waiting for messages.
+func (r *RedisProvider) ReadStream(ctx context.Context, stream string, lastID string, block time.Duration) ([]StreamMessage, error) {
+	args := &redis.XReadArgs{
+		Streams: []string{stream, lastID},
+		Count:   10,
+		Block:   block,
+	}
+	streams, err := r.client.XRead(ctx, args).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []StreamMessage
+	for _, s := range streams {
+		for _, m := range s.Messages {
+			// copy values into a map[string]interface{}
+			vals := make(map[string]interface{}, len(m.Values))
+			for k, v := range m.Values {
+				vals[k] = v
+			}
+			out = append(out, StreamMessage{ID: m.ID, Values: vals})
+		}
+	}
+	return out, nil
+}
+
+// IncrWithTTL atomically increments a key and sets TTL when it was newly created (i.e., value == 1)
+func (r *RedisProvider) IncrWithTTL(ctx context.Context, key string, ttlSeconds int64) (int64, error) {
+	val, err := r.client.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	if val == 1 && ttlSeconds > 0 {
+		_ = r.client.Expire(ctx, key, time.Duration(ttlSeconds)*time.Second)
+	}
+	return val, nil
+}
+
+// GetInt fetches an integer value for a key (returns 0 if not found)
+func (r *RedisProvider) GetInt(ctx context.Context, key string) (int64, error) {
+	v, err := r.client.Get(ctx, key).Int64()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return v, nil
+}
+
+// DelKey deletes a key
+func (r *RedisProvider) DelKey(ctx context.Context, key string) error {
+	return r.client.Del(ctx, key).Err()
+}

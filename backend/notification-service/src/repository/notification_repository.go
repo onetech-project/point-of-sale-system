@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"time"
 
 	"github.com/pos/notification-service/src/models"
@@ -11,6 +12,13 @@ import (
 
 type NotificationRepository struct {
 	db *sql.DB
+}
+
+// NotificationRepositoryInterface defines the methods used by services to interact with notifications.
+type NotificationRepositoryInterface interface {
+	Create(ctx context.Context, notification *models.Notification) error
+	UpdateStatus(ctx context.Context, id string, status models.NotificationStatus, sentAt, failedAt *time.Time, errorMsg *string) error
+	FindByID(ctx context.Context, id string) (*models.Notification, error)
 }
 
 func NewNotificationRepository(db *sql.DB) *NotificationRepository {
@@ -41,7 +49,14 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *model
 		}
 	}
 
-	return r.db.QueryRowContext(
+	// Ensure metadata JSON is valid for insertion; default to empty object if nil
+	if metadataJSON == nil {
+		metadataJSON = []byte("{}")
+	}
+
+	// Notification.Type may contain in_app but DB schema's CHECK currently expects ('email','sms','push').
+	// Map in_app -> push for DB storage until schema is expanded.
+	row := r.db.QueryRowContext(
 		ctx,
 		query,
 		notification.TenantID,
@@ -53,7 +68,13 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *model
 		notification.Body,
 		notification.Recipient,
 		metadataJSON,
-	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
+	)
+
+	err = row.Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
+	if err != nil {
+		log.Printf("notification insert error: %v", err)
+	}
+	return err
 }
 
 func (r *NotificationRepository) UpdateStatus(ctx context.Context, id string, status models.NotificationStatus, sentAt, failedAt *time.Time, errorMsg *string) error {

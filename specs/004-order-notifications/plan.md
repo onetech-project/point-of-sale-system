@@ -23,7 +23,7 @@ Deliver a real-time in-app notification and email pipeline for paid orders and r
 **Testing**: Go unit tests (`go test`), integration tests for Kafka consumers (integration harness), frontend tests using `jest` and testing-library.  
 **Target Platform**: Linux server containers (Docker), orchestrated via docker-compose in repo; production likely on Kubernetes (TBD).  
 **Project Type**: Web application (backend microservices + Next.js frontend).  
-**Performance Goals**: Meet spec success criteria: SSE delivery to active sessions within 5s for 95% of events; email pipeline enqueue within 30s for 95% of events. SSE scaling target: design for thousands of concurrent SSE connections per cluster (exact target: NEEDS CLARIFICATION).  
+**Performance Goals**: Meet spec success criteria: SSE delivery to active sessions within 5s for 95% of events; email pipeline enqueue within 30s for 95% of events. Suggested initial scaling targets (MVP defaults, subject to validation by T025 load tests): concurrent SSE connections (cluster-wide) = 5,000; burst event rate = 1,000 events/s; steady-state event rate = 100 events/s. These defaults must be validated and adjusted during load testing.
 **Constraints**: Preserve microservice autonomy — `notification-service` should own notification data and delivery. Ensure idempotency and deduplication for events (order payment events). Ensure tenancy scoping and least-privilege access to notification streams.  
 **Scale/Scope**: Initially support single-tenant test clusters and production-scale tenants (estimate: NEEDS CLARIFICATION: expected active tenants and peak order rates).
 
@@ -111,7 +111,7 @@ ios/ or android/
 **Structure Decision**: Use existing repository structure: backend microservices (including `notification-service`) will host server logic; frontend `Next.js` app consumes SSE and REST APIs. Concrete pieces:
 
 - Backend: `backend/notification-service/` — extend to subscribe to `order_paid` and `order_status_updated` Kafka topics (or shared topic) and to emit in-app notification events and persist Notification records.
-- Frontend: `frontend/` — implement SSE client that connects to `/api/sse/notifications` (auth required) and updates order-list UI and shows in-app toast/notification center.
+- Frontend: `frontend/` — implement SSE client that connects to `/api/v1/sse` (auth required) and updates order-list UI and shows in-app toast/notification center.
 - Gateway/API: Optionally expose SSE endpoint from `api-gateway/` to proxy to `notification-service` if needed for cross-origin or auth centralization (TBD during Phase 1).
 
 Rationale: Reuse existing `notification-service` to avoid duplicate event consumers and centralize notification templates, retries, and email sending. Evaluate scaling trade-offs in Phase 1.

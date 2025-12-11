@@ -21,6 +21,7 @@ type JWTClaims struct {
 func JWTAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			// Current behaviour: authentication token is provided via secure cookie `auth_token`.
 			cookie, err := c.Cookie("auth_token")
 			if err != nil {
 				return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -45,7 +46,7 @@ func JWTAuth() echo.MiddlewareFunc {
 					"error": "Invalid authentication token",
 				})
 			}
-			
+
 			if !token.Valid {
 				c.Logger().Warn("JWT token is not valid")
 				return c.JSON(http.StatusUnauthorized, map[string]string{

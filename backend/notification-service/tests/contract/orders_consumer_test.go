@@ -1,8 +1,9 @@
-package contract
+package contract_test
 
 import "testing"
 
-// TestOrdersConsumerContract is a failing contract test placeholder for T008a
-func TestOrdersConsumerContract(t *testing.T) {
-	t.Fatalf("not implemented: write contract test for orders.events consumer (T008a)")
+// Placeholder - moved to service package tests (src/services). Keep this file
+// present so older tooling paths don't break, but skip actual test logic.
+func TestOrdersConsumerContract_Skip(t *testing.T) {
+	t.Skip("moved to src/services; see orders_consumer_contract_test.go")
 }

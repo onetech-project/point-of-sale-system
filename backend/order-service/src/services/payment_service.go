@@ -34,6 +34,9 @@ type PaymentService struct {
 	orderRepo        *repository.OrderRepository
 	inventoryService *InventoryService
 	orderService     *OrderService
+	kafkaProducer    interface { // optional producer to publish events
+		Publish(ctx context.Context, key string, value interface{}) error
+	}
 }
 
 // NewPaymentService creates a new payment service
@@ -43,6 +46,9 @@ func NewPaymentService(
 	orderRepo *repository.OrderRepository,
 	inventoryService *InventoryService,
 	orderService *OrderService,
+	kafkaProducer interface {
+		Publish(ctx context.Context, key string, value interface{}) error
+	},
 ) *PaymentService {
 	return &PaymentService{
 		db:               db,
@@ -53,6 +59,7 @@ func NewPaymentService(
 		orderRepo:        orderRepo,
 		inventoryService: inventoryService,
 		orderService:     orderService,
+		kafkaProducer:    kafkaProducer,
 	}
 }
 
@@ -503,6 +510,38 @@ func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tena
 		Str("order_reference", notification.OrderID).
 		Str("transaction_id", notification.TransactionID).
 		Msg("Payment successful - order PAID and inventory converted")
+
+	// Publish order.paid event to Kafka so downstream services (notification-service)
+	// can consume and forward to Redis/SSE.
+	if s.kafkaProducer != nil {
+		event := map[string]interface{}{
+			"event_id":   fmt.Sprintf("order-paid-%d", time.Now().UnixNano()),
+			"event_type": "order.paid",
+			"tenant_id":  tenantID,
+			"user_id":    "",
+			"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			"payload": map[string]interface{}{
+				"order_id":        orderID,
+				"order_reference": notification.OrderID,
+				"transaction_id":  notification.TransactionID,
+				"total_amount":    notification.GrossAmount,
+			},
+		}
+
+		// Use order reference as key if available
+		key := notification.OrderID
+		if key == "" {
+			key = orderID
+		}
+
+		if err := s.kafkaProducer.Publish(ctx, key, event); err != nil {
+			log.Error().Err(err).
+				Str("order_id", orderID).
+				Msg("Failed to publish order.paid event")
+		} else {
+			log.Info().Str("order_id", orderID).Msg("Published order.paid event to Kafka")
+		}
+	}
 
 	return nil
 }

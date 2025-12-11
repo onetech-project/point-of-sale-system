@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Payment received</title>
+</head>
+
+<body>
+  <p>Hi {{.CustomerName}},</p>
+  <p>We have received payment for your order <strong>{{.Reference}}</strong>.</p>
+  <p>Total: <strong>{{.TotalAmount}}</strong></p>
+  <p>Reference: {{.Reference}}</p>
+  <p>You can view your order at <a href="{{.OrderURL}}">{{.OrderURL}}</a></p>
+  <p>Thanks,<br />The Team</p>
+</body>
+
+</html>

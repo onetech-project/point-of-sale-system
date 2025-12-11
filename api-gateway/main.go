@@ -121,6 +121,7 @@ func main() {
 
 	// Order service routes
 	orderServiceURL := getEnv("ORDER_SERVICE_URL", "http://localhost:8087")
+	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8085")
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
@@ -139,6 +140,10 @@ func main() {
 
 	// Webhook routes (no auth, but signature verification in order-service)
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
+
+	// SSE endpoint proxy to notification service (authenticated)
+	// Clients will connect to /api/v1/sse on the gateway which will forward to the notification service.
+	protected.GET("/api/v1/sse", proxyWildcard(notificationServiceURL))
 
 	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)

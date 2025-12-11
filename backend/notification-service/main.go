@@ -42,6 +42,10 @@ func main() {
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
 
+	// SSE endpoint (auth enforced by API Gateway)
+	// General SSE endpoint for event broadcasting from multiple services
+	e.GET("/api/v1/sse", api.SSEHandler)
+
 	// Redis provider setup
 	// Prefer REDIS_URL if provided, otherwise use REDIS_HOST and REDIS_DB
 	redisURL := os.Getenv("REDIS_URL")
@@ -92,15 +96,13 @@ func main() {
 
 	// Kafka configuration
 	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
 	kafkaGroupID := getEnv("KAFKA_GROUP_ID", "notification-service-group")
 
-	// Start Kafka consumer
-	consumer := queue.NewKafkaConsumer(
+	// Start Orders Kafka consumer (topic: orders.events)
+	consumer := queue.NewOrdersConsumer(
 		kafkaBrokers,
-		kafkaTopic,
 		kafkaGroupID,
-		notificationService.HandleEvent,
+		notificationService,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -108,6 +110,9 @@ func main() {
 
 	// Start consumer in background
 	go consumer.Start(ctx)
+
+	// Inject redis provider into API handlers for SSE streaming
+	api.RedisProvider = redisProvider
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

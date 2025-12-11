@@ -361,6 +361,11 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		h.publishInvoiceEvent(ctx, orderID, orderReference, tenantID, order, cart.Items, req.CustomerEmail)
 	}
 
+	// Publish an in-app / ordering event so other services (notification-service)
+	// can pick it up and forward to Redis for SSE. This emits an `order.created`
+	// event to Kafka (same producer used for invoice events).
+	h.publishOrderCreatedEvent(ctx, orderID, orderReference, tenantID, order)
+
 	return c.JSON(http.StatusCreated, CheckoutResponse{
 		OrderReference: orderReference,
 		OrderID:        orderID,
@@ -742,5 +747,36 @@ func (h *CheckoutHandler) publishInvoiceEvent(
 			Str("order_reference", orderReference).
 			Str("customer_email", *customerEmail).
 			Msg("Invoice notification event published successfully")
+	}
+}
+
+// publishOrderCreatedEvent emits a lightweight event describing the created order.
+// The notification-service (or other consumers) can consume this from Kafka and
+// publish to Redis streams for SSE or perform other actions.
+func (h *CheckoutHandler) publishOrderCreatedEvent(ctx context.Context, orderID, orderReference, tenantID string, order *models.GuestOrder) {
+	if h.kafkaProducer == nil {
+		log.Warn().Msg("Kafka producer not initialized, skipping order.created event")
+		return
+	}
+
+	event := map[string]interface{}{
+		"event_id":   fmt.Sprintf("order-created-%d", time.Now().UnixNano()),
+		"event_type": "order.created",
+		"tenant_id":  tenantID,
+		"user_id":    "", // guest
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+		"payload": map[string]interface{}{
+			"order_id":        orderID,
+			"order_reference": orderReference,
+			"total_amount":    order.TotalAmount,
+		},
+	}
+
+	if err := h.kafkaProducer.Publish(ctx, orderReference, event); err != nil {
+		log.Error().Err(err).
+			Str("order_reference", orderReference).
+			Msg("Failed to publish order.created event")
+	} else {
+		log.Info().Str("order_reference", orderReference).Msg("Published order.created event")
 	}
 }

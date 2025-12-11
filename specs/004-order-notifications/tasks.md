@@ -2,15 +2,16 @@
 
 Phase 1: Setup
 
-- [ ] T001 [P] Add Redis and SSE configuration to `backend/notification-service/.env.example` (keys: `REDIS_URL`, `SSE_REPLAY_BUFFER_TTL_SECONDS`, `SSE_MAX_CLIENTS_PER_INSTANCE`).
+ - [ ] T001 [P] Add Redis and SSE configuration to `backend/notification-service/.env.example` (keys: `REDIS_URL`, `REDIS_STREAM_RETENTION_SECONDS`, `REDIS_MAX_STREAM_LEN`, `SSE_MAX_CLIENTS_PER_INSTANCE`).
 - [ ] T002 [P] Add developer note to `specs/004-order-notifications/quickstart.md` explaining how to run Redis locally and verify tenant channels (commands and example `redis-cli` queries).
 
 Phase 2: Foundational (blocking prerequisites)
 
-- [ ] T003 Create a dedupe/event-records migration `backend/migrations/000023_create_event_records.up.sql` to store processed `event_id` for idempotency (file path: `backend/migrations/000023_create_event_records.up.sql`).
-- [ ] T004 [P] Add Redis helper and configuration to `backend/notification-service/src/providers/redis.go` (new file) to publish tenant-channel messages and support a short-lived ring buffer for replay. (Implementation details for T004 MUST follow T023 decision on dedupe/replay store)
-- [ ] T005a [P] Test-First: Add contract/integration tests (failing) for SSE endpoint behavior - verify subscription auth, Last-Event-ID handling, and replay behavior. Place tests under `specs/004-order-notifications/tests/contract/sse/`.
-- [ ] T005b Implement SSE HTTP handler in `backend/notification-service/api/sse.go` and register route in `backend/notification-service/main.go`. (Depends on T005a)
+ - [X] T003 [P] Implement Postgres dedupe `event_records` migration `backend/migrations/000023_create_event_records.up.sql` to persist processed `event_id` for idempotent consumer processing (see T023 for retention/semantics). File path: `backend/migrations/000023_create_event_records.up.sql`.
+ - [X] T004 [P] Add Redis helper and configuration to `backend/notification-service/src/providers/redis.go` (new file) to publish tenant-channel messages and support a short-lived ring buffer for replay. (Implementation details for T004 MUST follow T023 decision on dedupe/replay store)
+ - [X] T005a [P] Test-First: Add contract/integration tests (failing) for SSE endpoint behavior - verify subscription auth, Last-Event-ID handling, and replay behavior. Place tests under `specs/004-order-notifications/tests/contract/sse/`.
+ - [X] T024 [CRITICAL] Test-First & Blocking: Define SSE auth and tenant-scoping contract and add failing tests asserting required JWT claims (tenant_id, roles) and token validation rules. Place tests under `specs/004-order-notifications/tests/contract/sse/`. This task MUST be completed and tests must fail before implementing the SSE handler to ensure Security-by-Design.
+ - [X] T005b Implement SSE HTTP handler in `backend/notification-service/api/sse.go` and register route in `backend/notification-service/main.go`. (Depends on T005a and T024)
 - [ ] T006 [P] Add `GET /api/orders/snapshot` endpoint in `backend/order-service/src/api/snapshot.go` to return an order list snapshot for a tenant (used for client resync).
 - [ ] T007 [P] Add AsyncAPI & SSE contract verification tests under `specs/004-order-notifications/tests/contract/` to validate `contracts/asyncapi-orders-events.yaml` and `contracts/sse-contract.md` are present and syntactically valid.
 
@@ -18,17 +19,17 @@ Phase 3: User Story Implementation
 
 US1 - Receive immediate notification when order is paid (Priority: P1)
 
- - [ ] T008a [US1] Test-First: Add contract/integration tests (failing) for `orders.events` consumer behavior (dedupe, Notification creation, Redis publish and email enqueue). Place under `backend/notification-service/tests/contract/orders_consumer_test.go`.
- - [ ] T008b [US1] Implement Kafka consumer for `orders.events` in `backend/notification-service/src/queue/orders_consumer.go` that:
+ - [X] T008a [US1] Test-First: Add contract/integration tests (failing) for `orders.events` consumer behavior (dedupe, Notification creation, Redis publish and email enqueue). Place under `backend/notification-service/tests/contract/orders_consumer_test.go`.
+ - [X] T008b [US1] Implement Kafka consumer for `orders.events` in `backend/notification-service/src/queue/orders_consumer.go` that:
   - subscribes to `orders.events`
   - parses `order_paid` and `order_status_updated` events
   - performs dedupe using `EventRecord` (migration from T003)
   - persists `Notification` entries in `backend/notification-service/src/repository/notification_repository.go` (reuse existing repository)
   - publishes a lightweight in-app payload to Redis tenant channel and calls existing `sendEmail` logic when applicable
 
-- [ ] T009 [US1] Add or update an email template `backend/notification-service/templates/order_paid.html` for paid-order emails (create if missing) and load it in `notification_service.go`'s template loader.
+ - [X] T009 [US1] Add or update an email template `backend/notification-service/templates/order_paid.html` for paid-order emails (create if missing) and load it in `notification_service.go`'s template loader.
 
-- [ ] T010 [US1] Add integration tests `backend/notification-service/tests/integration/order_paid_consumer_test.go` that publish a test `order_paid` event to Kafka and assert: Notification record created, Redis publish occurred, sendEmail was invoked (mocked), and no duplicate notifications when same event reprocessed.
+ - [ ] T010 [US1] Add integration tests `backend/notification-service/tests/integration/order_paid_consumer_test.go` that publish a test `order_paid` event to Kafka and assert: Notification record created, Redis publish occurred, sendEmail was invoked (mocked), and no duplicate notifications when same event reprocessed.
 
 US2 - Real-time order list updates for submitted or status-changed orders (Priority: P1)
 
@@ -37,7 +38,9 @@ US2 - Real-time order list updates for submitted or status-changed orders (Prior
 
  - [ ] T012a [US2] Test-First: Add frontend/integration tests (failing) describing SSE client behavior and Last-Event-ID fallback in `specs/004-order-notifications/tests/frontend/`.
  - [ ] T012b [US2] Implement SSE client handler in frontend at `frontend/src/services/sse.ts` (new) and integrate into `frontend/src/components/OrderList.tsx` (or the equivalent order list component) to:
-  - open `GET /api/sse/notifications` with auth
+ - [X] T012a [US2] Test-First: Add frontend/integration tests (failing) describing SSE client behavior and Last-Event-ID fallback in `specs/004-order-notifications/tests/frontend/`.
+ - [X] T012b [US2] Implement SSE client handler in frontend at `frontend/src/services/sse.ts` (new) and integrate into `frontend/src/components/OrderList.tsx` (or the equivalent order list component) to:
+  - open `GET /api/v1/sse` with auth
   - handle `order_created`, `order_paid`, `order_status_updated` events and update UI state in real time
   - implement Last-Event-ID usage and fallback to `GET /api/orders/snapshot` on missed events (T012b depends on T012a)
 
@@ -54,9 +57,8 @@ Additional Remediation Tasks (from analysis)
   - Rename other `001-*` spec folders to unique numbers (e.g., `002-...`) OR
   - Consolidate related specs under a single numeric prefix if they belong to same feature.
   Document the chosen resolution in `docs/SPEC_PREFIX_CHANGE.md` and re-run `.specify/scripts/bash/check-prerequisites.sh` to confirm the fix.
-- [ ] T023 [P] Decide dedupe store and retention policy: **HYBRID** approach chosen — Redis Streams (short-term replay/fan-out, retention 24h default) + Postgres `event_records` table (durable dedupe/audit, retention 30 days default). Update `specs/004-order-notifications/research.md` with operational parameters and ensure T003 (Postgres migration) and T004 (Redis helper) implementation details reflect this decision.
- - [ ] T024 [P] Add SSE auth details task: update `specs/004-order-notifications/contracts/sse-contract.md` with required JWT claims (tenant_id, roles), token validation rules, and reconnect behavior; add contract tests to enforce auth behavior.
- - [ ] T025 [P] Add load/performance tests: create load tests and benchmarks to validate SC-001..SC-003 (SSE delivery latency 95th percentile ≤5s, email enqueue ≤30s). Place load scripts under `specs/004-order-notifications/tests/load/` and document run instructions in `quickstart.md`.
+ - [ ] T023 [P] Dedupe decision (DOCUMENTATION): **HYBRID** approach chosen. Parameters (operational defaults for implementation): Redis Streams per-tenant (stream name `tenant:<tenant_id>:stream`) for short-term replay/fan-out with `REDIS_STREAM_RETENTION_SECONDS=86400` (24h) and `REDIS_MAX_STREAM_LEN=10000`; Postgres `event_records` table for durable dedupe/audit with retention 30 days (2592000 seconds). This task is a decision/documentation entry — implementation tasks: T003 (Postgres migration) and T004 (Redis helper) must follow these parameters. Update `specs/004-order-notifications/research.md` if these defaults change.
+ - [ ] T024 [P] Add load/performance tests: create load tests and benchmarks to validate SC-001..SC-003 (SSE delivery latency 95th percentile ≤5s, email enqueue ≤30s). Place load scripts under `specs/004-order-notifications/tests/load/` and document run instructions in `quickstart.md`.
  - [ ] T015 [US3] Update user model `backend/user-service/src/models/user.go` to include notification preference fields and update any user creation/update paths to accept preferences.
 - [ ] T016 [US3] Update notification creation logic in `backend/notification-service/src/services/notification_service.go` to respect per-user preferences (skip email/in-app send when disabled) and ensure role scoping (only Owner/Manager/Cashier receive order-paid notifications).
 

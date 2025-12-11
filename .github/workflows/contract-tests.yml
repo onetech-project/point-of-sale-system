@@ -1,0 +1,50 @@
+name: Contract Tests
+
+on:
+  pull_request:
+    paths:
+      - "specs/004-order-notifications/**"
+      - "backend/notification-service/**"
+
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_DB: pos_db
+          POSTGRES_USER: pos_user
+          POSTGRES_PASSWORD: pos_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pos_user -d pos_db"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+
+      - name: Wait for services
+        run: |
+          sleep 10
+
+      - name: Apply migrations
+        run: |
+          export DATABASE_URL='postgresql://pos_user:pos_password@localhost:5432/pos_db?sslmode=disable'
+          ./scripts/apply-migrations.sh
+
+      - name: Run notification-service integration checks
+        working-directory: backend/notification-service
+        run: |
+          export DATABASE_URL='postgresql://pos_user:pos_password@localhost:5432/pos_db?sslmode=disable'
+          go test ./tests/integration -v

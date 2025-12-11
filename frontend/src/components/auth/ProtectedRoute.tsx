@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../store/auth';
 import { ROLES, type Role } from '../../constants/roles';
 import SessionWarning from './SessionWarning';
+import ToastProvider from '../ui/Toast';
+import useSSENotifications from '../../hooks/useSSENotifications';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -55,7 +57,17 @@ export default function ProtectedRoute({
   return (
     <>
       <SessionWarning />
-      {children}
+      {/* ToastProvider renders the toast container and provides `useToasts()` */}
+      <ToastProvider>
+        {/* SSE listener runs inside the ToastProvider so it can call `useToasts()` */}
+        <SSEListener />
+        {children}
+      </ToastProvider>
     </>
   );
+}
+
+function SSEListener() {
+  useSSENotifications()
+  return null
 }

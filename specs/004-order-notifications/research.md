@@ -58,11 +58,16 @@ This document resolves outstanding technical clarifications from the implementat
 
 ## Action Item: Dedupe Store Decision (T023)
 
-- Objective: Decide whether dedupe/processed-event persistence should use Postgres `event_records` table or Redis (TTL or Streams) and document retention/replay semantics.
-- Criteria: write/read latency, persistence across restarts, storage costs, expected retention window for replay, complexity of implementation, and compatibility with existing migration/backup policies.
-- Deliverable: Update `specs/004-order-notifications/research.md` with chosen approach, TTL/retention numbers (e.g., keep last 24-72 hours or last N events per tenant), and update `specs/004-order-notifications/tasks.md` to reflect concrete migration file names and implementation steps (T003/T004).
+- Decision (CHOICE): HYBRID dedupe store — Redis Streams for short-term replay/fan-out, and Postgres `event_records` for durable dedupe/audit.
+- Rationale: Redis Streams allow low-latency fan-out and lightweight replay for reconnecting SSE clients; Postgres provides durable storage, easier auditing, and simpler retention/cleanup policies.
+- Operational Defaults (implementation MUST follow these unless changed by ops):
+  - Redis Streams: per-tenant stream named `tenant:<tenant_id>:stream`; retention TTL `REDIS_STREAM_RETENTION_SECONDS=86400` (24 hours); maximum stream length `REDIS_MAX_STREAM_LEN=10000` (XTRIM MAXLEN approximate bound).
+  - Postgres `event_records`: retention 30 days (2592000 seconds) by default; store `event_id` (UUID), `order_id`, `tenant_id`, `event_type`, `processed_at`, `metadata`.
+- Implementation mapping:
+  - T003: Implement Postgres migration `backend/migrations/000023_create_event_records.up.sql` to create the `event_records` table and retention index.
+  - T004: Implement Redis helper `backend/notification-service/src/providers/redis.go` to publish to per-tenant streams and apply trimming/retention settings based on env vars (`REDIS_STREAM_RETENTION_SECONDS`, `REDIS_MAX_STREAM_LEN`).
 
-Notes: This is task `T023` in `tasks.md` and MUST be resolved before implementing T003/T004/T008 to ensure dedupe semantics are consistent across components.
+Notes: This decision entry (T023) documents defaults and operational parameters. If these defaults change, update `research.md` and ensure T003/T004 implementations are adjusted accordingly. T003/T004/T008 must implement and test dedupe semantics consistent with these parameters before production rollout.
 
 ## Resolved Unknowns Summary
 

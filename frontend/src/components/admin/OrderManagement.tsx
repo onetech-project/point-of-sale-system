@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { order, Order, OrderWithDetails } from '../../services/order';
 import { OrderItem, OrderNote } from '../../types/cart';
 import { formatCurrency, renderTextWithLinks } from '../../utils/text';
+import { useSSE } from '../../services/sse';
 
 interface OrderManagementProps {
   // Removed tenantId - API Gateway extracts it from session
@@ -32,6 +33,58 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, page]);
+
+  // SSE: subscribe to real-time order events and apply snapshot fallback
+  // use the hook for simpler wiring; snapshotFn uses fetchOrders to rehydrate
+  // useSSE(undefined, async (ev) => {
+  //   try {
+  //     if (!ev || !ev.event || !ev.data) return
+  //     const payload = ev.data as OrderWithDetails
+  //     // Follow `Order` shape: prefer `id` (canonical), accept `orderId` as alias
+  //     const orderId = payload.order.id;
+
+  //     if (!orderId) return
+
+  //     setOrdersWithDetails(prev => {
+  //       const idx = prev.findIndex(p => ((p.order as Order).id) === orderId)
+  //       if (idx === -1) {
+  //         const newEntry: OrderWithDetails = {
+  //           order: {
+  //             id: orderId,
+  //             order_reference: payload.order.order_reference,
+  //             status: payload.order.status,
+  //             total_amount: payload.order.total_amount,
+  //             created_at: payload.order.created_at,
+  //             customer_name: payload.order.customer_name,
+  //             customer_phone: payload.order.customer_phone,
+  //             delivery_type: payload.order.delivery_type,
+  //           } as Order,
+  //           items: payload.items as OrderItem[],
+  //           latest_note: payload.latest_note as OrderNote,
+  //         }
+  //         return [newEntry, ...prev]
+  //       }
+
+  //       const updated = [...prev]
+  //       const existing = updated[idx]
+  //       updated[idx] = {
+  //         ...existing,
+  //         order: {
+  //           ...existing.order,
+  //           status: payload.order.status || existing.order.status,
+  //           total_amount: payload.order.total_amount ?? existing.order.total_amount,
+  //         } as any,
+  //       }
+  //       return updated
+  //     })
+  //   } catch (err) {
+  //     console.error('Failed to apply SSE event in OrderManagement', err)
+  //   }
+  // }, {
+  //   snapshotFn: async () => {
+  //     await fetchOrders()
+  //   }
+  // })
 
   const fetchOrders = async () => {
     try {
@@ -225,89 +278,91 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Order Reference
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {ordersWithDetails.map((orderDetails) => (
-                    <tr
-                      key={orderDetails.order.id}
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleOrderClick(orderDetails)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-mono text-sm font-medium text-gray-900">
-                          {orderDetails.order.order_reference}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {orderDetails.order.customer_name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {orderDetails.order.customer_phone}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">
-                          {getDeliveryTypeLabel(orderDetails.order.delivery_type)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatCurrency(orderDetails.order.total_amount)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                            orderDetails.order.status
-                          )}`}
-                        >
-                          {orderDetails.order.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(orderDetails.order.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOrderClick(orderDetails);
-                          }}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                        </button>
-                      </td>
+              <div data-testid="order-list">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Order Reference
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {ordersWithDetails.map((orderDetails) => (
+                      <tr
+                        key={orderDetails.order.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleOrderClick(orderDetails)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="font-mono text-sm font-medium text-gray-900">
+                            {orderDetails.order.order_reference}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {orderDetails.order.customer_name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {orderDetails.order.customer_phone}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-900">
+                            {getDeliveryTypeLabel(orderDetails.order.delivery_type)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatCurrency(orderDetails.order.total_amount)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                              orderDetails.order.status
+                            )}`}
+                          >
+                            {orderDetails.order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(orderDetails.order.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOrderClick(orderDetails);
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Pagination */}

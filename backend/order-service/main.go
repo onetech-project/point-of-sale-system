@@ -82,15 +82,6 @@ func main() {
 	// Initialize order service
 	orderService := services.NewOrderService(config.GetDB(), orderRepo)
 
-	// Initialize payment service (needs orderService for adding notes)
-	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService)
-
-	// Initialize geocoding and delivery fee services
-	// TODO: Initialize Google Maps client properly
-	geocodingService := services.NewGeocodingService(nil, config.GetRedis())
-	deliveryFeeService := services.NewDeliveryFeeService()
-	addressRepo := repository.NewAddressRepository(config.GetDB())
-
 	// Initialize Kafka producer for notifications
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
 	if kafkaBrokers == "" {
@@ -99,6 +90,15 @@ func main() {
 	brokerList := []string{kafkaBrokers}
 	kafkaProducer := queue.NewKafkaProducer(brokerList, "notification-events")
 	log.Info().Strs("brokers", brokerList).Msg("Kafka producer initialized")
+
+	// Initialize payment service (needs orderService for adding notes)
+	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService, kafkaProducer)
+
+	// Initialize geocoding and delivery fee services
+	// TODO: Initialize Google Maps client properly
+	geocodingService := services.NewGeocodingService(nil, config.GetRedis())
+	deliveryFeeService := services.NewDeliveryFeeService()
+	addressRepo := repository.NewAddressRepository(config.GetDB())
 
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)

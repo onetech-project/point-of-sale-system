@@ -1,6 +1,6 @@
-# SSE Contract: /api/sse/notifications
+# SSE Contract: /api/v1/sse
 
-Endpoint: `GET /api/sse/notifications`
+Endpoint: `GET /api/v1/sse`
 
 Auth: OAuth/JWT session cookie required (tenant-scoped). Clients must present valid credentials; SSE connection will be scoped to the tenant of the authenticated user.
 

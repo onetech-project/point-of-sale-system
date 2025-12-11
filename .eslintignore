@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+.next/
+out/
+*.min.js
+*.log
+coverage/
+**/vendor/
+**/.cache/
+*.lock
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/

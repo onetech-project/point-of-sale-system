@@ -13,11 +13,11 @@ As a Tenant Admin (Owner / Manager / Cashier), when an order is paid, I want to 
 
 **Why this priority**: Payment confirmation is critical to business flow — staff need to act when payment completes.
 
-**Independent Test**: Simulate a paid order event; verify (a) the tenant user receives an in-app notification, (b) an email is produced and queued, and (c) the order status in the order list shows the updated status.
+**Independent Test**: Simulate a paid order event; verify (a) the tenant user receives an in-app notification within 5 seconds (see SC-001), (b) an email is produced and queued, and (c) the order status in the order list shows the updated status.
 
 **Acceptance Scenarios**:
 
-1. **Given** an order in "pending payment" state, **When** payment is confirmed, **Then** in-app notification appears for tenant admins within acceptable time and an email is generated and handed to the delivery pipeline.
+1. **Given** an order in "pending payment" state, **When** payment is confirmed, **Then** in-app notification appears for tenant admins within 5 seconds (see SC-001) and an email is generated and handed to the delivery pipeline.
 2. **Given** the tenant user has multiple devices/browsers open, **When** payment is confirmed, **Then** a notification appears in each active in-app session.
 
 ---
