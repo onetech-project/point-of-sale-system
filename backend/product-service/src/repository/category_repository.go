@@ -10,10 +10,10 @@ import (
 
 type CategoryRepository interface {
 	Create(ctx context.Context, category *models.Category) error
-	FindAll(ctx context.Context) ([]models.Category, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*models.Category, error)
+	FindAll(ctx context.Context, tenantID uuid.UUID) ([]models.Category, error)
+	FindByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Category, error)
 	Update(ctx context.Context, category *models.Category) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 	HasProducts(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
@@ -38,14 +38,15 @@ func (r *categoryRepository) Create(ctx context.Context, category *models.Catego
 	).Scan(&category.ID, &category.CreatedAt, &category.UpdatedAt)
 }
 
-func (r *categoryRepository) FindAll(ctx context.Context) ([]models.Category, error) {
+func (r *categoryRepository) FindAll(ctx context.Context, tenantID uuid.UUID) ([]models.Category, error) {
 	query := `
 		SELECT id, tenant_id, name, display_order, created_at, updated_at
 		FROM categories
+		WHERE tenant_id = $1
 		ORDER BY display_order, name
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,15 +65,15 @@ func (r *categoryRepository) FindAll(ctx context.Context) ([]models.Category, er
 	return categories, rows.Err()
 }
 
-func (r *categoryRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Category, error) {
+func (r *categoryRepository) FindByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Category, error) {
 	query := `
 		SELECT id, tenant_id, name, display_order, created_at, updated_at
 		FROM categories
-		WHERE id = $1
+		WHERE id = $1 AND tenant_id = $2
 	`
 
 	var c models.Category
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id, tenantID).Scan(
 		&c.ID, &c.TenantID, &c.Name, &c.DisplayOrder, &c.CreatedAt, &c.UpdatedAt,
 	)
 
@@ -100,9 +101,9 @@ func (r *categoryRepository) Update(ctx context.Context, category *models.Catego
 	).Scan(&category.UpdatedAt)
 }
 
-func (r *categoryRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM categories WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *categoryRepository) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	query := `DELETE FROM categories WHERE id = $1 AND tenant_id = $2`
+	_, err := r.db.ExecContext(ctx, query, id, tenantID)
 	return err
 }
 
