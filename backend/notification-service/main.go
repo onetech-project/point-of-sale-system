@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/notification-service/api"
+	apimiddleware "github.com/pos/notification-service/api/middleware"
 	"github.com/pos/notification-service/src/queue"
 	"github.com/pos/notification-service/src/services"
 )
@@ -42,6 +43,29 @@ func main() {
 	// Notification service
 	notificationService := services.NewNotificationService(db)
 
+	// Notification config service
+	notificationConfigService := services.NewNotificationConfigService(db)
+
+	// API handlers
+	testNotificationHandler := api.NewTestNotificationHandler(notificationService)
+	notificationConfigHandler := api.NewNotificationConfigHandler(notificationConfigService)
+	notificationHistoryHandler := api.NewNotificationHistoryHandler(notificationService)
+	resendNotificationHandler := api.NewResendNotificationHandler(notificationService)
+
+	// API routes with rate limiting
+	apiV1 := e.Group("/api/v1")
+
+	// Test notification endpoint with stricter rate limiting (5 requests/min)
+	apiV1.POST("/notifications/test", testNotificationHandler.SendTestNotification, apimiddleware.RateLimitForTestNotifications())
+
+	// Notification config endpoints with normal rate limiting
+	apiV1.GET("/notifications/config", notificationConfigHandler.GetNotificationConfig, apimiddleware.RateLimit())
+	apiV1.PATCH("/notifications/config", notificationConfigHandler.PatchNotificationConfig, apimiddleware.RateLimit())
+
+	// Notification history endpoints
+	apiV1.GET("/notifications/history", notificationHistoryHandler.GetNotificationHistory, apimiddleware.RateLimit())
+	apiV1.POST("/notifications/:notification_id/resend", resendNotificationHandler.ResendNotification, apimiddleware.RateLimit())
+
 	// Kafka configuration
 	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
 	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
@@ -60,6 +84,10 @@ func main() {
 
 	// Start consumer in background
 	go consumer.Start(ctx)
+
+	// Start retry worker in background
+	retryWorker := services.NewRetryWorker(db, notificationService)
+	go retryWorker.Start(ctx)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

@@ -148,3 +148,51 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 
 	return err
 }
+
+// FindStaffWithOrderNotifications retrieves all active staff users who have opted in to receive order notifications
+func (r *UserRepository) FindStaffWithOrderNotifications(ctx context.Context, tenantID string) ([]*models.User, error) {
+	query := `
+		SELECT id, tenant_id, email, password_hash, role, status, first_name, last_name, locale, last_login_at, created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1 
+		  AND status = 'active'
+		  AND role IN ('admin', 'staff')
+		  AND receive_order_notifications = true
+		ORDER BY email
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := []*models.User{}
+	for rows.Next() {
+		user := &models.User{}
+		err := rows.Scan(
+			&user.ID,
+			&user.TenantID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.Role,
+			&user.Status,
+			&user.FirstName,
+			&user.LastName,
+			&user.Locale,
+			&user.LastLoginAt,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}

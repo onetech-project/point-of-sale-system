@@ -1,0 +1,106 @@
+{
+  "notifications": {
+    "title": "Notifikasi",
+    "settings": {
+      "title": "Pengaturan Notifikasi",
+      "description": "Konfigurasi preferensi notifikasi email untuk staf Anda",
+      "staff_notifications": "Notifikasi Staf",
+      "customer_receipts": "Tanda Terima Pelanggan",
+      "test_email": "Kirim Email Uji Coba",
+      "test_email_description": "Kirim notifikasi uji coba untuk memverifikasi konfigurasi email Anda",
+      "send_test": "Kirim Uji Coba",
+      "sending_test": "Mengirim...",
+      "test_success": "Email uji coba berhasil dikirim!",
+      "test_error": "Gagal mengirim email uji coba",
+      "test_rate_limit": "Terlalu banyak email uji coba. Harap tunggu sebelum mencoba lagi.",
+      "staff_list": "Preferensi Email Staf",
+      "staff_list_description": "Kontrol staf mana yang menerima email notifikasi pesanan",
+      "enable_notifications": "Aktifkan Notifikasi",
+      "save_changes": "Simpan Perubahan",
+      "saving": "Menyimpan...",
+      "save_success": "Preferensi berhasil disimpan",
+      "save_error": "Gagal menyimpan preferensi",
+      "no_staff": "Tidak ada anggota staf ditemukan",
+      "confirm_test_title": "Kirim Email Uji Coba?",
+      "confirm_test_message": "Ini akan mengirim notifikasi pesanan sampel untuk memverifikasi konfigurasi email Anda.",
+      "cancel": "Batal",
+      "loading": "Memuat...",
+      "load_error": "Gagal memuat pengaturan notifikasi",
+      "viewHistory": "Lihat Riwayat Notifikasi",
+      "error": {
+        "fetch": "Gagal mengambil pengaturan notifikasi"
+      },
+      "global": {
+        "title": "Pengaturan Notifikasi Global",
+        "description": "Kelola preferensi notifikasi global untuk semua anggota staf"
+      },
+      "testEmail": {
+        "button": "Kirim Email Uji Coba",
+        "sending": "Mengirim...",
+        "success": "Email uji coba berhasil dikirim!",
+        "error": "Gagal mengirim email uji coba",
+        "rate_limit": "Terlalu banyak email uji coba. Harap tunggu sebelum mencoba lagi.",
+        "disabled": "Notifikasi email dinonaktifkan. Aktifkan di pengaturan untuk mengirim email uji coba."
+      },
+      "staff": {
+        "name": "Anggota Staf",
+        "email": "Email",
+        "notifications_enabled": "Notifikasi Diaktifkan",
+        "no_staff": "Tidak ada anggota staf ditemukan",
+        "title": "Preferensi Email Staf",
+        "description": "Kontrol staf mana yang menerima email notifikasi pesanan",
+        "empty": "Tidak ada anggota staf yang tersedia untuk dikonfigurasi."
+      }
+    },
+    "history": {
+      "title": "Riwayat Notifikasi",
+      "description": "Lihat dan kelola notifikasi email yang terkirim",
+      "filter_order_ref": "Referensi Pesanan",
+      "filter_status": "Status",
+      "filter_type": "Tipe",
+      "filter_start_date": "Tanggal Mulai",
+      "filter_end_date": "Tanggal Akhir",
+      "search": "Cari",
+      "clear_filters": "Hapus Filter",
+      "loading": "Memuat notifikasi...",
+      "load_error": "Gagal memuat riwayat notifikasi",
+      "no_notifications": "Tidak ada notifikasi ditemukan",
+      "no_notifications_description": "Coba sesuaikan filter Anda atau periksa kembali nanti",
+      "showing": "Menampilkan",
+      "page": "Halaman",
+      "of": "dari",
+      "previous": "Sebelumnya",
+      "next": "Selanjutnya",
+      "recipient": "Penerima",
+      "subject": "Subjek",
+      "order_reference": "Pesanan",
+      "created_at": "Dibuat",
+      "sent_at": "Terkirim",
+      "failed_at": "Gagal",
+      "error_details": "Detail Error",
+      "show_error": "Tampilkan Error",
+      "hide_error": "Sembunyikan Error",
+      "retry_count": "Percobaan Ulang",
+      "resend": "Kirim Ulang",
+      "resending": "Mengirim ulang...",
+      "resend_success": "Notifikasi berhasil dikirim ulang",
+      "resend_error": "Gagal mengirim ulang notifikasi",
+      "resend_conflict": "Notifikasi ini sudah berhasil dikirim",
+      "resend_rate_limit": "Maksimum percobaan ulang (3) tercapai",
+      "resend_forbidden": "Anda tidak memiliki izin untuk mengirim ulang notifikasi ini",
+      "resend_not_found": "Notifikasi tidak ditemukan"
+    },
+    "status": {
+      "sent": "Terkirim",
+      "pending": "Tertunda",
+      "failed": "Gagal",
+      "cancelled": "Dibatalkan"
+    },
+    "type": {
+      "staff": "Notifikasi Staf",
+      "customer": "Tanda Terima Pelanggan",
+      "email": "Email",
+      "push": "Notifikasi Push"
+    }
+  }
+}

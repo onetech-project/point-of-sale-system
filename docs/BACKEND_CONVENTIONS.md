@@ -1181,4 +1181,271 @@ func (h *Handler) UpdateProduct(c echo.Context) error {
 
 ---
 
+## 📧 Notification Service Patterns
+
+### Email Provider Error Handling
+
+**Pattern:** Classify errors, implement retries with exponential backoff
+
+#### Error Classification
+
+```go
+type EmailError struct {
+    Type    EmailErrorType
+    Message string
+    Err     error
+}
+
+type EmailErrorType int
+
+const (
+    EmailErrorTypeUnknown EmailErrorType = iota
+    EmailErrorTypeConnection
+    EmailErrorTypeAuth
+    EmailErrorTypeTimeout
+    EmailErrorTypeInvalidRecipient
+    EmailErrorTypeRateLimited
+)
+
+func (e *EmailError) IsRetryable() bool {
+    switch e.Type {
+    case EmailErrorTypeConnection, EmailErrorTypeTimeout, EmailErrorTypeRateLimited:
+        return true
+    default:
+        return false
+    }
+}
+```
+
+#### Retry Logic with Exponential Backoff
+
+```go
+func (p *SMTPEmailProvider) Send(to, subject, body string, isHTML bool) error {
+    var lastErr error
+    for attempt := 0; attempt <= p.retryAttempts; attempt++ {
+        if attempt > 0 {
+            // Exponential backoff: 2s, 4s, 8s
+            delay := p.retryDelay * time.Duration(1<<uint(attempt-1))
+            time.Sleep(delay)
+        }
+
+        err := e.Send(addr, auth)
+        if err == nil {
+            return nil
+        }
+
+        lastErr = err
+        emailErr := classifyEmailError(err)
+
+        // Don't retry if error is not retryable
+        if !emailErr.IsRetryable() {
+            return emailErr
+        }
+    }
+
+    return &EmailError{
+        Type:    EmailErrorTypeUnknown,
+        Message: fmt.Sprintf("failed after %d attempts", p.retryAttempts+1),
+        Err:     lastErr,
+    }
+}
+```
+
+**Key Points:**
+- Classify errors by type (connection, auth, timeout, invalid recipient, rate limited)
+- Only retry transient failures (connection, timeout, rate limit)
+- Use exponential backoff (2s → 4s → 8s)
+- Track retry count in database for observability
+- Log error details with structured format
+
+### Monitoring & Metrics
+
+**Pattern:** Track key metrics with structured logging
+
+```go
+func (s *NotificationService) trackMetric(name string, value int64, tags map[string]string) {
+    tagStr := ""
+    if tags != nil && len(tags) > 0 {
+        tagPairs := []string{}
+        for k, v := range tags {
+            tagPairs = append(tagPairs, fmt.Sprintf("%s=%s", k, v))
+        }
+        tagStr = fmt.Sprintf(" [%s]", strings.Join(tagPairs, ", "))
+    }
+    log.Printf("[METRIC] %s=%d%s", name, value, tagStr)
+}
+```
+
+**Metrics to Track:**
+
+| Metric | Type | Tags | Description |
+|--------|------|------|-------------|
+| `notification.email.sent` | Counter | retry_count | Successful deliveries |
+| `notification.email.failed` | Counter | error_type, retryable | Failed deliveries |
+| `notification.email.duration_ms` | Gauge | - | Delivery time |
+| `notification.duplicate.prevented` | Counter | tenant_id, payment_method | Prevented duplicates |
+
+**Log Format:**
+```
+[METRIC] notification.email.sent=1 [retry_count=0]
+[METRIC] notification.email.failed=1 [error_type=connection, retryable=true]
+[METRIC] notification.email.duration_ms=1234
+```
+
+### Duplicate Detection
+
+**Pattern:** Check transaction_id before processing events
+
+```go
+func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.OrderPaidEvent) error {
+    // Check for duplicate notifications
+    alreadySent, err := s.repo.HasSentOrderNotification(ctx, event.TenantID, event.Metadata.TransactionID)
+    if err != nil {
+        return fmt.Errorf("failed to check duplicate notification: %w", err)
+    }
+    if alreadySent {
+        // Log detailed duplicate detection
+        log.Printf("[DUPLICATE_NOTIFICATION] transaction_id=%s order_id=%s tenant_id=%s payment_method=%s amount=%d - Skipping duplicate notification",
+            event.Metadata.TransactionID,
+            event.Metadata.OrderID,
+            event.TenantID,
+            event.Metadata.PaymentMethod,
+            event.Metadata.TotalAmount)
+        
+        // Track duplicate prevention metric
+        s.trackMetric("notification.duplicate.prevented", 1, map[string]string{
+            "tenant_id":      event.TenantID,
+            "payment_method": event.Metadata.PaymentMethod,
+        })
+        return nil
+    }
+    // ... process notification ...
+}
+```
+
+**Key Points:**
+- Use `transaction_id` as unique identifier for order events
+- Log full context (transaction_id, order_id, tenant_id, payment_method, amount)
+- Track metrics for duplicate prevention
+- Return early without error (duplicate is expected behavior)
+
+### Email Status Tracking
+
+**Pattern:** Update notification status with detailed error information
+
+```go
+func (s *NotificationService) sendEmail(ctx context.Context, notification *models.Notification) error {
+    startTime := time.Now()
+    err := s.emailProvider.Send(notification.Recipient, notification.Subject, notification.Body, true)
+    duration := time.Since(startTime)
+
+    now := time.Now()
+    if err != nil {
+        // Extract error details
+        errorMsg := err.Error()
+        errorType := "unknown"
+        isRetryable := false
+
+        if emailErr, ok := err.(*providers.EmailError); ok {
+            errorType = getErrorTypeName(emailErr.Type)
+            isRetryable = emailErr.IsRetryable()
+        }
+
+        notification.Status = models.NotificationStatusFailed
+        notification.FailedAt = &now
+        notification.ErrorMsg = &errorMsg
+        notification.RetryCount++
+
+        // Log failure with context
+        log.Printf("[EMAIL_SEND_FAILED] ID=%d Type=%s Retryable=%v RetryCount=%d Duration=%s Error=%v",
+            notification.ID, errorType, isRetryable, notification.RetryCount, duration, err)
+
+        // Track metrics
+        s.trackMetric("notification.email.failed", 1, map[string]string{
+            "error_type": errorType,
+            "retryable":  fmt.Sprintf("%v", isRetryable),
+        })
+    } else {
+        notification.Status = models.NotificationStatusSent
+        notification.SentAt = &now
+
+        // Log success
+        log.Printf("[EMAIL_SEND_SUCCESS] ID=%d Duration=%s RetryCount=%d",
+            notification.ID, duration, notification.RetryCount)
+
+        // Track metrics
+        s.trackMetric("notification.email.sent", 1, map[string]string{
+            "retry_count": fmt.Sprintf("%d", notification.RetryCount),
+        })
+        s.trackMetric("notification.email.duration_ms", duration.Milliseconds(), nil)
+    }
+
+    // Update database
+    if updateErr := s.repo.UpdateStatus(ctx, notification.ID, notification.Status, notification.SentAt, notification.FailedAt, notification.ErrorMsg); updateErr != nil {
+        log.Printf("Failed to update notification status: %v", updateErr)
+    }
+
+    return err
+}
+```
+
+**Key Points:**
+- Track both `sent_at` and `failed_at` timestamps
+- Store `error_msg` for debugging
+- Increment `retry_count` on each failure
+- Log success and failure with context
+- Track duration metrics for performance monitoring
+
+### Template Rendering
+
+**Pattern:** Load templates once at service startup, use custom functions
+
+```go
+func (s *NotificationService) loadTemplates() error {
+    templateDir := getEnv("TEMPLATE_DIR", "./templates")
+
+    // Get custom template functions
+    funcMap := utils.GetTemplateFuncMap()
+
+    for _, filename := range templateFiles {
+        templatePath := filepath.Join(templateDir, filename)
+        tmpl, err := template.New(filename).Funcs(funcMap).ParseFiles(templatePath)
+        if err != nil {
+            return fmt.Errorf("failed to parse template %s: %w", filename, err)
+        }
+
+        // Store template with name without extension
+        templateName := filename[:len(filename)-5] // Remove .html
+        s.templates[templateName] = tmpl
+    }
+
+    return nil
+}
+
+func (s *NotificationService) renderTemplate(templateName string, data map[string]interface{}) string {
+    tmpl, ok := s.templates[templateName]
+    if !ok {
+        log.Printf("Template not found: %s", templateName)
+        return fmt.Sprintf("Template '%s' not found", templateName)
+    }
+
+    var buf bytes.Buffer
+    if err := tmpl.Execute(&buf, data); err != nil {
+        log.Printf("Failed to render template %s: %v", templateName, err)
+        return fmt.Sprintf("Error rendering template: %v", err)
+    }
+
+    return buf.String()
+}
+```
+
+**Key Points:**
+- Load templates once at startup (not per request)
+- Use custom functions for currency formatting, date formatting, etc.
+- Return error-safe defaults when template missing/fails
+- Store templates by name without extension
+
+---
+
 **Follow these conventions to avoid common pitfalls and maintain code consistency!** 🚀
+

@@ -95,7 +95,7 @@ export default function SettingsPage() {
       },
       {
         title: 'Notifications',
-        description: 'Configure notification preferences',
+        description: 'Configure email notifications and view notification history',
         icon: (
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -109,7 +109,6 @@ export default function SettingsPage() {
         href: '/settings/notifications',
         roles: [ROLES.OWNER, ROLES.MANAGER],
         color: 'red',
-        comingSoon: true,
       },
       {
         title: 'System Settings',

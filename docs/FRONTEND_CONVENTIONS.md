@@ -614,4 +614,355 @@ When implementing a new feature:
 
 ---
 
+## 📧 Notification Feature Patterns
+
+### Type Organization
+
+**Pattern:** Separate types from service implementations
+
+```typescript
+// /src/types/notification.ts
+export interface NotificationHistoryItem {
+  id: number;
+  tenant_id: string;
+  user_id: string;
+  type: 'staff' | 'customer';
+  status: 'sent' | 'pending' | 'failed' | 'cancelled';
+  subject: string;
+  recipient: string;
+  sent_at?: string;
+  failed_at?: string;
+  error_msg?: string;
+  retry_count: number;
+  metadata: {
+    order_reference?: string;
+    transaction_id?: string;
+    event_type?: string;
+  };
+  created_at: string;
+}
+
+export interface NotificationHistoryFilters {
+  page?: number;
+  page_size?: number;
+  order_reference?: string;
+  status?: string;
+  type?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface NotificationHistoryResponse {
+  notifications: NotificationHistoryItem[];
+  pagination: {
+    current_page: number;
+    page_size: number;
+    total_items: number;
+    total_pages: number;
+  };
+}
+```
+
+```typescript
+// /src/services/notification.ts
+import { NotificationHistoryFilters, NotificationHistoryResponse } from '@/types/notification';
+
+class NotificationService {
+  async getNotificationHistory(filters: NotificationHistoryFilters): Promise<NotificationHistoryResponse> {
+    // Implementation
+  }
+}
+```
+
+**Key Points:**
+- Define types in separate files under `/src/types/`
+- Import types in service files (don't define inline)
+- Use union types for constrained strings (`'sent' | 'pending'`)
+- Make optional fields explicit with `?`
+
+### Dashboard Component Structure
+
+**Pattern:** Comprehensive state management with filter, pagination, and action handling
+
+```typescript
+const NotificationHistory: React.FC = () => {
+  const { t } = useTranslation(['notifications', 'common']);
+  
+  // Data state
+  const [notifications, setNotifications] = useState<NotificationHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Filter state
+  const [orderReference, setOrderReference] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  
+  // Action state
+  const [resendingId, setResendingId] = useState<number | null>(null);
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [expandedError, setExpandedError] = useState<number | null>(null);
+  
+  // Fetch data
+  useEffect(() => {
+    fetchNotifications();
+  }, [currentPage]);
+  
+  const fetchNotifications = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const filters: NotificationHistoryFilters = {
+        page: currentPage,
+        page_size: 20,
+      };
+      
+      if (orderReference) filters.order_reference = orderReference;
+      if (statusFilter) filters.status = statusFilter;
+      if (typeFilter) filters.type = typeFilter;
+      if (startDate) filters.start_date = startDate;
+      if (endDate) filters.end_date = endDate;
+      
+      const response = await notificationService.getNotificationHistory(filters);
+      setNotifications(response.notifications);
+      setTotalPages(response.pagination.total_pages);
+      setTotalItems(response.pagination.total_items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleResend = async (notificationId: number) => {
+    setResendingId(notificationId);
+    setResendSuccess(null);
+    setResendError(null);
+    
+    try {
+      await notificationService.resendNotification(notificationId);
+      setResendSuccess(t('notifications.history.resend_success'));
+      fetchNotifications(); // Refresh list
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes('429')) {
+          setResendError(t('notifications.history.resend_rate_limit'));
+        } else if (err.message.includes('409')) {
+          setResendError(t('notifications.history.resend_conflict'));
+        } else {
+          setResendError(err.message);
+        }
+      }
+    } finally {
+      setResendingId(null);
+    }
+  };
+  
+  // ... render JSX
+};
+```
+
+**Key Points:**
+- Separate concerns: data, pagination, filters, actions
+- Use descriptive state variable names
+- Handle loading and error states
+- Provide user feedback for all actions
+- Refresh data after state-changing operations
+
+### Status Badge Pattern
+
+**Pattern:** Consistent color-coding for status indicators
+
+```typescript
+const getStatusBadgeColor = (status: string) => {
+  switch (status) {
+    case 'sent':
+      return 'bg-green-100 text-green-800';
+    case 'failed':
+      return 'bg-red-100 text-red-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+// In JSX
+<span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(notification.status)}`}>
+  {t(`notifications.status.${notification.status}`)}
+</span>
+```
+
+**Color Standards:**
+- **Green**: Success, sent, active
+- **Red**: Error, failed, rejected
+- **Yellow**: Warning, pending, in-progress
+- **Gray**: Neutral, cancelled, disabled
+- **Blue**: Info, default
+
+### Filter Controls
+
+**Pattern:** Grouped filters with search button
+
+```typescript
+<div className="mb-6 bg-white p-4 rounded-lg shadow">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {t('notifications.history.filter_order_ref')}
+      </label>
+      <input
+        type="text"
+        value={orderReference}
+        onChange={(e) => setOrderReference(e.target.value)}
+        className="w-full px-3 py-2 border rounded-md"
+        placeholder="ORD-2024-001"
+      />
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {t('notifications.history.filter_status')}
+      </label>
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        className="w-full px-3 py-2 border rounded-md"
+      >
+        <option value="">{t('common.all')}</option>
+        <option value="sent">{t('notifications.status.sent')}</option>
+        <option value="failed">{t('notifications.status.failed')}</option>
+        <option value="pending">{t('notifications.status.pending')}</option>
+      </select>
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {t('notifications.history.filter_type')}
+      </label>
+      <select
+        value={typeFilter}
+        onChange={(e) => setTypeFilter(e.target.value)}
+        className="w-full px-3 py-2 border rounded-md"
+      >
+        <option value="">{t('common.all')}</option>
+        <option value="staff">{t('notifications.type.staff')}</option>
+        <option value="customer">{t('notifications.type.customer')}</option>
+      </select>
+    </div>
+  </div>
+  
+  <div className="mt-4 flex justify-end">
+    <button
+      onClick={() => {
+        setCurrentPage(1);
+        fetchNotifications();
+      }}
+      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+    >
+      {t('common.search')}
+    </button>
+  </div>
+</div>
+```
+
+**Key Points:**
+- Group related filters
+- Use responsive grid layout (mobile-first)
+- Provide "All" option for dropdowns
+- Reset to page 1 when applying filters
+- Translate all labels and options
+
+### Pagination Controls
+
+**Pattern:** Standard prev/next with page indicator
+
+```typescript
+<div className="flex justify-between items-center mt-6">
+  <div className="text-sm text-gray-600">
+    {t('common.showing')} {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, totalItems)} {t('common.of')} {totalItems}
+  </div>
+  
+  <div className="flex gap-2">
+    <button
+      onClick={() => setCurrentPage(currentPage - 1)}
+      disabled={currentPage === 1}
+      className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {t('common.previous')}
+    </button>
+    
+    <span className="px-4 py-2 border rounded-md bg-gray-50">
+      {t('common.page')} {currentPage} {t('common.of')} {totalPages}
+    </span>
+    
+    <button
+      onClick={() => setCurrentPage(currentPage + 1)}
+      disabled={currentPage >= totalPages}
+      className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {t('common.next')}
+    </button>
+  </div>
+</div>
+```
+
+**Key Points:**
+- Show result count with range
+- Disable buttons at boundaries
+- Display current page / total pages
+- Use consistent button styling
+
+### E2E Testing Attributes
+
+**Pattern:** Add data-testid for all interactive elements
+
+```typescript
+// In component
+<div data-testid="notification-list">
+  {notifications.map((notification) => (
+    <div key={notification.id} data-testid={`notification-item-${notification.id}`}>
+      <span data-testid={`status-badge-${notification.id}`}>
+        {notification.status}
+      </span>
+      <span data-testid={`order-reference-${notification.id}`}>
+        {notification.metadata.order_reference}
+      </span>
+      <button
+        data-testid={`resend-button-${notification.id}`}
+        onClick={() => handleResend(notification.id)}
+      >
+        {t('notifications.history.resend')}
+      </button>
+    </div>
+  ))}
+</div>
+
+// In E2E test
+await page.waitForSelector('[data-testid="notification-list"]');
+const firstItem = await page.locator('[data-testid^="notification-item-"]').first();
+const statusBadge = await firstItem.locator('[data-testid^="status-badge-"]');
+expect(await statusBadge.textContent()).toBe('sent');
+```
+
+**Key Points:**
+- Use descriptive `data-testid` attributes
+- Include IDs for dynamic elements (`notification-item-${id}`)
+- Test by test ID, not by class names or text content
+- Keep test IDs stable across UI changes
+
+---
+
 **Follow these conventions for consistent, maintainable code across the project!** 🚀
+

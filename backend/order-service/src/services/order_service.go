@@ -7,21 +7,34 @@ import (
 	"time"
 
 	"github.com/point-of-sale-system/order-service/src/models"
+	"github.com/point-of-sale-system/order-service/src/queue"
 	"github.com/point-of-sale-system/order-service/src/repository"
 	"github.com/rs/zerolog/log"
 )
 
 // OrderService handles business logic for order management
 type OrderService struct {
-	db        *sql.DB
-	orderRepo *repository.OrderRepository
+	db            *sql.DB
+	orderRepo     *repository.OrderRepository
+	addressRepo   *repository.AddressRepository
+	paymentRepo   *repository.PaymentRepository
+	kafkaProducer *queue.KafkaProducer
 }
 
 // NewOrderService creates a new order service
-func NewOrderService(db *sql.DB, orderRepo *repository.OrderRepository) *OrderService {
+func NewOrderService(
+	db *sql.DB,
+	orderRepo *repository.OrderRepository,
+	addressRepo *repository.AddressRepository,
+	paymentRepo *repository.PaymentRepository,
+	kafkaProducer *queue.KafkaProducer,
+) *OrderService {
 	return &OrderService{
-		db:        db,
-		orderRepo: orderRepo,
+		db:            db,
+		orderRepo:     orderRepo,
+		addressRepo:   addressRepo,
+		paymentRepo:   paymentRepo,
+		kafkaProducer: kafkaProducer,
 	}
 }
 
@@ -110,6 +123,31 @@ func (s *OrderService) UpdateOrderStatus(
 		Str("new_status", string(newStatus)).
 		Msg("Order status updated successfully")
 
+	// Publish order.paid event to Kafka if status changed to PAID
+	if newStatus == models.OrderStatusPaid {
+		// Reload order to get the updated timestamps and ensure all fields are fresh
+		updatedOrder, err := s.orderRepo.GetOrderByID(ctx, orderID)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("order_id", orderID).
+				Msg("Failed to reload order after status update")
+			// Fall back to using the original order object
+			updatedOrder = order
+			updatedOrder.PaidAt = paidAt
+			updatedOrder.Status = newStatus
+		}
+
+		if err := s.publishOrderPaidEvent(ctx, updatedOrder); err != nil {
+			log.Error().
+				Err(err).
+				Str("order_id", orderID).
+				Str("order_reference", order.OrderReference).
+				Msg("Failed to publish order.paid event to Kafka - notification may not be sent")
+			// Don't fail the status update if Kafka publish fails
+		}
+	}
+
 	return nil
 }
 
@@ -194,4 +232,131 @@ func (s *OrderService) GetOrderItems(ctx context.Context, orderID string) ([]mod
 // GetOrderNotes retrieves all notes for a specific order
 func (s *OrderService) GetOrderNotes(ctx context.Context, orderID string) ([]*models.OrderNote, error) {
 	return s.orderRepo.GetOrderNotesByOrderID(ctx, orderID)
+}
+
+// publishOrderPaidEvent publishes an order.paid event to Kafka for notification service
+func (s *OrderService) publishOrderPaidEvent(ctx context.Context, order *models.GuestOrder) error {
+	if s.kafkaProducer == nil {
+		log.Warn().Msg("Kafka producer not initialized - skipping order.paid event")
+		return nil
+	}
+
+	// Debug: Log customer email status
+	if order.CustomerEmail == nil {
+		log.Warn().
+			Str("order_id", order.ID).
+			Str("order_reference", order.OrderReference).
+			Msg("Customer email is nil - notification will not be sent to customer")
+	} else {
+		log.Info().
+			Str("order_id", order.ID).
+			Str("customer_email", *order.CustomerEmail).
+			Msg("Customer email found - will send notification")
+	}
+
+	// Get order items
+	items, err := s.orderRepo.GetOrderItemsByOrderID(ctx, order.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get order items: %w", err)
+	}
+
+	// Get delivery address if applicable
+	var deliveryAddress string
+	if order.DeliveryType == models.DeliveryTypeDelivery {
+		addr, err := s.addressRepo.GetByOrderID(ctx, order.ID)
+		if err == nil && addr != nil {
+			deliveryAddress = addr.FullAddress
+		}
+	}
+
+	// Get payment info
+	paymentTxn, err := s.paymentRepo.GetPaymentByOrderID(ctx, order.ID)
+	if err != nil {
+		log.Warn().Err(err).Str("order_id", order.ID).Msg("Failed to get payment info")
+	}
+
+	// Extract payment details
+	transactionID := ""
+	paymentMethod := "unknown"
+	if paymentTxn != nil {
+		if paymentTxn.MidtransTransactionID != nil {
+			transactionID = *paymentTxn.MidtransTransactionID
+		}
+		if paymentTxn.PaymentType != nil {
+			paymentMethod = *paymentTxn.PaymentType
+		}
+	}
+
+	// Convert order items to event format
+	eventItems := make([]map[string]interface{}, len(items))
+	for i, item := range items {
+		eventItems[i] = map[string]interface{}{
+			"product_id":   item.ProductID,
+			"product_name": item.ProductName,
+			"quantity":     item.Quantity,
+			"unit_price":   item.UnitPrice,
+			"total_price":  item.TotalPrice,
+		}
+	}
+
+	// Determine paid_at timestamp
+	paidAtTime := time.Now()
+	if order.PaidAt != nil {
+		paidAtTime = *order.PaidAt
+	}
+
+	// Build data payload
+	dataPayload := map[string]interface{}{
+		"order_id":        order.ID,
+		"order_reference": order.OrderReference,
+		"transaction_id":  transactionID,
+		"customer_name":   order.CustomerName,
+		"customer_phone":  order.CustomerPhone,
+		"delivery_type":   order.DeliveryType,
+		"items":           eventItems,
+		"subtotal_amount": order.SubtotalAmount,
+		"delivery_fee":    order.DeliveryFee,
+		"total_amount":    order.TotalAmount,
+		"payment_method":  paymentMethod,
+		"paid_at":         paidAtTime.Format(time.RFC3339),
+		"created_at":      order.CreatedAt.Format(time.RFC3339),
+	}
+
+	// Add optional customer email only if provided
+	if order.CustomerEmail != nil && *order.CustomerEmail != "" {
+		dataPayload["customer_email"] = *order.CustomerEmail
+	}
+
+	// Add optional delivery address for delivery orders
+	if order.DeliveryType == models.DeliveryTypeDelivery && deliveryAddress != "" {
+		dataPayload["delivery_address"] = deliveryAddress
+	}
+
+	// Add optional table number for dine-in orders
+	if order.TableNumber != nil && *order.TableNumber != "" {
+		dataPayload["table_number"] = *order.TableNumber
+	}
+
+	// Prepare event payload
+	event := map[string]interface{}{
+		"event_id":   fmt.Sprintf("order-paid-%s-%d", order.ID, time.Now().Unix()),
+		"event_type": "order.paid",
+		"tenant_id":  order.TenantID,
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"data":       dataPayload,
+	}
+
+	// Publish to Kafka
+	key := fmt.Sprintf("order-%s", order.ID)
+	if err := s.kafkaProducer.Publish(ctx, key, event); err != nil {
+		return fmt.Errorf("failed to publish to Kafka: %w", err)
+	}
+
+	log.Info().
+		Str("order_id", order.ID).
+		Str("order_reference", order.OrderReference).
+		Str("transaction_id", transactionID).
+		Msg("Published order.paid event to Kafka")
+
+	return nil
 }

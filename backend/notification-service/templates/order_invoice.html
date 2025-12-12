@@ -151,6 +151,41 @@
       background-color: #FEF3C7;
       color: #92400E;
     }
+
+    /* PAID Watermark Styles */
+    .watermark {
+      position: relative;
+      text-align: center;
+      margin: -10px 0 20px 0;
+    }
+
+    .watermark-text {
+      font-size: 72px;
+      font-weight: bold;
+      color: #10B981;
+      opacity: 0.15;
+      text-transform: uppercase;
+      letter-spacing: 20px;
+      transform: rotate(-15deg);
+      display: inline-block;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .watermark-badge {
+      display: inline-block;
+      background-color: #D1FAE5;
+      color: #065F46;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: bold;
+      border: 3px solid #10B981;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+      margin-top: 10px;
+    }
   </style>
 </head>
 
@@ -162,6 +197,13 @@
     </div>
 
     <div class="content">
+      {{if .ShowPaidWatermark}}
+      <div class="watermark">
+        <div class="watermark-text">PAID</div>
+        <div class="watermark-badge">✓ PAID</div>
+      </div>
+      {{end}}
+
       <div class="customer-info">
         <h3 style="margin-top: 0; color: #4F46E5;">Customer Information</h3>
         <div class="info-row">
