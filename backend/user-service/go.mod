@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
+	github.com/segmentio/kafka-go v0.4.47
 	golang.org/x/crypto v0.45.0
 )
 
@@ -17,7 +18,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
-	github.com/segmentio/kafka-go v0.4.47 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
