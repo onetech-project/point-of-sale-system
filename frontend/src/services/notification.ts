@@ -29,18 +29,18 @@ class NotificationService {
 
   // Notification config
   async getNotificationConfig(): Promise<NotificationConfig> {
-    const response = await apiClient.get<NotificationConfig>(
+    const response = await apiClient.get<{ config: NotificationConfig }>(
       '/api/v1/notifications/config'
     );
-    return response;
+    return response.config;
   }
 
   async updateNotificationConfig(data: UpdateNotificationConfigRequest): Promise<NotificationConfig> {
-    const response = await apiClient.patch<NotificationConfig>(
+    const response = await apiClient.patch<{ config: NotificationConfig }>(
       '/api/v1/notifications/config',
       data
     );
-    return response;
+    return response.config;
   }
 
   // Test notifications

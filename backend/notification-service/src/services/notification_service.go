@@ -25,6 +25,7 @@ type NotificationService struct {
 	pushProvider  providers.PushProvider
 	templates     map[string]*template.Template
 	frontendURL   string
+	db            *sql.DB
 }
 
 func NewNotificationService(db *sql.DB) *NotificationService {
@@ -34,6 +35,7 @@ func NewNotificationService(db *sql.DB) *NotificationService {
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
 		frontendURL:   getEnv("FRONTEND_DOMAIN", "http://localhost:3000"),
+		db:            db,
 	}
 
 	// Load all templates
@@ -354,7 +356,7 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 
 	// Format currency helper
 	formatIDR := func(amount int) string {
-		return formatCurrency(amount)
+		return utils.FormatCurrencyIDR(amount)
 	}
 
 	// Prepare template data
@@ -483,18 +485,39 @@ func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.
 
 // queryStaffRecipients gets all staff users who should receive order notifications
 func (s *NotificationService) queryStaffRecipients(ctx context.Context, tenantID string) ([]string, error) {
-	// This would normally query the user-service API or database
-	// For now, we'll use a placeholder implementation
-	// In production, this should call user-service's FindStaffWithOrderNotifications endpoint
-
-	// TODO: Implement actual API call to user-service
-	// For now, return empty list - this will be implemented when connecting services
 	log.Printf("[ORDER_PAID] Querying staff recipients for tenant %s", tenantID)
 
-	// Placeholder: In production, call user-service API
-	// GET /api/v1/users/staff-with-notifications?tenant_id={tenantID}
+	query := `
+		SELECT id, email
+		FROM users
+		WHERE tenant_id = $1
+		  AND status = 'active'
+		  AND receive_order_notifications = true
+	`
 
-	return []string{}, nil
+	rows, err := s.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query staff recipients: %w", err)
+	}
+	defer rows.Close()
+
+	var emails []string
+	for rows.Next() {
+		var id, email string
+		if err := rows.Scan(&id, &email); err != nil {
+			log.Printf("[ORDER_PAID] Error scanning staff row: %v", err)
+			continue
+		}
+		emails = append(emails, email)
+		log.Printf("[ORDER_PAID] Found staff recipient: %s (ID: %s)", email, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating staff rows: %w", err)
+	}
+
+	log.Printf("[ORDER_PAID] Found %d staff recipients for tenant %s", len(emails), tenantID)
+	return emails, nil
 }
 
 // sendStaffNotifications sends order notification emails to all configured staff members
@@ -616,31 +639,6 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 	return nil
 }
 
-// formatCurrency formats an amount in IDR currency
-func formatCurrency(amount int) string {
-	// Simple formatting for Indonesian Rupiah
-	if amount < 0 {
-		return fmt.Sprintf("-%s", formatCurrency(-amount))
-	}
-
-	str := fmt.Sprintf("%d", amount)
-	n := len(str)
-	if n <= 3 {
-		return str
-	}
-
-	// Add thousand separators
-	var result string
-	for i, c := range str {
-		if i > 0 && (n-i)%3 == 0 {
-			result += "."
-		}
-		result += string(c)
-	}
-
-	return result
-}
-
 func (s *NotificationService) sendEmail(ctx context.Context, notification *models.Notification) error {
 	startTime := time.Now()
 	err := s.emailProvider.Send(notification.Recipient, notification.Subject, notification.Body, true)
@@ -664,7 +662,7 @@ func (s *NotificationService) sendEmail(ctx context.Context, notification *model
 		notification.RetryCount++
 
 		// Log detailed error with metrics
-		log.Printf("[EMAIL_SEND_FAILED] ID=%d Type=%s Retryable=%v RetryCount=%d Duration=%s Error=%v",
+		log.Printf("[EMAIL_SEND_FAILED] ID=%s Type=%s Retryable=%v RetryCount=%d Duration=%s Error=%v",
 			notification.ID, errorType, isRetryable, notification.RetryCount, duration, err)
 
 		// Update metrics
@@ -677,7 +675,7 @@ func (s *NotificationService) sendEmail(ctx context.Context, notification *model
 		notification.SentAt = &now
 
 		// Log success with metrics
-		log.Printf("[EMAIL_SEND_SUCCESS] ID=%d Duration=%s RetryCount=%d",
+		log.Printf("[EMAIL_SEND_SUCCESS] ID=%s Duration=%s RetryCount=%d",
 			notification.ID, duration, notification.RetryCount)
 
 		// Update metrics
@@ -715,7 +713,7 @@ func (s *NotificationService) getErrorTypeName(errorType providers.EmailErrorTyp
 // In production, this would integrate with Prometheus, StatsD, or similar
 func (s *NotificationService) trackMetric(name string, value int64, tags map[string]string) {
 	tagStr := ""
-	if tags != nil && len(tags) > 0 {
+	if len(tags) > 0 {
 		tagPairs := []string{}
 		for k, v := range tags {
 			tagPairs = append(tagPairs, fmt.Sprintf("%s=%s", k, v))

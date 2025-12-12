@@ -50,7 +50,7 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 	var users []map[string]interface{}
 	for rows.Next() {
 		var (
-			userID                    string
+			id                        string
 			name                      string
 			email                     string
 			role                      string
@@ -59,12 +59,12 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 			updatedAt                 string
 		)
 
-		if err := rows.Scan(&userID, &name, &email, &role, &receiveOrderNotifications, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &name, &email, &role, &receiveOrderNotifications, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 
 		users = append(users, map[string]interface{}{
-			"user_id":                     userID,
+			"id":                          id,
 			"name":                        name,
 			"email":                       email,
 			"role":                        role,
@@ -87,11 +87,10 @@ func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, 
 
 	// First check if user exists and belongs to this tenant
 	checkQuery := `
-		SELECT user_id
+		SELECT id
 		FROM users
-		WHERE user_id = $1
+		WHERE id = $1
 		  AND tenant_id = $2
-		  AND deleted_at IS NULL
 	`
 
 	var existingUserID string
@@ -108,9 +107,8 @@ func (s *UserService) UpdateUserNotificationPreference(tenantID, userID string, 
 		UPDATE users
 		SET receive_order_notifications = $1,
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE user_id = $2
+		WHERE id = $2
 		  AND tenant_id = $3
-		  AND deleted_at IS NULL
 	`
 
 	result, err := s.db.ExecContext(ctx, updateQuery, receive, userID, tenantID)

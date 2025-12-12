@@ -15,7 +15,6 @@ import (
 	"github.com/pos/notification-service/api"
 	apimiddleware "github.com/pos/notification-service/api/middleware"
 	"github.com/pos/notification-service/src/queue"
-	"github.com/pos/notification-service/src/repository"
 	"github.com/pos/notification-service/src/services"
 )
 
@@ -44,12 +43,12 @@ func main() {
 	// Notification service
 	notificationService := services.NewNotificationService(db)
 
-	// Repositories
-	notificationConfigRepo := repository.NewNotificationConfigRepository(db)
+	// Notification config service
+	notificationConfigService := services.NewNotificationConfigService(db)
 
 	// API handlers
 	testNotificationHandler := api.NewTestNotificationHandler(notificationService)
-	notificationConfigHandler := api.NewNotificationConfigHandler(notificationConfigRepo)
+	notificationConfigHandler := api.NewNotificationConfigHandler(notificationConfigService)
 	notificationHistoryHandler := api.NewNotificationHistoryHandler(notificationService)
 	resendNotificationHandler := api.NewResendNotificationHandler(notificationService)
 

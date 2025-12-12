@@ -8,19 +8,19 @@ import (
 
 // NotificationConfigHandler handles notification configuration endpoints
 type NotificationConfigHandler struct {
-	configRepo interface {
+	configService interface {
 		GetNotificationConfig(tenantID string) (map[string]interface{}, error)
 		UpdateNotificationConfig(tenantID string, config map[string]interface{}) error
 	}
 }
 
 // NewNotificationConfigHandler creates a new notification config handler
-func NewNotificationConfigHandler(configRepo interface {
+func NewNotificationConfigHandler(configService interface {
 	GetNotificationConfig(tenantID string) (map[string]interface{}, error)
 	UpdateNotificationConfig(tenantID string, config map[string]interface{}) error
 }) *NotificationConfigHandler {
 	return &NotificationConfigHandler{
-		configRepo: configRepo,
+		configService: configService,
 	}
 }
 
@@ -41,7 +41,7 @@ func (h *NotificationConfigHandler) GetNotificationConfig(c echo.Context) error 
 	}
 
 	// Get notification config
-	config, err := h.configRepo.GetNotificationConfig(tenantID)
+	config, err := h.configService.GetNotificationConfig(tenantID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to fetch notification configuration",
@@ -78,7 +78,7 @@ func (h *NotificationConfigHandler) PatchNotificationConfig(c echo.Context) erro
 	}
 
 	// Update notification config
-	if err := h.configRepo.UpdateNotificationConfig(tenantID, config); err != nil {
+	if err := h.configService.UpdateNotificationConfig(tenantID, config); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to update notification configuration",
 		})
