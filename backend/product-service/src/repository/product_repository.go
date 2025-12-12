@@ -11,17 +11,17 @@ import (
 
 type ProductRepository interface {
 	Create(ctx context.Context, product *models.Product) error
-	FindAll(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]models.Product, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
-	FindByIDWithCategory(ctx context.Context, id uuid.UUID) (*models.Product, error)
+	FindAll(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}, limit, offset int) ([]models.Product, error)
+	FindByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Product, error)
+	FindByIDWithCategory(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Product, error)
 	Update(ctx context.Context, product *models.Product) error
 	UpdateStock(ctx context.Context, id uuid.UUID, newQuantity int) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	Archive(ctx context.Context, id uuid.UUID) error
-	Restore(ctx context.Context, id uuid.UUID) error
-	FindLowStock(ctx context.Context, threshold int) ([]models.Product, error)
+	Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
+	Archive(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
+	Restore(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
+	FindLowStock(ctx context.Context, tenantID uuid.UUID, threshold int) ([]models.Product, error)
 	HasSalesHistory(ctx context.Context, id uuid.UUID) (bool, error)
-	Count(ctx context.Context, filters map[string]interface{}) (int, error)
+	Count(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}) (int, error)
 	CreateStockAdjustment(ctx context.Context, adjustment *models.StockAdjustment) error
 }
 
@@ -47,18 +47,18 @@ func (r *productRepository) Create(ctx context.Context, product *models.Product)
 	).Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
 }
 
-func (r *productRepository) FindAll(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]models.Product, error) {
+func (r *productRepository) FindAll(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}, limit, offset int) ([]models.Product, error) {
 	query := `
 		SELECT p.id, p.tenant_id, p.sku, p.name, p.description, p.category_id, c.name as category_name,
 		       p.selling_price, p.cost_price, p.tax_rate, p.stock_quantity, 
 		       p.photo_path, p.photo_size, p.archived_at, p.created_at, p.updated_at
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = p.tenant_id
-		WHERE 1=1
+		WHERE p.tenant_id = $1
 	`
 
-	args := []interface{}{}
-	argCount := 1
+	args := []interface{}{tenantID}
+	argCount := 2
 
 	if search, ok := filters["search"].(string); ok && search != "" {
 		query += fmt.Sprintf(" AND p.name ILIKE $%d", argCount)
@@ -115,18 +115,18 @@ func (r *productRepository) FindAll(ctx context.Context, filters map[string]inte
 	return products, rows.Err()
 }
 
-func (r *productRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+func (r *productRepository) FindByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Product, error) {
 	query := `
 		SELECT p.id, p.tenant_id, p.sku, p.name, p.description, p.category_id, c.name as category_name,
 		       p.selling_price, p.cost_price, p.tax_rate, p.stock_quantity, 
 		       p.photo_path, p.photo_size, p.archived_at, p.created_at, p.updated_at
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = p.tenant_id
-		WHERE p.id = $1
+		WHERE p.id = $1 AND p.tenant_id = $2
 	`
 
 	var p models.Product
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id, tenantID).Scan(
 		&p.ID, &p.TenantID, &p.SKU, &p.Name, &p.Description, &p.CategoryID, &p.CategoryName,
 		&p.SellingPrice, &p.CostPrice, &p.TaxRate, &p.StockQuantity,
 		&p.PhotoPath, &p.PhotoSize, &p.ArchivedAt, &p.CreatedAt, &p.UpdatedAt,
@@ -142,8 +142,8 @@ func (r *productRepository) FindByID(ctx context.Context, id uuid.UUID) (*models
 	return &p, nil
 }
 
-func (r *productRepository) FindByIDWithCategory(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	return r.FindByID(ctx, id)
+func (r *productRepository) FindByIDWithCategory(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Product, error) {
+	return r.FindByID(ctx, tenantID, id)
 }
 
 func (r *productRepository) Update(ctx context.Context, product *models.Product) error {
@@ -164,38 +164,38 @@ func (r *productRepository) Update(ctx context.Context, product *models.Product)
 	).Scan(&product.UpdatedAt)
 }
 
-func (r *productRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM products WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *productRepository) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	query := `DELETE FROM products WHERE id = $1 AND tenant_id = $2`
+	_, err := r.db.ExecContext(ctx, query, id, tenantID)
 	return err
 }
 
-func (r *productRepository) Archive(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE products SET archived_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *productRepository) Archive(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	query := `UPDATE products SET archived_at = NOW() WHERE id = $1 AND tenant_id = $2`
+	_, err := r.db.ExecContext(ctx, query, id, tenantID)
 	return err
 }
 
-func (r *productRepository) Restore(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE products SET archived_at = NULL WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *productRepository) Restore(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	query := `UPDATE products SET archived_at = NULL WHERE id = $1 AND tenant_id = $2`
+	_, err := r.db.ExecContext(ctx, query, id, tenantID)
 	return err
 }
 
-func (r *productRepository) FindLowStock(ctx context.Context, threshold int) ([]models.Product, error) {
+func (r *productRepository) FindLowStock(ctx context.Context, tenantID uuid.UUID, threshold int) ([]models.Product, error) {
 	filters := map[string]interface{}{
 		"low_stock": threshold,
 	}
-	return r.FindAll(ctx, filters, 100, 0)
+	return r.FindAll(ctx, tenantID, filters, 100, 0)
 }
 
 func (r *productRepository) HasSalesHistory(ctx context.Context, id uuid.UUID) (bool, error) {
 	return false, nil
 }
 
-func (r *productRepository) Count(ctx context.Context, filters map[string]interface{}) (int, error) {
-	query := `SELECT COUNT(*) FROM products WHERE 1=1`
-	args := []interface{}{}
+func (r *productRepository) Count(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}) (int, error) {
+	query := `SELECT COUNT(*) FROM products WHERE tenant_id = $1`
+	args := []interface{}{tenantID}
 
 	if archived, ok := filters["archived"].(bool); ok {
 		if archived {

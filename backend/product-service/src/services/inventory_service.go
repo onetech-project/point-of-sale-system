@@ -41,7 +41,7 @@ func (s *InventoryService) AdjustStock(ctx context.Context, productID, tenantID,
 	defer tx.Rollback()
 
 	// Get current product to capture previous quantity
-	product, err := s.productRepo.FindByID(ctx, productID)
+	product, err := s.productRepo.FindByID(ctx, tenantID, productID)
 	if err != nil {
 		utils.Log.Error("Product not found for stock adjustment: id=%s, error=%v", productID, err)
 		return nil, fmt.Errorf("product not found: %w", err)

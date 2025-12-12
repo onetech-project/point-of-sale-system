@@ -67,7 +67,17 @@ func (h *CategoryHandler) CreateCategory(c echo.Context) error {
 }
 
 func (h *CategoryHandler) ListCategories(c echo.Context) error {
-	categories, err := h.service.GetCategories(c.Request().Context())
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
+	categories, err := h.service.GetCategories(c.Request().Context(), tenantUUID)
 	if err != nil {
 		utils.Log.Error("Failed to list categories: %v", err)
 		return utils.RespondInternalError(c, "Failed to list categories")
@@ -79,13 +89,23 @@ func (h *CategoryHandler) ListCategories(c echo.Context) error {
 }
 
 func (h *CategoryHandler) GetCategory(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid category ID")
 	}
 
-	category, err := h.service.GetCategory(c.Request().Context(), id)
+	category, err := h.service.GetCategory(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get category: %v", err)
 		return utils.RespondInternalError(c, "Failed to get category")
@@ -140,13 +160,23 @@ func (h *CategoryHandler) UpdateCategory(c echo.Context) error {
 }
 
 func (h *CategoryHandler) DeleteCategory(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid category ID")
 	}
 
-	if err := h.service.DeleteCategory(c.Request().Context(), id); err != nil {
+	if err := h.service.DeleteCategory(c.Request().Context(), tenantUUID, id); err != nil {
 		if err.Error() == "cannot delete category with assigned products" {
 			return utils.RespondError(c, http.StatusForbidden, "Cannot delete category with assigned products")
 		}

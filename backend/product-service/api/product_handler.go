@@ -83,6 +83,16 @@ func (h *ProductHandler) CreateProduct(c echo.Context) error {
 }
 
 func (h *ProductHandler) ListProducts(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	limitStr := c.QueryParam("limit")
 	offsetStr := c.QueryParam("offset")
 	search := c.QueryParam("search")
@@ -126,7 +136,7 @@ func (h *ProductHandler) ListProducts(c echo.Context) error {
 		filters["archived"] = archivedStr == "true"
 	}
 
-	products, total, err := h.service.GetProducts(c.Request().Context(), filters, limit, offset)
+	products, total, err := h.service.GetProducts(c.Request().Context(), tenantUUID, filters, limit, offset)
 	if err != nil {
 		utils.Log.Error("Failed to list products: %v", err)
 		return utils.RespondInternalError(c, "Failed to list products")
@@ -141,13 +151,23 @@ func (h *ProductHandler) ListProducts(c echo.Context) error {
 }
 
 func (h *ProductHandler) GetProduct(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid product ID")
 	}
 
-	product, err := h.service.GetProduct(c.Request().Context(), id)
+	product, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get product: %v", err)
 		return utils.RespondInternalError(c, "Failed to get product")
@@ -183,7 +203,7 @@ func (h *ProductHandler) UpdateProduct(c echo.Context) error {
 	}
 
 	// Get existing product to preserve stock quantity and photo
-	existingProduct, err := h.service.GetProduct(c.Request().Context(), id)
+	existingProduct, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		return utils.RespondNotFound(c, "Product not found")
 	}
@@ -215,7 +235,7 @@ func (h *ProductHandler) UpdateProduct(c echo.Context) error {
 	}
 
 	// Fetch updated product with category information
-	updatedProduct, err := h.service.GetProduct(c.Request().Context(), id)
+	updatedProduct, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get updated product: %v", err)
 		return utils.RespondInternalError(c, "Failed to get updated product")
@@ -225,13 +245,23 @@ func (h *ProductHandler) UpdateProduct(c echo.Context) error {
 }
 
 func (h *ProductHandler) DeleteProduct(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid product ID")
 	}
 
-	if err := h.service.DeleteProduct(c.Request().Context(), id); err != nil {
+	if err := h.service.DeleteProduct(c.Request().Context(), tenantUUID, id); err != nil {
 		if err.Error() == "cannot delete product with sales history" {
 			return utils.RespondError(c, http.StatusForbidden, "Cannot delete product with sales history. Consider archiving instead.")
 		}
@@ -243,19 +273,29 @@ func (h *ProductHandler) DeleteProduct(c echo.Context) error {
 }
 
 func (h *ProductHandler) ArchiveProduct(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid product ID")
 	}
 
-	if err := h.service.ArchiveProduct(c.Request().Context(), id); err != nil {
+	if err := h.service.ArchiveProduct(c.Request().Context(), tenantUUID, id); err != nil {
 		utils.Log.Error("Failed to archive product: %v", err)
 		return utils.RespondInternalError(c, "Failed to archive product")
 	}
 
 	// Return updated product
-	product, err := h.service.GetProduct(c.Request().Context(), id)
+	product, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get archived product: %v", err)
 		return utils.RespondInternalError(c, "Product archived but failed to retrieve")
@@ -265,19 +305,29 @@ func (h *ProductHandler) ArchiveProduct(c echo.Context) error {
 }
 
 func (h *ProductHandler) RestoreProduct(c echo.Context) error {
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return utils.RespondBadRequest(c, "Invalid product ID")
 	}
 
-	if err := h.service.RestoreProduct(c.Request().Context(), id); err != nil {
+	if err := h.service.RestoreProduct(c.Request().Context(), tenantUUID, id); err != nil {
 		utils.Log.Error("Failed to restore product: %v", err)
 		return utils.RespondInternalError(c, "Failed to restore product")
 	}
 
 	// Return updated product
-	product, err := h.service.GetProduct(c.Request().Context(), id)
+	product, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get restored product: %v", err)
 		return utils.RespondInternalError(c, "Product restored but failed to retrieve")
@@ -315,7 +365,7 @@ func (h *ProductHandler) UploadPhoto(c echo.Context) error {
 	}
 
 	// Return updated product
-	product, err := h.service.GetProduct(c.Request().Context(), id)
+	product, err := h.service.GetProduct(c.Request().Context(), tenantUUID, id)
 	if err != nil {
 		utils.Log.Error("Failed to get updated product: %v", err)
 		return utils.RespondInternalError(c, "Photo uploaded but failed to retrieve product")
