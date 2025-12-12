@@ -39,7 +39,7 @@ func NewProductService(repo repository.ProductRepository) *ProductService {
 func (s *ProductService) CreateProduct(ctx context.Context, product *models.Product) error {
 	utils.Log.Info("Creating product: name=%s, sku=%s", product.Name, product.SKU)
 
-	existing, err := s.repo.FindAll(ctx, map[string]interface{}{"search": product.SKU}, 1, 0)
+	existing, err := s.repo.FindAll(ctx, product.TenantID, map[string]interface{}{"search": product.SKU}, 1, 0)
 	if err != nil {
 		utils.Log.Error("Failed to check SKU uniqueness: %v", err)
 		return err
@@ -62,17 +62,17 @@ func (s *ProductService) CreateProduct(ctx context.Context, product *models.Prod
 	return nil
 }
 
-func (s *ProductService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	return s.repo.FindByID(ctx, id)
+func (s *ProductService) GetProduct(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Product, error) {
+	return s.repo.FindByID(ctx, tenantID, id)
 }
 
-func (s *ProductService) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]models.Product, int, error) {
-	products, err := s.repo.FindAll(ctx, filters, limit, offset)
+func (s *ProductService) GetProducts(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}, limit, offset int) ([]models.Product, int, error) {
+	products, err := s.repo.FindAll(ctx, tenantID, filters, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := s.repo.Count(ctx, filters)
+	count, err := s.repo.Count(ctx, tenantID, filters)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -83,7 +83,7 @@ func (s *ProductService) GetProducts(ctx context.Context, filters map[string]int
 func (s *ProductService) UpdateProduct(ctx context.Context, product *models.Product) error {
 	utils.Log.Info("Updating product: id=%s, name=%s", product.ID, product.Name)
 
-	existing, err := s.repo.FindByID(ctx, product.ID)
+	existing, err := s.repo.FindByID(ctx, product.TenantID, product.ID)
 	if err != nil {
 		utils.Log.Error("Failed to find product for update: id=%s, error=%v", product.ID, err)
 		return err
@@ -94,7 +94,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, product *models.Prod
 	}
 
 	if existing.SKU != product.SKU {
-		allProducts, err := s.repo.FindAll(ctx, map[string]interface{}{}, 10000, 0)
+		allProducts, err := s.repo.FindAll(ctx, product.TenantID, map[string]interface{}{}, 10000, 0)
 		if err != nil {
 			utils.Log.Error("Failed to check SKU uniqueness: %v", err)
 			return err
@@ -116,7 +116,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, product *models.Prod
 	return nil
 }
 
-func (s *ProductService) DeleteProduct(ctx context.Context, id uuid.UUID) error {
+func (s *ProductService) DeleteProduct(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	utils.Log.Info("Deleting product: id=%s", id)
 
 	hasSales, err := s.repo.HasSalesHistory(ctx, id)
@@ -129,7 +129,7 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id uuid.UUID) error 
 		return fmt.Errorf("cannot delete product with sales history")
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		utils.Log.Error("Failed to delete product: id=%s, error=%v", id, err)
 		return err
 	}
@@ -138,10 +138,10 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
-func (s *ProductService) ArchiveProduct(ctx context.Context, id uuid.UUID) error {
+func (s *ProductService) ArchiveProduct(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	utils.Log.Info("Archiving product: id=%s", id)
 
-	if err := s.repo.Archive(ctx, id); err != nil {
+	if err := s.repo.Archive(ctx, tenantID, id); err != nil {
 		utils.Log.Error("Failed to archive product: id=%s, error=%v", id, err)
 		return err
 	}
@@ -150,10 +150,10 @@ func (s *ProductService) ArchiveProduct(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s *ProductService) RestoreProduct(ctx context.Context, id uuid.UUID) error {
+func (s *ProductService) RestoreProduct(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	utils.Log.Info("Restoring product: id=%s", id)
 
-	if err := s.repo.Restore(ctx, id); err != nil {
+	if err := s.repo.Restore(ctx, tenantID, id); err != nil {
 		utils.Log.Error("Failed to restore product: id=%s, error=%v", id, err)
 		return err
 	}
@@ -162,13 +162,13 @@ func (s *ProductService) RestoreProduct(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s *ProductService) GetInventorySummary(ctx context.Context) (map[string]interface{}, error) {
-	allProducts, err := s.repo.FindAll(ctx, map[string]interface{}{}, 10000, 0)
+func (s *ProductService) GetInventorySummary(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error) {
+	allProducts, err := s.repo.FindAll(ctx, tenantID, map[string]interface{}{}, 10000, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	lowStock, err := s.repo.FindLowStock(ctx, 10)
+	lowStock, err := s.repo.FindLowStock(ctx, tenantID, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func (s *ProductService) UploadPhoto(ctx context.Context, productID uuid.UUID, t
 
 	relativePath := filepath.Join("uploads", tenantID.String(), productID.String(), filename)
 
-	product, err := s.repo.FindByID(ctx, productID)
+	product, err := s.repo.FindByID(ctx, tenantID, productID)
 	if err != nil {
 		return err
 	}
@@ -320,7 +320,7 @@ func (s *ProductService) UploadPhoto(ctx context.Context, productID uuid.UUID, t
 }
 
 func (s *ProductService) GetPhotoPath(ctx context.Context, productID uuid.UUID, tenantID uuid.UUID) (string, error) {
-	product, err := s.repo.FindByID(ctx, productID)
+	product, err := s.repo.FindByID(ctx, tenantID, productID)
 	if err != nil {
 		return "", err
 	}
@@ -343,7 +343,7 @@ func (s *ProductService) GetPhotoPath(ctx context.Context, productID uuid.UUID, 
 }
 
 func (s *ProductService) DeletePhoto(ctx context.Context, productID uuid.UUID, tenantID uuid.UUID) error {
-	product, err := s.repo.FindByID(ctx, productID)
+	product, err := s.repo.FindByID(ctx, tenantID, productID)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func (s *ProductService) DeletePhoto(ctx context.Context, productID uuid.UUID, t
 
 func (s *ProductService) AdjustStock(ctx context.Context, productID, tenantID, userID uuid.UUID, newQuantity int, reason, notes string) (*models.Product, error) {
 	// Get current product
-	product, err := s.repo.FindByID(ctx, productID)
+	product, err := s.repo.FindByID(ctx, tenantID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -403,5 +403,5 @@ func (s *ProductService) AdjustStock(ctx context.Context, productID, tenantID, u
 	}
 
 	// Return updated product
-	return s.repo.FindByID(ctx, productID)
+	return s.repo.FindByID(ctx, tenantID, productID)
 }

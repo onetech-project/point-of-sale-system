@@ -33,7 +33,17 @@ func (h *StockHandler) RegisterRoutes(e *echo.Group) {
 
 // GetInventorySummary returns overall inventory statistics
 func (h *StockHandler) GetInventorySummary(c echo.Context) error {
-	summary, err := h.productService.GetInventorySummary(c.Request().Context())
+	tenantID := c.Get("tenant_id")
+	if tenantID == nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Tenant ID not found")
+	}
+
+	tenantUUID, err := uuid.Parse(tenantID.(string))
+	if err != nil {
+		return utils.RespondError(c, http.StatusUnauthorized, "Invalid tenant ID")
+	}
+
+	summary, err := h.productService.GetInventorySummary(c.Request().Context(), tenantUUID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
 			"message": "Failed to fetch inventory summary",
