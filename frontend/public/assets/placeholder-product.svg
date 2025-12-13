@@ -1,0 +1,8 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="400" fill="#F3F4F6"/>
+  <path d="M200 140C179.013 140 162 157.013 162 178V222C162 242.987 179.013 260 200 260C220.987 260 238 242.987 238 222V178C238 157.013 220.987 140 200 140ZM200 150C215.464 150 228 162.536 228 178V222C228 237.464 215.464 250 200 250C184.536 250 172 237.464 172 222V178C172 162.536 184.536 150 200 150Z" fill="#9CA3AF"/>
+  <circle cx="190" cy="188" r="8" fill="#9CA3AF"/>
+  <circle cx="210" cy="188" r="8" fill="#9CA3AF"/>
+  <path d="M180 220C180 220 185 230 200 230C215 230 220 220 220 220" stroke="#9CA3AF" stroke-width="4" stroke-linecap="round"/>
+  <text x="200" y="300" font-family="Arial" font-size="16" fill="#6B7280" text-anchor="middle">No Photo Available</text>
+</svg>

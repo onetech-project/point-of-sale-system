@@ -30,6 +30,25 @@ func main() {
 	}
 	defer config.CloseRedis()
 
+	// Initialize storage configuration (Feature 005)
+	storageConfig, err := config.LoadStorageConfig()
+	if err != nil {
+		log.Fatal("Failed to load storage configuration:", err)
+	}
+
+	// Initialize storage service
+	storageService, err := services.NewStorageService(storageConfig)
+	if err != nil {
+		log.Fatal("Failed to create storage service:", err)
+	}
+
+	// Initialize bucket (create if doesn't exist)
+	ctx := context.Background()
+	if err := storageService.InitializeBucket(ctx); err != nil {
+		log.Fatal("Failed to initialize storage bucket:", err)
+	}
+	utils.Log.Info("Storage bucket '%s' initialized successfully", storageConfig.BucketName)
+
 	e := echo.New()
 
 	// CORS configuration
@@ -76,6 +95,30 @@ func main() {
 	inventoryService := services.NewInventoryService(productRepo, stockRepo, config.DB)
 	stockHandler := api.NewStockHandler(productService, inventoryService)
 	stockHandler.RegisterRoutes(apiGroup)
+
+	// Photo management endpoints (Feature 005)
+	photoRepo := repository.NewPhotoRepository(config.DB)
+	imageProcessor := services.NewImageProcessor(
+		storageConfig.MaxPhotoSizeBytes,
+		4096, // max width
+		4096, // max height
+	)
+	photoService := services.NewPhotoService(
+		photoRepo,
+		storageService,
+		imageProcessor,
+		storageConfig.MaxPhotosPerProduct,
+	)
+	photoHandler := api.NewPhotoHandler(photoService)
+
+	// Register photo routes
+	apiGroup.POST("/products/:product_id/photos", photoHandler.UploadPhoto)
+	apiGroup.GET("/products/:product_id/photos", photoHandler.ListPhotos)
+	apiGroup.GET("/products/:product_id/photos/:photo_id", photoHandler.GetPhoto)
+	apiGroup.PATCH("/products/:product_id/photos/:photo_id", photoHandler.UpdatePhotoMetadata)
+	apiGroup.DELETE("/products/:product_id/photos/:photo_id", photoHandler.DeletePhoto)
+	apiGroup.PUT("/products/:product_id/photos/reorder", photoHandler.ReorderPhotos)
+	apiGroup.GET("/tenants/storage-quota", photoHandler.GetStorageQuota)
 
 	// Public catalog endpoint (no authentication required)
 	catalogService := services.NewCatalogService(config.DB)
