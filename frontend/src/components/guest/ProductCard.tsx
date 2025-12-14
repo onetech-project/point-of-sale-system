@@ -17,7 +17,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
       {product.image_url ? (
         <img
-          src={productService.getPhotoUrl(product.id, tenantId)}
+          src={productService.getPhotoUrl(product.id, tenantId, product.image_url)}
           alt={product.name}
           className="w-full h-48 object-cover"
         />

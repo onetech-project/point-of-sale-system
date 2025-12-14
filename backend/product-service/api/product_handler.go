@@ -12,11 +12,15 @@ import (
 )
 
 type ProductHandler struct {
-	service *services.ProductService
+	service      *services.ProductService
+	photoService *services.PhotoService
 }
 
-func NewProductHandler(service *services.ProductService) *ProductHandler {
-	return &ProductHandler{service: service}
+func NewProductHandler(service *services.ProductService, photoService *services.PhotoService) *ProductHandler {
+	return &ProductHandler{
+		service:      service,
+		photoService: photoService,
+	}
 }
 
 func (h *ProductHandler) RegisterRoutes(e *echo.Group) {
@@ -142,6 +146,30 @@ func (h *ProductHandler) ListProducts(c echo.Context) error {
 		return utils.RespondInternalError(c, "Failed to list products")
 	}
 
+	// Check if primary photos should be included (T040)
+	includePrimaryPhoto := c.QueryParam("include_primary_photo") == "true"
+	if includePrimaryPhoto && h.photoService != nil && len(products) > 0 {
+		// For each product, fetch the primary photo
+		for i := range products {
+			photos, err := h.photoService.ListPhotos(c.Request().Context(), products[i].ID, tenantUUID)
+			if err != nil {
+				utils.Log.Error("Failed to load photos for product %s: %v", products[i].ID, err)
+				continue
+			}
+			// Find primary photo
+			for _, photo := range photos {
+				if photo.IsPrimary {
+					products[i].PhotoPath = &photo.PhotoURL
+					break
+				}
+			}
+			// If no primary, use first photo
+			if products[i].PhotoPath == nil && len(photos) > 0 {
+				products[i].PhotoPath = &photos[0].PhotoURL
+			}
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"products": products,
 		"total":    total,
@@ -175,6 +203,23 @@ func (h *ProductHandler) GetProduct(c echo.Context) error {
 
 	if product == nil {
 		return utils.RespondNotFound(c, "Product not found")
+	}
+
+	// Check if photos should be included (T039)
+	includePhotos := c.QueryParam("include_photos") == "true"
+	if includePhotos && h.photoService != nil {
+		photos, err := h.photoService.ListPhotos(c.Request().Context(), id, tenantUUID)
+		if err != nil {
+			utils.Log.Error("Failed to load photos for product: %v", err)
+			// Don't fail the request, just log the error
+		} else {
+			// Add photos to response
+			response := map[string]interface{}{
+				"product": product,
+				"photos":  photos,
+			}
+			return c.JSON(http.StatusOK, response)
+		}
 	}
 
 	return c.JSON(http.StatusOK, product)

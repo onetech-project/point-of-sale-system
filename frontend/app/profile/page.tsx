@@ -6,6 +6,7 @@ import apiClient from '@/services/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
+import { useRouter } from 'next/navigation';
 
 interface TenantInfo {
   id: string;
@@ -17,6 +18,7 @@ interface TenantInfo {
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loadingTenant, setLoadingTenant] = useState(true);
 
@@ -107,10 +109,10 @@ export default function ProfilePage() {
                 </label>
                 <div className="px-4 py-3 bg-gray-50 rounded-lg">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user?.role === ROLES.OWNER
-                      ? 'bg-purple-100 text-purple-800'
-                      : user?.role === ROLES.ADMIN
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800'
+                    ? 'bg-purple-100 text-purple-800'
+                    : user?.role === ROLES.ADMIN
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
                     }`}>
                     {user?.role?.toUpperCase() || 'N/A'}
                   </span>
@@ -169,10 +171,10 @@ export default function ProfilePage() {
                   </label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenantInfo.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : tenantInfo.status === 'suspended'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
+                      ? 'bg-green-100 text-green-800'
+                      : tenantInfo.status === 'suspended'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
                       }`}>
                       <svg className="w-2 h-2 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                         <circle cx={4} cy={4} r={3} />

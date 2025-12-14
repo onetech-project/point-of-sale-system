@@ -101,7 +101,7 @@ export const GuestCart: React.FC<GuestCartProps> = ({
               {/* Item Image */}
               <div className="w-16 h-16 bg-gray-200 rounded overflow-hidden">
                 <img
-                  src={productService.getPhotoUrl(item.product_id, tenantId)}
+                  src={productService.getPhotoUrl(item.product_id, tenantId, item.image_url)}
                   alt={item.product_name}
                   className="w-full h-full object-cover"
                   onError={(e) => {

@@ -57,7 +57,6 @@ export default function SettingsPage() {
         href: '/settings/tenant',
         roles: [ROLES.OWNER],
         color: 'purple',
-        comingSoon: true,
       },
       {
         title: 'User Management',

@@ -120,8 +120,6 @@ export default function CheckoutPage() {
         data
       );
 
-      console.log('Order created successfully:', orderResponse);
-
       // T068: Redirect to order confirmation page
       // The order confirmation page will display the QR code for payment
       // Customer can scan and pay directly on the order detail page
