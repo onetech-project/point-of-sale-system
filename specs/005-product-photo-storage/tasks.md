@@ -73,8 +73,8 @@
 - [X] T028 [US1] Add error handling and logging for upload operations in PhotoHandler
 - [X] T029 [P] [US1] Create PhotoUpload component in frontend/src/components/products/PhotoUpload.tsx
 - [X] T030 [P] [US1] Create photoService API client in frontend/src/services/photoService.ts
-- [ ] T031 [US1] Integrate PhotoUpload component into product create/edit forms in frontend
-- [ ] T032 [US1] Add upload progress indicator and error messages in PhotoUpload component
+- [X] T031 [US1] Integrate PhotoUpload component into product create/edit forms in frontend
+- [X] T032 [US1] Add upload progress indicator and error messages in PhotoUpload component
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - can upload photos and view them in product details
 

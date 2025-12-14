@@ -3,8 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '@/i18n/provider';
 import CategorySelect from './CategorySelect';
+import PhotoUpload from './PhotoUpload';
 import { CreateProductRequest, UpdateProductRequest, Product } from '@/types/product';
+import type { ProductPhoto } from '@/types/photo';
 import { formatNumber, parseFormattedNumber } from '@/utils/format';
+import photoService from '@/services/photo';
 
 interface ProductFormProps {
   initialData?: Product;
@@ -38,6 +41,38 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photos, setPhotos] = useState<ProductPhoto[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+
+  // Load existing photos when in edit mode
+  useEffect(() => {
+    if (isEdit && initialData?.id) {
+      loadPhotos();
+    }
+  }, [isEdit, initialData?.id]);
+
+  const loadPhotos = async () => {
+    if (!initialData?.id) return;
+
+    setLoadingPhotos(true);
+    try {
+      const photoList = await photoService.listPhotos(initialData.id);
+      setPhotos(photoList);
+    } catch (error) {
+      console.error('Failed to load photos:', error);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
+  const handlePhotoUploadSuccess = (photo: ProductPhoto) => {
+    setPhotos(prevPhotos => [...prevPhotos, photo]);
+  };
+
+  const handlePhotoUploadError = (error: string) => {
+    // Error is already displayed by PhotoUpload component
+    console.error('Photo upload error:', error);
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -319,6 +354,34 @@ const ProductForm: React.FC<ProductFormProps> = ({
           placeholder={t('products.form.descriptionPlaceholder')}
         />
       </div>
+
+      {/* Product Photos - Only shown in edit mode */}
+      {isEdit && initialData?.id && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            {t('products.form.photos')}
+          </label>
+          <PhotoUpload
+            productId={initialData.id}
+            maxPhotos={5}
+            existingPhotos={photos}
+            onUploadSuccess={handlePhotoUploadSuccess}
+            onUploadError={handlePhotoUploadError}
+          />
+          {loadingPhotos && (
+            <p className="mt-2 text-sm text-gray-500">{t('products.form.loadingPhotos')}</p>
+          )}
+        </div>
+      )}
+
+      {/* Help text for new products */}
+      {!isEdit && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-sm text-blue-800">
+            {t('products.form.photoHelpCreate')}
+          </p>
+        </div>
+      )}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-3 pt-4">

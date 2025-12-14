@@ -36,10 +36,13 @@
       "taxRate": "Tarif Pajak (%)",
       "stockQuantity": "Jumlah Stok",
       "photo": "Foto Produk",
+      "photos": "Foto Produk",
       "uploadPhoto": "Unggah Foto",
       "changePhoto": "Ubah Foto",
       "deletePhoto": "Hapus Foto",
       "maxFileSize": "Ukuran maks: 5MB. Format: JPEG, PNG, WebP",
+      "photoHelpCreate": "💡 Simpan produk terlebih dahulu, lalu Anda dapat mengunggah foto di layar edit.",
+      "loadingPhotos": "Memuat foto...",
       "createButton": "Buat Produk",
       "updateButton": "Perbarui Produk"
     },

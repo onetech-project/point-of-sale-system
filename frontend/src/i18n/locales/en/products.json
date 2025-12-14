@@ -36,10 +36,13 @@
       "taxRate": "Tax Rate (%)",
       "stockQuantity": "Stock Quantity",
       "photo": "Product Photo",
+      "photos": "Product Photos",
       "uploadPhoto": "Upload Photo",
       "changePhoto": "Change Photo",
       "deletePhoto": "Delete Photo",
       "maxFileSize": "Max file size: 5MB. Formats: JPEG, PNG, WebP",
+      "photoHelpCreate": "Save the product first, then you can upload photos in the edit screen.",
+      "loadingPhotos": "Loading photos...",
       "createButton": "Create Product",
       "updateButton": "Update Product"
     },
