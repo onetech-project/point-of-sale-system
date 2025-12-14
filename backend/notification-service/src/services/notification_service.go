@@ -308,7 +308,7 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 	customerName, _ := event.Data["customer_name"].(string)
 	orderReference, _ := event.Data["order_reference"].(string)
 	deliveryType, _ := event.Data["delivery_type"].(string)
-	createdAt, _ := event.Data["created_at"].(string)
+	createdAt, _ := time.Parse(time.RFC3339, event.Data["created_at"].(string))
 
 	// Convert amounts from interface{} to numbers
 	subtotalAmount := 0
@@ -359,15 +359,20 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 		return utils.FormatCurrencyIDR(amount)
 	}
 
+	deliveryFeeStr := ""
+	if deliveryFee > 0 {
+		deliveryFeeStr = formatIDR(deliveryFee)
+	}
+
 	// Prepare template data
 	templateData := map[string]interface{}{
 		"OrderReference": orderReference,
 		"CustomerName":   customerName,
 		"CustomerEmail":  email,
 		"DeliveryType":   deliveryType,
-		"CreatedAt":      createdAt,
+		"CreatedAt":      createdAt.Format("02 January 2006 15:04"),
 		"SubtotalAmount": formatIDR(subtotalAmount),
-		"DeliveryFee":    formatIDR(deliveryFee),
+		"DeliveryFee":    deliveryFeeStr,
 		"TotalAmount":    formatIDR(totalAmount),
 		"Items":          items,
 		"OrderURL":       fmt.Sprintf("%s/orders/%s", s.frontendURL, orderReference),

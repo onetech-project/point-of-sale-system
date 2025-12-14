@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"text/template"
-	"time"
 
 	"github.com/pos/notification-service/src/models"
 	"github.com/pos/notification-service/src/utils"
@@ -95,8 +94,8 @@ func convertOrderEventToStaffData(event *models.OrderPaidEvent) *models.StaffNot
 		DeliveryFee:     deliveryFee,
 		TotalAmount:     utils.FormatCurrency(event.Data.TotalAmount),
 		PaymentMethod:   event.Data.PaymentMethod,
-		PaidAt:          event.Data.PaidAt.Format(time.RFC3339),
-		CreatedAt:       event.Data.CreatedAt.Format(time.RFC3339),
+		PaidAt:          event.Data.PaidAt.Format("02 January 2006 15:04"),
+		CreatedAt:       event.Data.CreatedAt.Format("02 January 2006 15:04"),
 	}
 }
 
@@ -129,8 +128,8 @@ func convertOrderEventToCustomerData(event *models.OrderPaidEvent, frontendURL s
 		DeliveryFee:       deliveryFee,
 		TotalAmount:       utils.FormatCurrency(event.Data.TotalAmount),
 		PaymentMethod:     event.Data.PaymentMethod,
-		PaidAt:            event.Data.PaidAt.Format("2006-01-02 15:04:05"),
-		CreatedAt:         event.Data.CreatedAt.Format("2006-01-02 15:04:05"), // Use PaidAt as CreatedAt for guest orders
+		PaidAt:            event.Data.PaidAt.Format("02 January 2006 15:04"),
+		CreatedAt:         event.Data.CreatedAt.Format("02 January 2006 15:04"),
 		OrderURL:          fmt.Sprintf("%s/orders/%s", frontendURL, event.Data.OrderReference),
 		ShowPaidWatermark: true,
 	}

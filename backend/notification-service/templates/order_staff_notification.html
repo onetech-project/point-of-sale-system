@@ -256,7 +256,7 @@
     <div class="header">
       <h1>🔔 New Order Paid!</h1>
       <div class="badge">PAYMENT CONFIRMED</div>
-      <div class="order-reference">{{.OrderID}}</div>
+      <div class="order-reference">{{.OrderReference}}</div>
     </div>
 
     <!-- Content -->
@@ -320,8 +320,8 @@
             <tr>
               <td>{{.ProductName}}</td>
               <td class="quantity">{{.Quantity}}</td>
-              <td class="price">Rp {{formatCurrency .UnitPrice}}</td>
-              <td class="price">Rp {{formatCurrency .TotalPrice}}</td>
+              <td class="price">Rp {{.UnitPrice}}</td>
+              <td class="price">Rp {{.TotalPrice}}</td>
             </tr>
             {{end}}
           </tbody>

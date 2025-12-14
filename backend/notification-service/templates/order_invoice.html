@@ -192,7 +192,11 @@
 <body>
   <div class="container">
     <div class="header">
+      {{if .ShowPaidWatermark}}
+      <h1>📄 Order Receipt</h1>
+      {{else}}
       <h1>📄 Order Invoice</h1>
+      {{end}}
       <div class="order-ref">{{.OrderReference}}</div>
     </div>
 
@@ -218,10 +222,17 @@
           <span class="info-label">Delivery Type:</span>
           <span class="badge">{{.DeliveryType}}</span>
         </div>
+        {{if .ShowPaidWatermark}}
+        <div class="info-row" style="border-bottom: none;">
+          <span class="info-label">Paid At:</span>
+          <span>{{.PaidAt}}</span>
+        </div>
+        {{else}}
         <div class="info-row" style="border-bottom: none;">
           <span class="info-label">Order Date:</span>
           <span>{{.CreatedAt}}</span>
         </div>
+        {{end}}
       </div>
 
       <h3 style="color: #4F46E5;">Order Items</h3>
@@ -275,7 +286,7 @@
 
     <div class="footer">
       <p>This is an automated email. Please do not reply to this message.</p>
-      <p>&copy; 2024 POS System. All rights reserved.</p>
+      <p>&copy; 2025 POS System. All rights reserved.</p>
     </div>
   </div>
 </body>

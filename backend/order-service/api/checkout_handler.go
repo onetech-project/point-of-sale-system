@@ -318,6 +318,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 
 	// Update order with ID for payment service
 	order.ID = orderID
+	order.CreatedAt = time.Now()
 	// TotalAmount already set correctly with delivery fee
 
 	qrisResp, err := h.paymentService.CreateQRISCharge(ctx, order)
@@ -369,7 +370,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		DeliveryType:   req.DeliveryType,
 		PaymentURL:     paymentURL,
 		PaymentToken:   nil, // Not used for QRIS
-		CreatedAt:      time.Now(),
+		CreatedAt:      order.CreatedAt,
 	})
 }
 
