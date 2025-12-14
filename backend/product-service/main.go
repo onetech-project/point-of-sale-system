@@ -81,34 +81,46 @@ func main() {
 	apiGroup := e.Group("/api/v1")
 	apiGroup.Use(customMiddleware.TenantMiddleware)
 
+	// Initialize repositories
 	productRepo := repository.NewProductRepository(config.DB)
-	productService := services.NewProductService(productRepo)
-	productHandler := api.NewProductHandler(productService)
-	productHandler.RegisterRoutes(apiGroup)
-
 	categoryRepo := repository.NewCategoryRepository(config.DB)
-	categoryService := services.NewCategoryService(categoryRepo)
-	categoryHandler := api.NewCategoryHandler(categoryService)
-	categoryHandler.RegisterRoutes(apiGroup)
-
 	stockRepo := repository.NewStockRepository(config.DB)
-	inventoryService := services.NewInventoryService(productRepo, stockRepo, config.DB)
-	stockHandler := api.NewStockHandler(productService, inventoryService)
-	stockHandler.RegisterRoutes(apiGroup)
-
-	// Photo management endpoints (Feature 005)
 	photoRepo := repository.NewPhotoRepository(config.DB)
+
+	// Initialize photo service and dependencies (needed for product handler)
 	imageProcessor := services.NewImageProcessor(
 		storageConfig.MaxPhotoSizeBytes,
 		4096, // max width
 		4096, // max height
 	)
+
+	// Initialize retry queue for background S3 deletion retries (Feature 005 - T074)
+	retryQueue := services.NewRetryQueue(storageService, 30*time.Second) // Check every 30 seconds
+	retryQueue.Start(ctx)
+	utils.Log.Info("Retry queue started for background S3 deletion retries")
+
 	photoService := services.NewPhotoService(
 		photoRepo,
 		storageService,
 		imageProcessor,
+		retryQueue,
 		storageConfig.MaxPhotosPerProduct,
 	)
+
+	// Initialize product service and handler with photo service
+	productService := services.NewProductService(productRepo)
+	productHandler := api.NewProductHandler(productService, photoService)
+	productHandler.RegisterRoutes(apiGroup)
+
+	categoryService := services.NewCategoryService(categoryRepo)
+	categoryHandler := api.NewCategoryHandler(categoryService)
+	categoryHandler.RegisterRoutes(apiGroup)
+
+	inventoryService := services.NewInventoryService(productRepo, stockRepo, config.DB)
+	stockHandler := api.NewStockHandler(productService, inventoryService)
+	stockHandler.RegisterRoutes(apiGroup)
+
+	// Photo management endpoints (Feature 005)
 	photoHandler := api.NewPhotoHandler(photoService)
 
 	// Register photo routes
@@ -119,11 +131,11 @@ func main() {
 	apiGroup.PUT("/products/:product_id/photos/:photo_id", photoHandler.ReplacePhoto)
 	apiGroup.DELETE("/products/:product_id/photos/:photo_id", photoHandler.DeletePhoto)
 	apiGroup.PUT("/products/:product_id/photos/reorder", photoHandler.ReorderPhotos)
-	apiGroup.GET("/tenants/storage-quota", photoHandler.GetStorageQuota)
+	apiGroup.GET("/products/storage-quota", photoHandler.GetStorageQuota)
 
 	// Public catalog endpoint (no authentication required)
 	catalogService := services.NewCatalogService(config.DB)
-	publicCatalogHandler := api.NewPublicCatalogHandler(catalogService, productService)
+	publicCatalogHandler := api.NewPublicCatalogHandler(catalogService, productService, photoService)
 	e.GET("/public/menu/:tenant_id/products", publicCatalogHandler.GetPublicMenu)
 	e.GET("/public/products/:tenant_id/:id/photo", publicCatalogHandler.GetPublicPhoto)
 
@@ -147,6 +159,11 @@ func main() {
 	<-quit
 
 	utils.Log.Info("Shutting down server gracefully...")
+
+	// Stop retry queue first
+	retryQueue.Stop()
+	utils.Log.Info("Retry queue stopped")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

@@ -12,12 +12,14 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pos/backend/product-service/src/config"
+	"github.com/rs/zerolog/log"
 )
 
 // StorageService handles object storage operations (S3/MinIO)
 type StorageService struct {
-	client *minio.Client
-	config *config.StorageConfig
+	client         *minio.Client
+	config         *config.StorageConfig
+	circuitBreaker *CircuitBreaker
 }
 
 // NewStorageService creates a new StorageService with MinIO client
@@ -32,9 +34,14 @@ func NewStorageService(cfg *config.StorageConfig) (*StorageService, error) {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
 	}
 
+	// Initialize circuit breaker
+	// 5 failures → open, wait 30s, then try 3 successes to close
+	circuitBreaker := NewCircuitBreaker(5, 3, 30*time.Second)
+
 	return &StorageService{
-		client: client,
-		config: cfg,
+		client:         client,
+		config:         cfg,
+		circuitBreaker: circuitBreaker,
 	}, nil
 }
 
@@ -59,54 +66,88 @@ func (s *StorageService) InitializeBucket(ctx context.Context) error {
 
 // UploadPhoto uploads a photo to object storage
 func (s *StorageService) UploadPhoto(ctx context.Context, storageKey string, reader io.Reader, size int64, contentType string) error {
-	_, err := s.client.PutObject(
-		ctx,
-		s.config.BucketName,
-		storageKey,
-		reader,
-		size,
-		minio.PutObjectOptions{
-			ContentType: contentType,
-		},
-	)
+	return s.circuitBreaker.Call(func() error {
+		_, err := s.client.PutObject(
+			ctx,
+			s.config.BucketName,
+			storageKey,
+			reader,
+			size,
+			minio.PutObjectOptions{
+				ContentType: contentType,
+			},
+		)
 
-	if err != nil {
-		return fmt.Errorf("failed to upload photo to storage: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("failed to upload photo to storage: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetPhotoURL generates a presigned URL for photo access
+// Falls back to a placeholder path if S3 is unavailable
 func (s *StorageService) GetPhotoURL(ctx context.Context, storageKey string) (string, error) {
-	ttl := time.Duration(s.config.PresignedURLTTLSeconds) * time.Second
+	var url string
+	err := s.circuitBreaker.Call(func() error {
+		ttl := time.Duration(s.config.PresignedURLTTLSeconds) * time.Second
 
-	url, err := s.client.PresignedGetObject(ctx, s.config.BucketName, storageKey, ttl, nil)
+		urlObj, err := s.client.PresignedGetObject(ctx, s.config.BucketName, storageKey, ttl, nil)
+		if err != nil {
+			return fmt.Errorf("failed to generate presigned URL: %w", err)
+		}
+
+		url = urlObj.String()
+		return nil
+	})
+
+	// If circuit breaker is open or S3 operation failed, return placeholder path
+	// Frontend ImagePlaceholder component will handle rendering
 	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+		if err == ErrCircuitOpen {
+			log.Warn().
+				Str("storage_key", storageKey).
+				Msg("Circuit breaker open, returning placeholder path")
+		} else {
+			log.Error().
+				Err(err).
+				Str("storage_key", storageKey).
+				Msg("Failed to generate photo URL, returning placeholder path")
+		}
+		// Return empty string - frontend will detect this and show placeholder
+		return "", err
 	}
 
-	return url.String(), nil
+	return url, nil
 }
 
 // DeletePhoto removes a photo from object storage
 func (s *StorageService) DeletePhoto(ctx context.Context, storageKey string) error {
-	err := s.client.RemoveObject(ctx, s.config.BucketName, storageKey, minio.RemoveObjectOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to delete photo from storage: %w", err)
-	}
+	return s.circuitBreaker.Call(func() error {
+		err := s.client.RemoveObject(ctx, s.config.BucketName, storageKey, minio.RemoveObjectOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to delete photo from storage: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetPhoto retrieves a photo from object storage
 func (s *StorageService) GetPhoto(ctx context.Context, storageKey string) (io.ReadCloser, error) {
-	object, err := s.client.GetObject(ctx, s.config.BucketName, storageKey, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get photo from storage: %w", err)
-	}
+	var object io.ReadCloser
+	err := s.circuitBreaker.Call(func() error {
+		obj, err := s.client.GetObject(ctx, s.config.BucketName, storageKey, minio.GetObjectOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get photo from storage: %w", err)
+		}
 
-	return object, nil
+		object = obj
+		return nil
+	})
+
+	return object, err
 }
 
 // GenerateStorageKey creates a unique storage key for a photo
@@ -155,4 +196,14 @@ func (s *StorageService) HealthCheck(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// GetCircuitBreakerStats returns statistics about the circuit breaker
+func (s *StorageService) GetCircuitBreakerStats() map[string]interface{} {
+	return s.circuitBreaker.GetStats()
+}
+
+// ResetCircuitBreaker manually resets the circuit breaker (for admin/testing)
+func (s *StorageService) ResetCircuitBreaker() {
+	s.circuitBreaker.Reset()
 }

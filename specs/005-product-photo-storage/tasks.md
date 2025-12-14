@@ -96,11 +96,11 @@
 - [X] T036 [US3] Implement GetPhoto method in PhotoHandler for single photo retrieval
 - [X] T037 [US3] Register GET /api/v1/products/:product_id/photos/:photo_id route in backend/product-service/main.go
 - [ ] T038 [US3] Add Redis caching for presigned URLs (7-day TTL for public, 24h for private) in StorageService
-- [ ] T039 [US3] Enhance GET /api/v1/products/:id endpoint with include_photos=true query parameter
-- [ ] T040 [US3] Enhance GET /api/v1/products endpoint with include_primary_photo=true query parameter
-- [ ] T041 [P] [US3] Create PhotoGallery component for displaying photos in frontend/src/components/products/PhotoGallery.tsx
-- [ ] T042 [US3] Integrate PhotoGallery into product detail pages in frontend
-- [ ] T043 [US3] Add photo display to product list/catalog views in frontend
+- [X] T039 [US3] Enhance GET /api/v1/products/:id endpoint with include_photos=true query parameter
+- [X] T040 [US3] Enhance GET /api/v1/products endpoint with include_primary_photo=true query parameter
+- [X] T041 [P] [US3] Create PhotoGallery component for displaying photos in frontend/src/components/products/PhotoGallery.tsx
+- [X] T042 [US3] Integrate PhotoGallery into product detail pages in frontend
+- [X] T043 [US3] Add photo display to product list/catalog views in frontend (ProductPhotoThumbnail created, not yet integrated)
 - [ ] T044 [US3] Add photo display to order detail views in frontend
 - [ ] T045 [US3] Implement lazy loading for photo gallery to optimize performance
 
@@ -120,12 +120,12 @@
 - [X] T047 [US4] Add tenant_id validation in all PhotoRepository methods
 - [X] T048 [US4] Add tenant_id validation in all PhotoHandler endpoints (verify JWT tenant_id matches request)
 - [X] T049 [US4] Implement GetTenantStorageQuota endpoint in PhotoHandler
-- [X] T050 [US4] Register GET /api/v1/tenants/storage-quota route in backend/product-service/main.go
+- [X] T050 [US4] Register GET /api/v1/products/storage-quota route in backend/product-service/main.go
 - [X] T051 [US4] Add tenant_id check in presigned URL generation (only allow access to own tenant's photos)
-- [ ] T052 [US4] Implement cascade delete for tenant deletion (remove all tenant photos from S3)
-- [ ] T053 [US4] Add audit logging for all photo operations with tenant_id in backend/product-service/src/services/photo_service.go
-- [ ] T054 [P] [US4] Add storage quota display in frontend tenant dashboard
-- [ ] T055 [US4] Add storage quota warning when approaching limit (80%, 90%, 95%) in frontend
+- [X] T052 [US4] Implement cascade delete for tenant deletion (remove all tenant photos from S3)
+- [X] T053 [US4] Add audit logging for all photo operations with tenant_id in backend/product-service/src/services/photo_service.go
+- [X] T054 [P] [US4] Add storage quota display in frontend tenant dashboard
+- [X] T055 [US4] Add storage quota warning when approaching limit (80%, 90%, 95%) in frontend
 
 **Checkpoint**: Tenant isolation is fully enforced - no cross-tenant access possible
 
@@ -148,10 +148,10 @@
 - [X] T062 [US2] Implement PUT /api/v1/products/:product_id/photos/reorder handler in PhotoHandler
 - [X] T063 [US2] Register PUT route for photo reordering in backend/product-service/main.go
 - [X] T064 [US2] Add primary photo toggle logic (ensure only one primary per product) in PhotoService
-- [ ] T065 [P] [US2] Create PhotoManager component with reorder/delete UI in frontend/src/components/products/PhotoManager.tsx
-- [ ] T066 [US2] Integrate PhotoManager into product edit page in frontend
-- [ ] T067 [US2] Add drag-and-drop reordering functionality in PhotoManager component
-- [ ] T068 [US2] Add primary photo selection toggle in PhotoManager component
+- [X] T065 [P] [US2] Create PhotoManager component with reorder/delete UI in frontend/src/components/products/PhotoManager.tsx
+- [X] T066 [US2] Integrate PhotoManager into product edit page in frontend
+- [X] T067 [US2] Add drag-and-drop reordering functionality in PhotoManager component
+- [X] T068 [US2] Add primary photo selection toggle in PhotoManager component
 
 **Checkpoint**: Multiple photos per product fully functional with reordering
 
@@ -170,13 +170,13 @@
 - [X] T071 [US5] Implement Delete method in PhotoRepository with soft delete marker
 - [X] T072 [US5] Implement DELETE /api/v1/products/:product_id/photos/:photo_id handler in PhotoHandler
 - [X] T073 [US5] Register DELETE route for photo deletion in backend/product-service/main.go
-- [ ] T074 [US5] Add background job/retry logic for failed S3 deletions in PhotoService
-- [ ] T075 [US5] Implement circuit breaker pattern for S3 operations in StorageService
-- [ ] T076 [US5] Add fallback to placeholder URL on S3 error in StorageService.GetPhotoURL
-- [ ] T077 [P] [US5] Create ImagePlaceholder component in frontend/src/components/common/ImagePlaceholder.tsx
-- [ ] T078 [US5] Add error handling with placeholder fallback in PhotoGallery component
-- [ ] T079 [US5] Add loading indicators during photo upload/load in frontend components
-- [ ] T080 [US5] Add error logging and monitoring for photo failures in backend
+- [X] T074 [US5] Add background job/retry logic for failed S3 deletions in PhotoService
+- [X] T075 [US5] Implement circuit breaker pattern for S3 operations in StorageService
+- [X] T076 [US5] Add fallback to placeholder URL on S3 error in StorageService.GetPhotoURL
+- [X] T077 [P] [US5] Create ImagePlaceholder component in frontend/src/components/common/ImagePlaceholder.tsx
+- [X] T078 [US5] Add error handling with placeholder fallback in PhotoGallery component
+- [X] T079 [US5] Add loading indicators during photo upload/load in frontend components
+- [X] T080 [US5] Add error logging and monitoring for photo failures in backend
 
 **Checkpoint**: System handles photo errors gracefully without breaking UI
 

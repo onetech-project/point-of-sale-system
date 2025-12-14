@@ -35,7 +35,6 @@ export interface UploadPhotoParams {
 }
 
 export interface UpdatePhotoMetadataParams {
-  photoId: string;
   displayOrder?: number;
   isPrimary?: boolean;
 }

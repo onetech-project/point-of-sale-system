@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from '@/i18n/provider';
 import CategorySelect from './CategorySelect';
 import PhotoUpload from './PhotoUpload';
-import { CreateProductRequest, UpdateProductRequest, Product } from '@/types/product';
+import PhotoManager from './PhotoManager';
+import { Product } from '@/types/product';
 import type { ProductPhoto } from '@/types/photo';
 import { formatNumber, parseFormattedNumber } from '@/utils/format';
 import photoService from '@/services/photo';
@@ -361,27 +362,44 @@ const ProductForm: React.FC<ProductFormProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-3">
             {t('products.form.photos')}
           </label>
-          <PhotoUpload
-            productId={initialData.id}
-            maxPhotos={5}
-            existingPhotos={photos}
-            onUploadSuccess={handlePhotoUploadSuccess}
-            onUploadError={handlePhotoUploadError}
-          />
-          {loadingPhotos && (
-            <p className="mt-2 text-sm text-gray-500">{t('products.form.loadingPhotos')}</p>
+
+          {loadingPhotos ? (
+            <p className="text-sm text-gray-500">{t('products.form.loadingPhotos')}</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Photo Manager for existing photos */}
+              {photos.length > 0 && (
+                <PhotoManager
+                  productId={initialData.id}
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                  maxPhotos={5}
+                />
+              )}
+
+              {/* Photo Upload for adding new photos */}
+              {photos.length < 5 && (
+                <PhotoUpload
+                  productId={initialData.id}
+                  maxPhotos={5}
+                  existingPhotos={photos}
+                  onUploadSuccess={handlePhotoUploadSuccess}
+                  onUploadError={handlePhotoUploadError}
+                />
+              )}
+            </div>
           )}
         </div>
       )}
 
       {/* Help text for new products */}
-      {!isEdit && (
+      {/* {!isEdit && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
           <p className="text-sm text-blue-800">
             {t('products.form.photoHelpCreate')}
           </p>
         </div>
-      )}
+      )} */}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-3 pt-4">

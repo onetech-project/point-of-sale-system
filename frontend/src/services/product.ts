@@ -35,6 +35,9 @@ class ProductService {
       queryParams.append('low_stock', params.low_stock.toString());
     if (params?.archived !== undefined) queryParams.append('archived', params.archived.toString());
 
+    // Include primary photo URLs in product list (Feature 005)
+    queryParams.append('include_primary_photo', 'true');
+
     const url = queryParams.toString() ? `${PRODUCTS_BASE}?${queryParams}` : PRODUCTS_BASE;
     const response = await apiClient.get<{
       products: Product[];
@@ -142,11 +145,13 @@ class ProductService {
 
   /**
    * Gets the URL for a product photo
-   * @param id - Product UUID
-   * @param tenantId - Optional tenant ID for public access
+   * @param item - Product object
    * @returns Full URL to product photo endpoint
    */
-  getPhotoUrl(id: string, tenantId?: string): string {
+  getPhotoUrl(id: string, tenantId?: string, path?: string): string {
+    if (path?.startsWith('http://') || path?.startsWith('https://')) {
+      return path;
+    }
     if (tenantId) {
       // Public photo URL for guest ordering
       return `${apiClient.getAxiosInstance().defaults.baseURL}/api/public/products/${tenantId}/${id}/photo`;
@@ -299,6 +304,9 @@ class ProductService {
     if (params?.available_only !== undefined) {
       queryParams.append('available_only', params.available_only.toString());
     }
+
+    // Include primary photo URLs in public menu (Feature 005)
+    queryParams.append('include_primary_photo', 'true');
 
     const url = queryParams.toString()
       ? `/api/public/menu/${tenantId}/products?${queryParams}`

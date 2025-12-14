@@ -38,12 +38,6 @@ export default function PaymentReturnPage() {
     statusCode: string,
     transactionStatus: string
   ) => {
-    console.log('Payment return:', {
-      orderReference,
-      statusCode,
-      transactionStatus,
-    });
-
     // Determine payment result based on transaction status
     if (!orderReference) {
       // No order reference - invalid return

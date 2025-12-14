@@ -340,3 +340,62 @@ func (r *PhotoRepository) ReorderPhotos(ctx context.Context, tenantID uuid.UUID,
 
 	return nil
 }
+
+// ListByTenant retrieves all photos for a specific tenant (for cascade deletion)
+func (r *PhotoRepository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*models.ProductPhoto, error) {
+	query := `
+		SELECT id, product_id, tenant_id, storage_key, original_filename,
+			   file_size_bytes, mime_type, width_px, height_px,
+			   display_order, is_primary, created_at, updated_at
+		FROM product_photos
+		WHERE tenant_id = $1
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tenant photos: %w", err)
+	}
+	defer rows.Close()
+
+	var photos []*models.ProductPhoto
+	for rows.Next() {
+		photo := &models.ProductPhoto{}
+		err := rows.Scan(
+			&photo.ID, &photo.ProductID, &photo.TenantID, &photo.StorageKey,
+			&photo.OriginalFilename, &photo.FileSizeBytes, &photo.MimeType,
+			&photo.WidthPx, &photo.HeightPx, &photo.DisplayOrder, &photo.IsPrimary,
+			&photo.CreatedAt, &photo.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan photo: %w", err)
+		}
+		photos = append(photos, photo)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating photos: %w", err)
+	}
+
+	return photos, nil
+}
+
+// DeleteAllByTenant deletes all photos for a tenant (for cascade deletion)
+func (r *PhotoRepository) DeleteAllByTenant(ctx context.Context, tenantID uuid.UUID) error {
+	query := "DELETE FROM product_photos WHERE tenant_id = $1"
+
+	result, err := r.db.ExecContext(ctx, query, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to delete tenant photos: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	// Log the number of photos deleted (caller should log this)
+	_ = rowsAffected
+
+	return nil
+}

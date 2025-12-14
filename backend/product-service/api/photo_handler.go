@@ -381,7 +381,7 @@ func (h *PhotoHandler) ReorderPhotos(c echo.Context) error {
 	})
 }
 
-// GetStorageQuota handles GET /api/v1/tenants/storage-quota
+// GetStorageQuota handles GET /api/v1/products/storage-quota
 func (h *PhotoHandler) GetStorageQuota(c echo.Context) error {
 	ctx := c.Request().Context()
 

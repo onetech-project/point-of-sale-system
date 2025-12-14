@@ -83,10 +83,16 @@ class PhotoService {
    * List all photos for a product
    */
   async listPhotos(productId: string): Promise<ProductPhoto[]> {
-    const response = await apiClient.get<{ data: ProductPhoto[] }>(
+    const response = await apiClient.get<{
+      data: {
+        photos: ProductPhoto[] | null;
+        count: number;
+      }
+    }>(
       `/api/v1/products/${productId}/photos`
     );
-    return response.data;
+    // Backend returns {photos: null, count: 0} when empty, convert null to empty array
+    return response.data.photos || [];
   }
 
   /**
@@ -135,7 +141,7 @@ class PhotoService {
    */
   async getStorageQuota(): Promise<StorageQuota> {
     const response = await apiClient.get<{ data: StorageQuota }>(
-      '/api/v1/tenants/storage-quota'
+      '/api/v1/products/storage-quota'
     );
     return response.data;
   }

@@ -504,11 +504,11 @@ curl -X PUT "http://localhost:8086/api/v1/products/7c9e6679-7425-40de-944b-e07fc
 
 Get current storage usage and quota for the authenticated tenant.
 
-**Endpoint**: `GET /api/v1/tenants/storage-quota`
+**Endpoint**: `GET /api/v1/products/storage-quota`
 
 **Example Request**:
 ```bash
-curl -X GET "http://localhost:8086/api/v1/tenants/storage-quota" \
+curl -X GET "http://localhost:8086/api/v1/products/storage-quota" \
   -H "Authorization: Bearer eyJhbGc..." \
   -H "X-Tenant-ID: 550e8400-e29b-41d4-a716-446655440000"
 ```

@@ -196,7 +196,7 @@ All "NEEDS CLARIFICATION" items from Technical Context have been resolved with d
 4. `PATCH /api/v1/products/{id}/photos/{photo_id}` - Update metadata
 5. `DELETE /api/v1/products/{id}/photos/{photo_id}` - Delete photo
 6. `PUT /api/v1/products/{id}/photos/reorder` - Bulk reorder
-7. `GET /api/v1/tenants/storage-quota` - Get quota info
+7. `GET /api/v1/products/storage-quota` - Get quota info
 8. Enhanced product endpoints with `?include_photos=true`
 
 All endpoints require authentication and tenant isolation enforcement.

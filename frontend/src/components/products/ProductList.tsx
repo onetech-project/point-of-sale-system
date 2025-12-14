@@ -158,7 +158,7 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
                   <div className="h-48 bg-gray-100 flex items-center justify-center">
                     {product.photo_path ? (
                       <img
-                        src={productService.getPhotoUrl(product.id)}
+                        src={productService.getPhotoUrl(product.id, undefined, product.photo_path)}
                         alt={product.name}
                         className="h-full w-full object-cover"
                       />

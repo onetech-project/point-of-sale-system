@@ -43,6 +43,12 @@
       "maxFileSize": "Max file size: 5MB. Formats: JPEG, PNG, WebP",
       "photoHelpCreate": "Save the product first, then you can upload photos in the edit screen.",
       "loadingPhotos": "Loading photos...",
+      "noPhotos": "No photos uploaded yet",
+      "confirmDeletePhoto": "Are you sure you want to delete this photo?",
+      "deletePhotoError": "Failed to delete photo. Please try again.",
+      "primary": "Primary",
+      "setPrimary": "Set as primary",
+      "dragToReorder": "Drag photos to reorder them",
       "createButton": "Create Product",
       "updateButton": "Update Product"
     },

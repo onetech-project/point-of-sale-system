@@ -8,9 +8,12 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
 import ProductForm from '@/components/products/ProductForm';
 import StockAdjustmentModal from '@/components/products/StockAdjustmentModal';
+import PhotoGallery from '@/components/products/PhotoGallery';
 import { product as productService } from '@/services/product';
 import { Product, UpdateProductRequest, StockAdjustmentRequest } from '@/types/product';
+import type { ProductPhoto } from '@/types/photo';
 import { formatNumber } from '@/utils/format';
+import photoService from '@/services/photo';
 
 export default function ProductDetailPage() {
   const router = useRouter();
@@ -22,13 +25,14 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photos, setPhotos] = useState<ProductPhoto[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
 
   useEffect(() => {
     if (productId) {
       fetchProduct();
+      fetchPhotos();
     }
   }, [productId]);
 
@@ -46,6 +50,19 @@ export default function ProductDetailPage() {
     }
   };
 
+  const fetchPhotos = async () => {
+    try {
+      setLoadingPhotos(true);
+      const photoList = await photoService.listPhotos(productId);
+      setPhotos(photoList);
+    } catch (err: any) {
+      console.error('Failed to fetch photos:', err);
+      // Don't show error for photos, just log it
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
   const handleUpdateProduct = async (data: UpdateProductRequest) => {
     try {
       const updated = await productService.updateProduct(productId, data);
@@ -53,34 +70,6 @@ export default function ProductDetailPage() {
       setIsEditing(false);
     } catch (error) {
       throw error;
-    }
-  };
-
-  const handlePhotoUpload = async (file: File) => {
-    try {
-      setUploadingPhoto(true);
-      const updated = await productService.uploadPhoto(productId, file);
-      setProduct(updated);
-      setPhotoFile(null);
-    } catch (err: any) {
-      console.error('Failed to upload photo:', err);
-      alert(err.response?.data?.message || 'Failed to upload photo');
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
-  const handleDeletePhoto = async () => {
-    if (!confirm('Are you sure you want to delete this photo?')) {
-      return;
-    }
-
-    try {
-      await productService.deletePhoto(productId);
-      await fetchProduct();
-    } catch (err: any) {
-      console.error('Failed to delete photo:', err);
-      alert(err.response?.data?.message || 'Failed to delete photo');
     }
   };
 
@@ -199,62 +188,36 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Product Photo */}
+            {/* Left Column - Product Photos */}
             <div className="lg:col-span-1">
               <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('products.form.photo')}</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('products.form.photos')}</h2>
 
-                <div className="mb-4">
-                  {product.photo_path ? (
-                    <div className="relative">
-                      <img
-                        src={productService.getPhotoUrl(productId)}
-                        alt={product.name}
-                        className="w-full h-64 object-cover rounded-lg"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                        }}
-                      />
-                      <button
-                        onClick={handleDeletePhoto}
-                        className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full hover:bg-red-700"
-                        title={t('products.form.deletePhoto')}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                {loadingPhotos ? (
+                  <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div className="text-gray-500 text-center">
+                      <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                      <p className="text-sm">{t('products.form.loadingPhotos')}</p>
                     </div>
-                  ) : (
-                    <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <div className="text-gray-400 text-center">
-                        <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <p className="mt-2 text-sm">{t('products.noPhoto', { defaultValue: 'No photo' })}</p>
-                      </div>
+                  </div>
+                ) : photos.length > 0 ? (
+                  <PhotoGallery photos={photos} />
+                ) : (
+                  <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div className="text-gray-400 text-center">
+                      <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="mt-2 text-sm">{t('products.form.noPhotos')}</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                <div>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handlePhotoUpload(file);
-                      }
-                    }}
-                    disabled={uploadingPhoto}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    {t('products.form.maxFileSize')}
+                {/* {!isEditing && (
+                  <p className="mt-4 text-xs text-gray-500 text-center">
+                    {t('products.form.photoHelpCreate')}
                   </p>
-                </div>
+                )} */}
               </div>
 
               {/* Stock Info */}
