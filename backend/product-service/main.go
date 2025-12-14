@@ -116,6 +116,7 @@ func main() {
 	apiGroup.GET("/products/:product_id/photos", photoHandler.ListPhotos)
 	apiGroup.GET("/products/:product_id/photos/:photo_id", photoHandler.GetPhoto)
 	apiGroup.PATCH("/products/:product_id/photos/:photo_id", photoHandler.UpdatePhotoMetadata)
+	apiGroup.PUT("/products/:product_id/photos/:photo_id", photoHandler.ReplacePhoto)
 	apiGroup.DELETE("/products/:product_id/photos/:photo_id", photoHandler.DeletePhoto)
 	apiGroup.PUT("/products/:product_id/photos/reorder", photoHandler.ReorderPhotos)
 	apiGroup.GET("/tenants/storage-quota", photoHandler.GetStorageQuota)

@@ -256,6 +256,109 @@ func (s *PhotoService) ReorderPhotos(ctx context.Context, tenantID uuid.UUID, or
 	return s.photoRepo.ReorderPhotos(ctx, tenantID, orders)
 }
 
+// ReplacePhoto replaces an existing photo (delete old, upload new)
+func (s *PhotoService) ReplacePhoto(
+	ctx context.Context,
+	photoID, tenantID uuid.UUID,
+	filename string,
+	fileReader io.Reader,
+) (*models.ProductPhoto, error) {
+	// 1. Get existing photo to validate it exists and belongs to tenant
+	existingPhoto, err := s.photoRepo.GetByID(ctx, photoID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Validate and process new image
+	metadata, imageData, err := s.imageProcessor.ValidateImage(fileReader)
+	if err != nil {
+		return nil, fmt.Errorf("image validation failed: %w", err)
+	}
+
+	// 3. Check storage quota (consider the size difference)
+	quota, err := s.photoRepo.GetTenantStorageQuota(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check storage quota: %w", err)
+	}
+
+	// Calculate net storage change (new size - old size)
+	netSizeChange := metadata.Size - int64(existingPhoto.FileSizeBytes)
+	if netSizeChange > 0 && quota.StorageUsedBytes+netSizeChange > quota.StorageQuotaBytes {
+		return nil, models.ErrQuotaExceeded
+	}
+
+	// 4. Optimize image
+	optimizedData, err := s.imageProcessor.OptimizeImage(imageData, metadata.MimeType)
+	if err != nil {
+		return nil, fmt.Errorf("image optimization failed: %w", err)
+	}
+
+	// 5. Generate new storage key (keep same photo ID but new filename)
+	sanitizedFilename := SanitizeFilename(filename)
+	storageKey := GenerateStorageKey(tenantID, existingPhoto.ProductID, photoID, sanitizedFilename)
+
+	// 6. Upload new photo to object storage
+	err = s.storageService.UploadPhoto(
+		ctx,
+		storageKey,
+		bytes.NewReader(optimizedData),
+		int64(len(optimizedData)),
+		metadata.MimeType,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload replacement photo to storage: %w", err)
+	}
+
+	// 7. Delete old photo from storage (best effort)
+	if existingPhoto.StorageKey != storageKey {
+		err = s.storageService.DeletePhoto(ctx, existingPhoto.StorageKey)
+		if err != nil {
+			// Log warning but continue - old file can be cleaned up later
+			fmt.Printf("Warning: failed to delete old photo from storage: %v\n", err)
+		}
+	}
+
+	// 8. Update database record with new metadata
+	updatedPhoto := &models.ProductPhoto{
+		ID:               photoID,
+		ProductID:        existingPhoto.ProductID,
+		TenantID:         tenantID,
+		StorageKey:       storageKey,
+		OriginalFilename: sanitizedFilename,
+		FileSizeBytes:    int(metadata.Size),
+		MimeType:         metadata.MimeType,
+		WidthPx:          &metadata.Width,
+		HeightPx:         &metadata.Height,
+		DisplayOrder:     existingPhoto.DisplayOrder, // Keep existing order
+		IsPrimary:        existingPhoto.IsPrimary,    // Keep existing primary status
+	}
+
+	err = s.photoRepo.Update(ctx, updatedPhoto)
+	if err != nil {
+		// Cleanup: Try to delete newly uploaded photo
+		_ = s.storageService.DeletePhoto(ctx, storageKey)
+		return nil, fmt.Errorf("failed to update photo metadata: %w", err)
+	}
+
+	// 9. Update tenant storage usage with net change
+	if netSizeChange != 0 {
+		err = s.photoRepo.UpdateTenantStorageUsage(ctx, tenantID, netSizeChange)
+		if err != nil {
+			fmt.Printf("Warning: failed to update tenant storage usage: %v\n", err)
+		}
+	}
+
+	// 10. Generate presigned URL for response
+	photoURL, err := s.storageService.GetPhotoURL(ctx, storageKey)
+	if err != nil {
+		fmt.Printf("Warning: failed to generate photo URL: %v\n", err)
+	} else {
+		updatedPhoto.PhotoURL = photoURL
+	}
+
+	return updatedPhoto, nil
+}
+
 // GetStorageQuota retrieves storage quota information for a tenant
 func (s *PhotoService) GetStorageQuota(ctx context.Context, tenantID uuid.UUID) (*models.StorageQuotaResponse, error) {
 	return s.photoRepo.GetTenantStorageQuota(ctx, tenantID)

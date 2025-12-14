@@ -236,6 +236,77 @@ func (h *PhotoHandler) UpdatePhotoMetadata(c echo.Context) error {
 	})
 }
 
+// ReplacePhoto handles PUT /api/v1/products/:product_id/photos/:photo_id
+func (h *PhotoHandler) ReplacePhoto(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Parse photo ID from URL
+	photoID, err := uuid.Parse(c.Param("photo_id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"status": "error",
+			"error": map[string]interface{}{
+				"code":    "INVALID_PHOTO_ID",
+				"message": "Invalid photo ID format",
+			},
+		})
+	}
+
+	// Get tenant ID from context
+	tenantID, err := utils.GetTenantIDFromContext(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"status": "error",
+			"error": map[string]interface{}{
+				"code":    "UNAUTHORIZED",
+				"message": "Tenant ID not found in request context",
+			},
+		})
+	}
+
+	// Parse multipart form
+	file, err := c.FormFile("photo")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"status": "error",
+			"error": map[string]interface{}{
+				"code":    "MISSING_FILE",
+				"message": "Photo file is required",
+			},
+		})
+	}
+
+	// Open uploaded file
+	src, err := file.Open()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"status": "error",
+			"error": map[string]interface{}{
+				"code":    "FILE_READ_ERROR",
+				"message": "Failed to read uploaded file",
+			},
+		})
+	}
+	defer src.Close()
+
+	// Replace photo
+	photo, err := h.photoService.ReplacePhoto(
+		ctx,
+		photoID,
+		tenantID,
+		file.Filename,
+		src,
+	)
+	if err != nil {
+		return handlePhotoError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status": "success",
+		"data":   photo,
+	})
+}
+
 // DeletePhoto handles DELETE /api/v1/products/:product_id/photos/:photo_id
 func (h *PhotoHandler) DeletePhoto(c echo.Context) error {
 	ctx := c.Request().Context()

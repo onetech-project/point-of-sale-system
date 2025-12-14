@@ -69,10 +69,10 @@
 - [X] T024 [US1] Register POST /api/v1/products/:product_id/photos route in backend/product-service/main.go
 - [X] T025 [US1] Add file upload validation middleware (size, type, dimensions) in backend/product-service/api/photo_handler.go
 - [X] T026 [US1] Add storage quota check before upload in PhotoService (backend/product-service/src/services/photo_service.go)
-- [ ] T027 [US1] Implement photo replacement logic (delete old, upload new) in PhotoService
+- [X] T027 [US1] Implement photo replacement logic (delete old, upload new) in PhotoService
 - [X] T028 [US1] Add error handling and logging for upload operations in PhotoHandler
-- [ ] T029 [P] [US1] Create PhotoUpload component in frontend/src/components/products/PhotoUpload.tsx
-- [ ] T030 [P] [US1] Create photoService API client in frontend/src/services/photoService.ts
+- [X] T029 [P] [US1] Create PhotoUpload component in frontend/src/components/products/PhotoUpload.tsx
+- [X] T030 [P] [US1] Create photoService API client in frontend/src/services/photoService.ts
 - [ ] T031 [US1] Integrate PhotoUpload component into product create/edit forms in frontend
 - [ ] T032 [US1] Add upload progress indicator and error messages in PhotoUpload component
 

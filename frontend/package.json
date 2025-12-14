@@ -21,6 +21,7 @@
     "@alloc/quick-lru": "^5.2.0",
     "axios": "^1.13.2",
     "i18next": "^25.6.3",
+    "lucide-react": "^0.561.0",
     "next": "^16.0.3",
     "next-i18next": "^15.4.2",
     "react": "^19.2.0",

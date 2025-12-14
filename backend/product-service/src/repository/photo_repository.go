@@ -152,6 +152,37 @@ func (r *PhotoRepository) UpdateMetadata(ctx context.Context, photoID, tenantID 
 	return nil
 }
 
+// Update replaces all fields of a photo (used for photo replacement)
+func (r *PhotoRepository) Update(ctx context.Context, photo *models.ProductPhoto) error {
+	query := `
+		UPDATE product_photos 
+		SET storage_key = $1, original_filename = $2, file_size_bytes = $3,
+		    mime_type = $4, width_px = $5, height_px = $6, updated_at = $7
+		WHERE id = $8 AND tenant_id = $9
+	`
+
+	result, err := r.db.ExecContext(
+		ctx, query,
+		photo.StorageKey, photo.OriginalFilename, photo.FileSizeBytes,
+		photo.MimeType, photo.WidthPx, photo.HeightPx, time.Now(),
+		photo.ID, photo.TenantID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update product photo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return models.ErrPhotoNotFound
+	}
+
+	return nil
+}
+
 // Delete removes a photo from the database
 func (r *PhotoRepository) Delete(ctx context.Context, photoID, tenantID uuid.UUID) (*models.ProductPhoto, error) {
 	// Get photo before deletion (for storage cleanup)
