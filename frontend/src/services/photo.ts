@@ -1,50 +1,13 @@
 import apiClient from './api';
-
-export interface ProductPhoto {
-  id: string;
-  product_id: string;
-  tenant_id: string;
-  storage_key: string;
-  original_filename: string;
-  file_size_bytes: number;
-  mime_type: string;
-  width_px?: number;
-  height_px?: number;
-  display_order: number;
-  is_primary: boolean;
-  photo_url?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StorageQuota {
-  tenant_id: string;
-  storage_used_bytes: number;
-  storage_quota_bytes: number;
-  available_bytes: number;
-  usage_percentage: number;
-  photo_count: number;
-  approaching_limit: boolean;
-  quota_exceeded: boolean;
-}
-
-export interface UploadPhotoParams {
-  productId: string;
-  file: File;
-  displayOrder?: number;
-  isPrimary?: boolean;
-  onProgress?: (progress: number) => void;
-}
-
-export interface UpdatePhotoMetadataParams {
-  photoId: string;
-  displayOrder?: number;
-  isPrimary?: boolean;
-}
-
-export interface ReorderPhotosParams {
-  photos: Array<{ photo_id: string; display_order: number }>;
-}
+import type {
+  ProductPhoto,
+  StorageQuota,
+  UploadPhotoParams,
+  UpdatePhotoMetadataParams,
+  ReorderPhotosParams,
+} from '@/types/photo';
+import { validateImageFile } from '@/utils/validation';
+import { formatFileSize } from '@/utils/format';
 
 class PhotoService {
   /**
@@ -69,7 +32,7 @@ class PhotoService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        onUploadProgress: (progressEvent) => {
+        onUploadProgress: (progressEvent: ProgressEvent) => {
           if (onProgress && progressEvent.total) {
             const percentComplete = Math.round(
               (progressEvent.loaded * 100) / progressEvent.total
@@ -80,7 +43,7 @@ class PhotoService {
       }
     );
 
-    return response.data.data;
+    return response.data;
   }
 
   /**
@@ -102,7 +65,7 @@ class PhotoService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        onUploadProgress: (progressEvent) => {
+        onUploadProgress: (progressEvent: ProgressEvent) => {
           if (onProgress && progressEvent.total) {
             const percentComplete = Math.round(
               (progressEvent.loaded * 100) / progressEvent.total
@@ -113,7 +76,7 @@ class PhotoService {
       }
     );
 
-    return response.data.data;
+    return response.data;
   }
 
   /**
@@ -123,7 +86,7 @@ class PhotoService {
     const response = await apiClient.get<{ data: ProductPhoto[] }>(
       `/api/v1/products/${productId}/photos`
     );
-    return response.data.data;
+    return response.data;
   }
 
   /**
@@ -133,7 +96,7 @@ class PhotoService {
     const response = await apiClient.get<{ data: ProductPhoto }>(
       `/api/v1/products/${productId}/photos/${photoId}`
     );
-    return response.data.data;
+    return response.data;
   }
 
   /**
@@ -174,43 +137,18 @@ class PhotoService {
     const response = await apiClient.get<{ data: StorageQuota }>(
       '/api/v1/tenants/storage-quota'
     );
-    return response.data.data;
+    return response.data;
   }
 
   /**
    * Validate file before upload (client-side validation)
    */
-  validateFile(file: File): { valid: boolean; error?: string } {
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        valid: false,
-        error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.',
-      };
-    }
-
-    if (file.size > maxSize) {
-      return {
-        valid: false,
-        error: 'File size exceeds 10MB limit.',
-      };
-    }
-
-    return { valid: true };
-  }
+  validateFile = validateImageFile;
 
   /**
    * Format file size for display
    */
-  formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  }
+  formatFileSize = formatFileSize;
 }
 
 export default new PhotoService();

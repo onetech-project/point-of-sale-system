@@ -1,6 +1,7 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { Upload, X, Image as ImageIcon, AlertCircle } from 'lucide-react';
-import photoService, { ProductPhoto } from '@/services/photoService';
+import photoService from '@/services/photo';
+import type { ProductPhoto } from '@/types/photo';
 
 interface PhotoUploadProps {
   productId?: string;
