@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/pos/auth-service/src/services"
+	. "github.com/pos/auth-service/src/utils"
 )
 
 type LogoutHandler struct {
@@ -21,7 +22,7 @@ func NewLogoutHandler(authService *services.AuthService, jwtService *services.JW
 
 // Logout terminates the current session
 func (h *LogoutHandler) Logout(c echo.Context) error {
-	locale := getLocaleFromHeader(c.Request().Header.Get("Accept-Language"))
+	locale := GetLocaleFromHeader(c.Request().Header.Get("Accept-Language"))
 
 	// Extract JWT token from cookie
 	cookie, err := c.Cookie("auth_token")
@@ -29,7 +30,7 @@ func (h *LogoutHandler) Logout(c echo.Context) error {
 		c.Logger().Debug("No auth token cookie found for logout")
 		// Even if no cookie, return success (already logged out)
 		return c.JSON(http.StatusOK, map[string]string{
-			"message": getLocalizedMessage(locale, "auth.logout.success"),
+			"message": GetLocalizedMessage(locale, "auth.logout.success"),
 		})
 	}
 
@@ -40,7 +41,7 @@ func (h *LogoutHandler) Logout(c echo.Context) error {
 		// Even if token is invalid, clear the cookie
 		clearAuthCookie(c)
 		return c.JSON(http.StatusOK, map[string]string{
-			"message": getLocalizedMessage(locale, "auth.logout.success"),
+			"message": GetLocalizedMessage(locale, "auth.logout.success"),
 		})
 	}
 
@@ -57,7 +58,7 @@ func (h *LogoutHandler) Logout(c echo.Context) error {
 	c.Logger().Infof("User logged out: sessionId=%s, userId=%s", claims.SessionID, claims.UserID)
 
 	return c.JSON(http.StatusOK, map[string]string{
-		"message": getLocalizedMessage(locale, "auth.logout.success"),
+		"message": GetLocalizedMessage(locale, "auth.logout.success"),
 	})
 }
 

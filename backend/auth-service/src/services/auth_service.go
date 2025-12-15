@@ -7,21 +7,18 @@ import (
 	"time"
 
 	"github.com/pos/auth-service/src/models"
+	"github.com/pos/auth-service/src/queue"
 	"github.com/pos/auth-service/src/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type EventPublisher interface {
-	PublishUserLogin(ctx context.Context, tenantID, userID, email, name, ipAddress, userAgent string) error
-}
-
 type AuthService struct {
-	db              *sql.DB
-	sessionRepo     *repository.SessionRepository
-	sessionManager  *SessionManager
-	jwtService      *JWTService
-	rateLimiter     *RateLimiter
-	eventPublisher  EventPublisher
+	db             *sql.DB
+	sessionRepo    *repository.SessionRepository
+	sessionManager *SessionManager
+	jwtService     *JWTService
+	rateLimiter    *RateLimiter
+	eventPublisher *queue.EventPublisher
 }
 
 func NewAuthService(
@@ -29,7 +26,7 @@ func NewAuthService(
 	sessionManager *SessionManager,
 	jwtService *JWTService,
 	rateLimiter *RateLimiter,
-	eventPublisher EventPublisher,
+	eventPublisher *queue.EventPublisher,
 ) *AuthService {
 	return &AuthService{
 		db:             db,
@@ -44,16 +41,16 @@ func NewAuthService(
 // Login authenticates a user and creates a session
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.LoginResponse, string, error) {
 	fmt.Printf("DEBUG: Login attempt for email: %s\n", req.Email)
-	
+
 	// First, find the tenant for this email
 	tenantID, err := s.getTenantIDByEmail(ctx, req.Email)
 	if err != nil {
 		fmt.Printf("DEBUG: Failed to get tenant ID: %v\n", err)
 		return nil, "", fmt.Errorf("failed to lookup tenant: %w", err)
 	}
-	
+
 	fmt.Printf("DEBUG: Found tenant ID: %s\n", tenantID)
-	
+
 	if tenantID == "" {
 		fmt.Printf("DEBUG: No tenant found for email\n")
 		return nil, "", ErrInvalidCredentials
@@ -153,7 +150,15 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 			name += " " + user.LastName
 		}
 		go func() {
-			if err := s.eventPublisher.PublishUserLogin(context.Background(), user.TenantID, user.ID, user.Email, name, ipAddress, userAgent); err != nil {
+			if err := s.eventPublisher.PublishUserLoginSuccess(ctx, queue.LoginSuccessEvent{
+				TenantID:  user.TenantID,
+				UserID:    user.ID,
+				Email:     user.Email,
+				Name:      name,
+				IPAddress: ipAddress,
+				UserAgent: userAgent,
+				Timestamp: time.Now(),
+			}); err != nil {
 				fmt.Printf("Warning: failed to publish login event: %v\n", err)
 			}
 		}()
@@ -199,8 +204,14 @@ func (s *AuthService) ValidateSession(ctx context.Context, sessionID string) (*m
 
 // Logout terminates a session
 func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
+	// Get session data for event publishing
+	sessionData, err := s.sessionManager.Get(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to get session data: %w", err)
+	}
+
 	// Delete from Redis
-	err := s.sessionManager.Delete(ctx, sessionID)
+	err = s.sessionManager.Delete(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session from Redis: %w", err)
 	}
@@ -210,6 +221,20 @@ func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
 	if err != nil {
 		// Non-fatal error - session already deleted from Redis
 		fmt.Printf("Warning: failed to mark session as terminated in database: %v\n", err)
+	}
+
+	if s.eventPublisher != nil {
+		go func() {
+			if err := s.eventPublisher.PublishUserLogoutSuccess(ctx, queue.LogoutSuccessEvent{
+				TenantID:  sessionData.TenantID,
+				UserID:    sessionData.UserID,
+				Email:     sessionData.Email,
+				Name:      sessionData.FirstName,
+				Timestamp: time.Now(),
+			}); err != nil {
+				fmt.Printf("Warning: failed to publish logout event: %v\n", err)
+			}
+		}()
 	}
 
 	return nil
@@ -236,7 +261,7 @@ type User struct {
 
 func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenantID string) (*User, error) {
 	fmt.Printf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", email, tenantID)
-	
+
 	// Set tenant context for RLS policy
 	setContextSQL := fmt.Sprintf("SET LOCAL app.current_tenant_id = '%s'", tenantID)
 	fmt.Printf("DEBUG: Setting tenant context: %s\n", setContextSQL)

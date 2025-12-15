@@ -19,14 +19,17 @@ import (
 
 type PasswordResetService struct {
 	resetRepo      *repository.PasswordResetRepository
-	userDB         *sql.DB
+	db             *sql.DB
 	eventPublisher *queue.EventPublisher
 }
 
-func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, userDB *sql.DB, eventPublisher *queue.EventPublisher) *PasswordResetService {
+func NewPasswordResetService(
+	db *sql.DB,
+	eventPublisher *queue.EventPublisher,
+) *PasswordResetService {
 	return &PasswordResetService{
-		resetRepo:      resetRepo,
-		userDB:         userDB,
+		db:             db,
+		resetRepo:      repository.NewPasswordResetRepository(db),
 		eventPublisher: eventPublisher,
 	}
 }
@@ -37,7 +40,7 @@ func (s *PasswordResetService) RequestReset(email string) (string, error) {
 	var firstName string
 	var lastName string
 	query := `SELECT id, tenant_id, first_name, last_name FROM users WHERE email = $1`
-	err := s.userDB.QueryRow(query, email).Scan(&userID, &tenantID, &firstName, &lastName)
+	err := s.db.QueryRow(query, email).Scan(&userID, &tenantID, &firstName, &lastName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil
@@ -74,12 +77,22 @@ func (s *PasswordResetService) RequestReset(email string) (string, error) {
 	// Publish event to notification service
 	name := firstName + " " + lastName
 	ctx := context.Background()
-	if err := s.eventPublisher.PublishPasswordResetRequested(ctx, tenantID.String(), userID.String(), email, name, token); err != nil {
-		// Log error but don't fail the request
-		log.Printf("Error publishing password reset event: %v", err)
-		return token, nil
+	if s.eventPublisher != nil {
+		go func() {
+			if err := s.eventPublisher.PublishResetPasswordRequested(ctx, queue.ResetPasswordRequestedEvent{
+				TenantID:   tenantID.String(),
+				UserID:     userID.String(),
+				Email:      email,
+				Name:       name,
+				ResetToken: token,
+				Timestamp:  time.Now(),
+			}); err != nil {
+				log.Printf("Error publishing password reset event: %v", err)
+			} else {
+				log.Printf("Published password reset event for user: %s", email)
+			}
+		}()
 	}
-	log.Printf("Published password reset event for user: %s", email)
 
 	return token, nil
 }
@@ -113,7 +126,7 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	// Get user details for notification
 	var email, firstName, lastName string
 	query := `SELECT email, first_name, last_name FROM users WHERE id = $1 AND tenant_id = $2`
-	err = s.userDB.QueryRow(query, resetToken.UserID, resetToken.TenantID).Scan(&email, &firstName, &lastName)
+	err = s.db.QueryRow(query, resetToken.UserID, resetToken.TenantID).Scan(&email, &firstName, &lastName)
 	if err != nil {
 		return err
 	}
@@ -124,7 +137,7 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	}
 
 	updateQuery := `UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3`
-	_, err = s.userDB.Exec(updateQuery, string(hashedPassword), resetToken.UserID, resetToken.TenantID)
+	_, err = s.db.Exec(updateQuery, string(hashedPassword), resetToken.UserID, resetToken.TenantID)
 	if err != nil {
 		return err
 	}
@@ -137,11 +150,21 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	// Publish password changed event
 	name := firstName + " " + lastName
 	ctx := context.Background()
-	if err := s.eventPublisher.PublishPasswordChanged(ctx, resetToken.TenantID.String(), resetToken.UserID.String(), email, name); err != nil {
-		// Log error but don't fail the request
-		log.Printf("Error publishing password changed event: %v", err)
-	} else {
-		log.Printf("Published password changed event for user: %s", email)
+	if s.eventPublisher != nil {
+		go func() {
+			if err := s.eventPublisher.PublishResetPasswordRequested(ctx, queue.ResetPasswordRequestedEvent{
+				TenantID:   resetToken.TenantID.String(),
+				UserID:     resetToken.UserID.String(),
+				Email:      email,
+				Name:       name,
+				ResetToken: token,
+				Timestamp:  time.Now(),
+			}); err != nil {
+				log.Printf("Error publishing password reset event: %v", err)
+			} else {
+				log.Printf("Published password reset event for user: %s", email)
+			}
+		}()
 	}
 
 	return nil

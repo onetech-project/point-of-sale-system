@@ -4,17 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"log"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/auth-service/api"
+	"github.com/pos/auth-service/src/config"
 	"github.com/pos/auth-service/src/queue"
-	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
 	"github.com/pos/auth-service/src/utils"
 )
@@ -32,8 +29,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
-	db, err := sql.Open("postgres", dbURL)
+	db, err := sql.Open("postgres", config.DB_URL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -44,12 +40,10 @@ func main() {
 	}
 
 	// Redis connection
-	redisHost := getEnv("REDIS_HOST", "localhost:6379")
-	redisPassword := getEnv("REDIS_PASSWORD", "")
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisHost,
-		Password: redisPassword,
-		DB:       0,
+		Addr:     config.REDIS_HOST,
+		Password: config.REDIS_PASSWORD,
+		DB:       config.REDIS_DB,
 	})
 
 	// Test Redis connection
@@ -59,21 +53,14 @@ func main() {
 	}
 
 	// Initialize services
-	sessionTTL := getEnvInt("SESSION_TTL_MINUTES", 15)
-	sessionManager := services.NewSessionManager(redisClient, sessionTTL)
+	sessionManager := services.NewSessionManager(redisClient, config.SESSION_TTL_MINUTES)
 
-	jwtSecret := getEnv("JWT_SECRET", "default-secret-change-in-production")
-	jwtExpiration := getEnvInt("JWT_EXPIRATION_MINUTES", 15)
-	jwtService := services.NewJWTService(jwtSecret, jwtExpiration)
+	jwtService := services.NewJWTService(config.JWT_SECRET, config.JWT_EXPIRATION_MINUTES)
 
-	rateLimitMax := getEnvInt("RATE_LIMIT_LOGIN_MAX", 5)
-	rateLimitWindow := getEnvInt("RATE_LIMIT_LOGIN_WINDOW", 900) // 15 minutes in seconds
-	rateLimiter := services.NewRateLimiter(redisClient, rateLimitMax, rateLimitWindow)
+	rateLimiter := services.NewRateLimiter(redisClient, config.RATE_LIMIT_LOGIN_MAX, config.RATE_LIMIT_LOGIN_WINDOW)
 
 	// Initialize Kafka producer and event publisher
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
-	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
+	eventPublisher := queue.NewEventPublisher(config.KAFKA_BROKERS)
 	defer eventPublisher.Close()
 
 	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
@@ -93,37 +80,12 @@ func main() {
 	e.POST("/logout", logoutHandler.Logout)
 
 	// Password reset endpoints
-	passwordResetRepo := repository.NewPasswordResetRepository(db)
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
+	passwordResetService := services.NewPasswordResetService(db, eventPublisher)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)
 
 	// Start server
-	port := getEnv("PORT", "8082")
-	log.Printf("Auth service starting on port %s", port)
-	e.Logger.Fatal(e.Start(":" + port))
-}
-
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	intValue, err := strconv.Atoi(value)
-	if err != nil {
-		log.Printf("Warning: invalid integer value for %s, using default: %d", key, defaultValue)
-		return defaultValue
-	}
-
-	return intValue
+	log.Printf("Auth service starting on port %s", config.PORT)
+	e.Logger.Fatal(e.Start(":" + config.PORT))
 }
