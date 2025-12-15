@@ -13,9 +13,9 @@ type TenantConfigService struct {
 	db         *sql.DB
 }
 
-func NewTenantConfigService(configRepo *repository.TenantConfigRepository, db *sql.DB) *TenantConfigService {
+func NewTenantConfigService(db *sql.DB) *TenantConfigService {
 	return &TenantConfigService{
-		configRepo: configRepo,
+		configRepo: repository.NewTenantConfigRepository(db),
 		db:         db,
 	}
 }

@@ -4,13 +4,19 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 
+	"context"
+
 	"github.com/pos/tenant-service/api"
-	"github.com/pos/tenant-service/src/repository"
+	"github.com/pos/tenant-service/src/config"
+	"github.com/pos/tenant-service/src/queue"
+	"github.com/pos/tenant-service/src/queue/handlers"
 	"github.com/pos/tenant-service/src/services"
 )
 
@@ -24,12 +30,7 @@ func main() {
 	e.Use(middleware.Recover())
 	// Note: CORS is handled by API Gateway, not by individual services
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable"
-	}
-
-	db, err := sql.Open("postgres", dbURL)
+	db, err := sql.Open("postgres", config.DB_URL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -49,8 +50,7 @@ func main() {
 	e.GET("/tenant", tenantHandler.GetTenant)
 
 	// Tenant configuration routes
-	configRepo := repository.NewTenantConfigRepository(db)
-	configService := services.NewTenantConfigService(configRepo, db)
+	configService := services.NewTenantConfigService(db)
 	configHandler := api.NewTenantConfigHandler(configService)
 
 	// Public routes
@@ -62,11 +62,31 @@ func main() {
 	admin.GET("/:tenant_id/midtrans-config", configHandler.GetMidtransConfig)
 	admin.PATCH("/:tenant_id/midtrans-config", configHandler.UpdateMidtransConfig)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8084"
-	}
+	// Start Kafka producer and event publisher
+	eventPublisher := queue.NewEventPublisher(config.KAFKA_BROKERS)
+	defer eventPublisher.Close()
 
-	log.Printf("Tenant service starting on port %s", port)
-	e.Logger.Fatal(e.Start(":" + port))
+	// Start Kafka consumers
+	tenantService := services.NewTenantService(db)
+	authConsumer := handlers.NewAuthConsumer(tenantService)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go authConsumer.StartAuthConsumer(ctx)
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("Shutting down notification service...")
+		cancel()
+		authConsumer.Stop()
+		e.Close()
+	}()
+
+	log.Printf("Tenant service starting on port %s", config.PORT)
+	e.Logger.Fatal(e.Start(":" + config.PORT))
 }

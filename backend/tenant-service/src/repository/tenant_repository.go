@@ -32,7 +32,7 @@ func (r *TenantRepository) Create(ctx context.Context, tenant *models.Tenant) er
 	tenant.UpdatedAt = now
 
 	if tenant.Status == "" {
-		tenant.Status = string(models.TenantStatusActive)
+		tenant.Status = string(models.TenantStatusInactive)
 	}
 
 	_, err := r.db.ExecContext(ctx, query,
