@@ -67,3 +67,11 @@ func (rl *RateLimiter) RateLimit(maxAttempts int, window time.Duration) echo.Mid
 func (rl *RateLimiter) LoginRateLimit() echo.MiddlewareFunc {
 	return rl.RateLimit(5, 15*time.Minute)
 }
+
+func (rl *RateLimiter) PublicRateLimit() echo.MiddlewareFunc {
+	return rl.RateLimit(20, 60*time.Second)
+}
+
+func (rl *RateLimiter) PublicOrderRateLimit() echo.MiddlewareFunc {
+	return rl.RateLimit(100, 60*time.Second)
+}
