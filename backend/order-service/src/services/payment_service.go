@@ -187,7 +187,11 @@ func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.Gue
 func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, orderID string, amount int, chargeResp *QRISChargeResponse) error {
 	// Parse expiry time - Midtrans returns time in Asia/Jakarta timezone (WIB)
 	// Since our database column is TIMESTAMP WITHOUT TIME ZONE, we need to convert to UTC
-	loc, _ := time.LoadLocation("Asia/Jakarta")
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load Asia/Jakarta location, using UTC fallback")
+		loc = time.UTC
+	}
 	expiryTimeWIB, err := time.ParseInLocation("2006-01-02 15:04:05", chargeResp.ExpiryTime, loc)
 	if err != nil {
 		log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time")

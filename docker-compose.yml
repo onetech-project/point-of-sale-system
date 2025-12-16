@@ -388,7 +388,6 @@ services:
     restart: unless-stopped
     networks:
       - pos-network
-      - external-network
     deploy:
       resources:
         limits:
@@ -408,7 +407,7 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - external-network
+      - pos-network
     deploy:
       resources:
         limits:
@@ -427,7 +426,7 @@ services:
       - caddy_data:/data                          # Persist certs & state
       - caddy_config:/config
     networks:
-      - external-network
+      - pos-network
     deploy:
       resources:
         limits:
@@ -440,9 +439,9 @@ volumes:
   redis_data:
   kafka_data:
   minio_data:
+  caddy_data:
+  caddy_config:
 
 networks:
-  external-network:
-    driver: bridge
-  internal-network:
+  pos-network:
     driver: bridge
