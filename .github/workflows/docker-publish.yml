@@ -1,11 +1,11 @@
 name: Build & Push All Services
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
       - staging
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -55,6 +55,7 @@ jobs:
           - name: frontend
             context: frontend
             dockerfile: frontend/Dockerfile
+            needs_env: true
 
     steps:
       - name: Checkout source
@@ -71,9 +72,34 @@ jobs:
         id: envtag
         run: |
           if [[ "${GITHUB_REF_NAME}" == "master" ]]; then
-            echo "TAG=prod" >> $GITHUB_OUTPUT
+            echo "TAG=production" >> $GITHUB_OUTPUT
           else
             echo "TAG=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Select frontend env
+        if: matrix.service.needs_env == true
+        id: frontend_env
+        run: |
+          echo "NEXT_PUBLIC_APP_NAME=${{secrets.NEXT_PUBLIC_APP_NAME}}" >> $GITHUB_OUTPUT
+          echo "NEXT_PUBLIC_DEFAULT_LOCALE=${{secrets.NEXT_PUBLIC_DEFAULT_LOCALE}}" >> $GITHUB_OUTPUT
+          echo "NEXT_PUBLIC_SUPPORTED_LOCALES=${{secrets.NEXT_PUBLIC_SUPPORTED_LOCALES}}" >> $GITHUB_OUTPUT
+          if [[ "${GITHUB_REF_NAME}" == "master" ]]; then
+            echo "NEXT_PUBLIC_API_URL=${{ secrets.PROD_NEXT_PUBLIC_API_URL }}" >> $GITHUB_OUTPUT
+            echo "API_GATEWAY_URL=${{ secrets.PROD_API_GATEWAY_URL }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_S3_ENDPOINT=${{ secrets.PROD_S3_ENDPOINT }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_APP_VERSION=${{ secrets.PROD_APP_VERSION }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENVIRONMENT=production" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENABLE_ANALYTICS=${{ secrets.PROD_ENABLE_ANALYTICS }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENABLE_DEBUG=${{ secrets.PROD_ENABLE_DEBUG }}" >> $GITHUB_OUTPUT
+          else
+            echo "NEXT_PUBLIC_API_URL=${{ secrets.STAGING_NEXT_PUBLIC_API_URL }}" >> $GITHUB_OUTPUT
+            echo "API_GATEWAY_URL=${{ secrets.STAGING_API_GATEWAY_URL }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_S3_ENDPOINT=${{ secrets.STAGING_S3_ENDPOINT }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_APP_VERSION=${{ secrets.STAGING_APP_VERSION }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENVIRONMENT=staging" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENABLE_ANALYTICS=${{ secrets.STAGING_ENABLE_ANALYTICS }}" >> $GITHUB_OUTPUT
+            echo "NEXT_PUBLIC_ENABLE_DEBUG=${{ secrets.STAGING_ENABLE_DEBUG }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build & Push ${{ matrix.service.name }}
@@ -82,6 +108,39 @@ jobs:
           context: ./${{ matrix.service.context }}
           file: ./${{ matrix.service.dockerfile }}
           push: true
+          build-args: |
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_API_URL={0}', steps.frontend_env.outputs.NEXT_PUBLIC_API_URL) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_APP_NAME={0}', steps.frontend_env.outputs.NEXT_PUBLIC_APP_NAME) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_DEFAULT_LOCALE={0}', steps.frontend_env.outputs.NEXT_PUBLIC_DEFAULT_LOCALE) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_SUPPORTED_LOCALES={0}', steps.frontend_env.outputs.NEXT_PUBLIC_SUPPORTED_LOCALES) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_S3_ENDPOINT={0}', steps.frontend_env.outputs.NEXT_PUBLIC_S3_ENDPOINT) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_APP_VERSION={0}', steps.frontend_env.outputs.NEXT_PUBLIC_APP_VERSION) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_ENVIRONMENT={0}', steps.frontend_env.outputs.NEXT_PUBLIC_ENVIRONMENT) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_ENABLE_ANALYTICS={0}', steps.frontend_env.outputs.NEXT_PUBLIC_ENABLE_ANALYTICS) || '' }}
+            ${{ matrix.service.needs_env && format('NEXT_PUBLIC_ENABLE_DEBUG={0}', steps.frontend_env.outputs.NEXT_PUBLIC_ENABLE_DEBUG) || '' }}
+            ${{ matrix.service.needs_env && format('API_GATEWAY_URL={0}', steps.frontend_env.outputs.API_GATEWAY_URL) || '' }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-${{ matrix.service.name }}:${{ steps.envtag.outputs.TAG }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-${{ matrix.service.name }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to VPS
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH and Docker Compose
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            cd /opt/app
+            if [ "${GITHUB_REF_NAME}" = "master" ]; then
+              export COMPOSE_FILE=docker-compose.production.yml
+            else
+              export COMPOSE_FILE=docker-compose.staging.yml
+            fi
+            docker-compose -f $COMPOSE_FILE pull
+            docker-compose -f $COMPOSE_FILE up -d --remove-orphans

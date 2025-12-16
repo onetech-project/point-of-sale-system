@@ -17,6 +17,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
 
   redis:
     image: redis:8.0.5-alpine
@@ -30,6 +38,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -63,6 +79,14 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 1024M
 
   # MinIO Object Storage for Product Photos (Feature 005)
   minio:
@@ -84,6 +108,12 @@ services:
       retries: 5
     networks:
       - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 256M
   
   mailhog:
     image: mailhog/mailhog:latest
@@ -99,6 +129,12 @@ services:
       start_period: 10s
     networks:
       - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
 
   # T112: Order Service for QRIS Guest Ordering
   order-service:
@@ -124,9 +160,6 @@ services:
 
     ports:
       - "8087:8080"
-    volumes:
-      - ./backend/order-service:/app
-      - order_service_cache:/go/pkg/mod
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -139,7 +172,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -159,13 +192,11 @@ services:
       - ./backend/auth-service/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable}
-      REDIS_HOST  : ${REDIS_HOST:-redis:6379}
+      REDIS_HOST: redis:6379
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
       PORT: 8080
     ports:
       - "8082:8080"
-    volumes:
-      - ./backend/auth-service:/app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -178,7 +209,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -190,21 +221,16 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      mailhog:
-        condition: service_healthy
     env_file:
       - ./backend/notification-service/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable}
-      REDIS_HOST: ${REDIS_HOST:-redis}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
       SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
       PORT: 8080
     ports:
       - "8085:8080"
-    volumes:
-      - ./backend/notification-service:/app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -217,7 +243,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -237,13 +263,12 @@ services:
       - ./backend/product-service/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable}
-      REDIS_HOST: ${REDIS_HOST:-redis:6379}
+      REDIS_HOST: redis:6379
       S3_ENDPOINT: ${S3_ENDPOINT:-minio:9000}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-localhost:9000}
       PORT: 8080
     ports:
       - "8086:8080"
-    volumes:
-      - ./backend/product-service:/app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -256,7 +281,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -278,8 +303,6 @@ services:
       PORT: 8080
     ports:
       - "8084:8080"
-    volumes:
-      - ./backend/tenant-service:/app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -292,7 +315,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -315,8 +338,6 @@ services:
       PORT: 8080
     ports:
       - "8083:8080"
-    volumes:
-      - ./backend/user-service:/app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -329,7 +350,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
   
@@ -349,7 +370,7 @@ services:
       PRODUCT_SERVICE_URL:  ${PRODUCT_SERVICE_URL:-http://product-service:8080}
       ORDER_SERVICE_URL:  ${ORDER_SERVICE_URL:-http://order-service:8080}
       NOTIFICATION_SERVICE_URL:  ${NOTIFICATION_SERVICE_URL:-http://notification-service:8080}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
 
       # Server Configuration
       PORT: 8080
@@ -358,9 +379,6 @@ services:
       
     ports:
       - "8080:8080"
-    volumes:
-      - ./api-gateway:/app
-      - api_gateway_cache:/go/pkg/mod
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -370,10 +388,11 @@ services:
     restart: unless-stopped
     networks:
       - pos-network
+      - external-network
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 128M
 
@@ -385,9 +404,30 @@ services:
     env_file:
       - ./frontend/.env.local
     environment:
-      PORT: 80
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    networks:
+      - external-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile    # Caddy configuration
+      - caddy_data:/data                          # Persist certs & state
+      - caddy_config:/config
+    networks:
+      - external-network
     deploy:
       resources:
         limits:
@@ -400,14 +440,9 @@ volumes:
   redis_data:
   kafka_data:
   minio_data:
-  order_service_cache:
-  api_gateway_cache:
-  auth_service_cache:
-  notification_service_cache:
-  product_service_cache:
-  tenant_service_cache:
-  user_service_cache:
 
 networks:
-  pos-network:
+  external-network:
+    driver: bridge
+  internal-network:
     driver: bridge
