@@ -10,6 +10,7 @@ import (
 type StorageConfig struct {
 	// Connection settings
 	Endpoint        string // S3 endpoint (e.g., "localhost:9000" for MinIO, "s3.amazonaws.com" for AWS)
+	PublicEndpoint  string // Public S3 endpoint (e.g., "localhost:9000" for MinIO, "s3.amazonaws.com" for AWS)
 	AccessKeyID     string // S3 access key
 	SecretAccessKey string // S3 secret key
 	BucketName      string // S3 bucket name
@@ -28,6 +29,7 @@ type StorageConfig struct {
 func LoadStorageConfig() (*StorageConfig, error) {
 	config := &StorageConfig{
 		Endpoint:        utils.GetEnv("S3_ENDPOINT", "localhost:9000"),
+		PublicEndpoint:  utils.GetEnv("S3_PUBLIC_ENDPOINT", "localhost:9000"),
 		AccessKeyID:     utils.GetEnv("S3_ACCESS_KEY", "minioadmin"),
 		SecretAccessKey: utils.GetEnv("S3_SECRET_KEY", "minioadmin"),
 		BucketName:      utils.GetEnv("S3_BUCKET_NAME", "product-photos"),
@@ -44,6 +46,9 @@ func LoadStorageConfig() (*StorageConfig, error) {
 	// Validate required fields
 	if config.Endpoint == "" {
 		return nil, fmt.Errorf("S3_ENDPOINT is required")
+	}
+	if config.PublicEndpoint == "" {
+		return nil, fmt.Errorf("S3_PUBLIC_ENDPOINT is required")
 	}
 	if config.AccessKeyID == "" {
 		return nil, fmt.Errorf("S3_ACCESS_KEY is required")

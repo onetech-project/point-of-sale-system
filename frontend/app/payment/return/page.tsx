@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,10 @@ import { useTranslation } from 'react-i18next';
  * - transaction_status: Transaction status (settlement, pending, cancel, etc.)
  */
 export default function PaymentReturnPage() {
+  return <Suspense><PaymentReturnHandler /></Suspense>;
+}
+
+function PaymentReturnHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useTranslation();

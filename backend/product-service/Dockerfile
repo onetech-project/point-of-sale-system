@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o auth-service main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o product-service main.go
 
 # Runtime stage
 FROM alpine:latest
@@ -24,10 +24,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the binary from builder
-COPY --from=builder /app/auth-service .
+COPY --from=builder /app/product-service .
 
 # Expose port
-EXPOSE 8082
+EXPOSE 8086
 
 # Run the binary
-CMD ["./auth-service"]
+CMD ["./product-service"]
