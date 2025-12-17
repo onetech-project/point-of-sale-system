@@ -18,7 +18,6 @@ import (
 // StorageService handles object storage operations (S3/MinIO)
 type StorageService struct {
 	client         *minio.Client
-	publicClient   *minio.Client
 	config         *config.StorageConfig
 	circuitBreaker *CircuitBreaker
 }
@@ -36,24 +35,12 @@ func NewStorageService(cfg *config.StorageConfig) (*StorageService, error) {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
 	}
 
-	// Initialize Public MinIO client
-	publicClient, err := minio.New(cfg.PublicEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Secure: cfg.UseSSL,
-		Region: cfg.Region,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create public minio client: %w", err)
-	}
-
 	// Initialize circuit breaker
 	// 5 failures → open, wait 30s, then try 3 successes to close
 	circuitBreaker := NewCircuitBreaker(5, 3, 30*time.Second)
 
 	return &StorageService{
 		client:         client,
-		publicClient:   publicClient,
 		config:         cfg,
 		circuitBreaker: circuitBreaker,
 	}, nil
@@ -107,7 +94,7 @@ func (s *StorageService) GetPhotoURL(ctx context.Context, storageKey string) (st
 	err := s.circuitBreaker.Call(func() error {
 		ttl := time.Duration(s.config.PresignedURLTTLSeconds) * time.Second
 
-		urlObj, err := s.publicClient.PresignedGetObject(ctx, s.config.BucketName, storageKey, ttl, nil)
+		urlObj, err := s.client.PresignedGetObject(ctx, s.config.BucketName, storageKey, ttl, nil)
 		if err != nil {
 			return fmt.Errorf("failed to generate presigned URL: %w", err)
 		}
@@ -132,6 +119,9 @@ func (s *StorageService) GetPhotoURL(ctx context.Context, storageKey string) (st
 		// Return empty string - frontend will detect this and show placeholder
 		return "", err
 	}
+
+	// replace internal url to public url
+	url = strings.ReplaceAll(url, s.config.Endpoint, s.config.PublicEndpoint)
 
 	return url, nil
 }
