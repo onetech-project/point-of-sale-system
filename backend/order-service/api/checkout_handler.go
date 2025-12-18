@@ -287,16 +287,8 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		}
 	}
 
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		log.Error().Err(err).Msg("Failed to commit transaction")
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to create order",
-		})
-	}
-
 	// Create inventory reservations with 15min TTL
-	if err := h.inventoryService.CreateReservations(ctx, orderID, cart.Items); err != nil {
+	if err := h.inventoryService.CreateReservations(ctx, tx, orderID, cart.Items); err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
 			Str("order_reference", orderReference).
@@ -321,7 +313,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	order.CreatedAt = time.Now()
 	// TotalAmount already set correctly with delivery fee
 
-	qrisResp, err := h.paymentService.CreateQRISCharge(ctx, order)
+	qrisResp, err := h.paymentService.CreateQRISCharge(ctx, order, cart.Items)
 	if err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
@@ -334,12 +326,20 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	}
 
 	// Save QRIS payment info to database
-	if err := h.paymentService.SaveQRISPaymentInfo(ctx, orderID, order.TotalAmount, qrisResp); err != nil {
+	if err := h.paymentService.SaveQRISPaymentInfo(ctx, tx, orderID, order.TotalAmount, qrisResp); err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
 			Str("transaction_id", qrisResp.TransactionID).
 			Msg("Failed to save QRIS payment info")
 		// Continue - payment was created, info will be saved via webhook
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		log.Error().Err(err).Msg("Failed to commit transaction")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to create order",
+		})
 	}
 
 	// Get QR code URL from actions array
@@ -652,8 +652,18 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 	}
 
 	if payment != nil {
+		now := time.Now()
+		log.Debug().Str("server_time", now.Format(time.RFC3339)).Msg("Current server time for payment expiry calculation")
+
 		var expiryTimeStr *string
+		remainingTime := int64(0)
 		if payment.ExpiryTime != nil {
+			expiryTime := payment.ExpiryTime
+			log.Debug().Str("expiry_time", expiryTime.Format(time.RFC3339)).Msg("the payment expiry time for payment expiry calculation")
+
+			remainingTime = max(int64(expiryTime.Add(-7*time.Hour).Sub(now).Seconds()), 0)
+			log.Debug().Str("remaining_time", fmt.Sprintf("%d", remainingTime)).Msg("the remaining time for payment expiry")
+
 			// Format as RFC3339 to ensure timezone is preserved
 			formatted := payment.ExpiryTime.Format(time.RFC3339)
 			expiryTimeStr = &formatted
@@ -664,6 +674,8 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 			"transaction_status": payment.TransactionStatus,
 			"qr_code_url":        payment.QRCodeURL,
 			"expiry_time":        expiryTimeStr,
+			"server_time":        now.Format(time.RFC3339),
+			"remaining_time":     remainingTime,
 			"payment_type":       payment.PaymentType,
 		}
 	}

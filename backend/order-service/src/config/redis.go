@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -72,15 +71,11 @@ func GetRedis() *redis.Client {
 }
 
 func loadRedisConfig() RedisConfig {
-	db := GetEnvAsInt("REDIS_DB", 0)
-	maxRetries := GetEnvAsInt("REDIS_MAX_RETRIES", 3)
-	poolSize := GetEnvAsInt("REDIS_POOL_SIZE", 10)
-
 	return RedisConfig{
-		URL:        os.Getenv("REDIS_URL"),
-		Password:   os.Getenv("REDIS_PASSWORD"),
-		DB:         db,
-		MaxRetries: maxRetries,
-		PoolSize:   poolSize,
+		URL:        GetEnvAsString("REDIS_URL"),
+		Password:   GetEnvAsString("REDIS_PASSWORD"),
+		DB:         GetEnvAsInt("REDIS_DB"),
+		MaxRetries: GetEnvAsInt("REDIS_MAX_RETRIES"),
+		PoolSize:   GetEnvAsInt("REDIS_POOL_SIZE"),
 	}
 }

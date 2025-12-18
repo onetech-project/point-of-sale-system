@@ -19,8 +19,11 @@ export default function DashboardPage() {
             Welcome back, {user?.firstName || user?.email}!
           </p>
         </div>
+
+        {/* Dashboard will be developed here soon, now only placeholders "Coming Soon" */}
+
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
@@ -76,7 +79,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow mb-8">
@@ -105,19 +108,32 @@ export default function DashboardPage() {
                 <span className="text-gray-700 font-medium">View Profile</span>
               </Link>
 
-              <button className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors">
+              <Link
+                href="/settings"
+                className="flex items-center justify-center px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
                 <svg className="h-6 w-6 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <span className="text-gray-700 font-medium">Settings</span>
-              </button>
+              </Link>
+
             </div>
           </div>
         </div>
 
+        {/* Coming Soon Placeholder */}
+        <div className="bg-white rounded-lg shadow p-6 text-center">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h11M9 21V3m0 0L5 7m4-4l4 4m6 14h-5m0 0l4-4m-4 4l-4-4" />
+          </svg>
+          <h3 className="mt-2 text-lg font-medium text-gray-900">More Features Coming Soon!</h3>
+          <p className="mt-1 text-sm text-gray-500">We're working hard to bring you more dashboard features. Stay tuned!</p>
+        </div>
+
         {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow">
+        {/* <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           </div>
@@ -130,7 +146,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-gray-500">Get started by inviting team members or setting up your profile.</p>
             </div>
           </div>
-        </div>
+        </div> */}
       </DashboardLayout>
     </ProtectedRoute>
   );

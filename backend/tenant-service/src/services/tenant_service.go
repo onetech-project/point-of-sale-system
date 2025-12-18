@@ -1,18 +1,16 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
-	"net/http"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/pos/tenant-service/src/models"
+	"github.com/pos/tenant-service/src/queue"
 	"github.com/pos/tenant-service/src/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -25,14 +23,16 @@ var (
 )
 
 type TenantService struct {
-	tenantRepo *repository.TenantRepository
-	db         *sql.DB
+	tenantRepo     *repository.TenantRepository
+	db             *sql.DB
+	eventPublisher *queue.EventPublisher
 }
 
-func NewTenantService(db *sql.DB) *TenantService {
+func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantService {
 	return &TenantService{
-		tenantRepo: repository.NewTenantRepository(db),
-		db:         db,
+		tenantRepo:     repository.NewTenantRepository(db),
+		db:             db,
+		eventPublisher: eventPublisher,
 	}
 }
 
@@ -57,7 +57,6 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 	tenant := &models.Tenant{
 		BusinessName: req.BusinessName,
 		Slug:         slug,
-		Status:       string(models.TenantStatusActive),
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -67,7 +66,7 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 	defer tx.Rollback()
 
 	// Create tenant
-	if err := s.tenantRepo.Create(ctx, tenant); err != nil {
+	if err := s.tenantRepo.Create(ctx, tx, tenant); err != nil {
 		return nil, fmt.Errorf("failed to create tenant: %w", err)
 	}
 
@@ -88,7 +87,14 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 	}
 
 	// Send verification email (async, non-blocking)
-	go s.sendVerificationEmail(tenant.ID, ownerUserID, req.Email, req.FirstName, verificationToken)
+	if s.eventPublisher != nil {
+		name := strings.TrimSpace(fmt.Sprintf("%s %s", req.FirstName, req.LastName))
+		go func() {
+			if err := s.eventPublisher.PublishUserRegistered(context.Background(), tenant.ID, ownerUserID, req.Email, name, verificationToken); err != nil {
+				fmt.Printf("Warning: failed to publish login event: %v\n", err)
+			}
+		}()
+	}
 
 	return tenant, nil
 }
@@ -112,10 +118,10 @@ func (s *TenantService) createOwnerUser(ctx context.Context, tx *sql.Tx, tenantI
 			first_name, last_name, email_verified, 
 			verification_token, verification_token_expires_at
 		)
-		VALUES ($1, $2, $3, 'owner', 'active', $4, $5, false, $6, $7)
+		VALUES ($1, $2, $3, 'owner', 'inactive', $4, $5, false, $6, $7)
 		RETURNING id
 	`
-	
+
 	var userID string
 	err = tx.QueryRowContext(ctx, query, tenantID, email, hashedPassword, firstName, lastName, verificationToken, expiresAt).Scan(&userID)
 	if err != nil {
@@ -132,50 +138,6 @@ func generateVerificationToken() string {
 		b[i] = charset[rand.Intn(len(charset))]
 	}
 	return string(b)
-}
-
-func (s *TenantService) sendVerificationEmail(tenantID, userID, email, firstName, verificationToken string) {
-	// Get notification service URL from environment
-	notificationURL := os.Getenv("NOTIFICATION_SERVICE_URL")
-	if notificationURL == "" {
-		notificationURL = "http://localhost:8085"
-	}
-
-	// Build verification URL
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
-	}
-	verificationURL := fmt.Sprintf("%s/verify-email?token=%s", frontendURL, verificationToken)
-
-	payload := map[string]interface{}{
-		"tenant_id":        tenantID,
-		"user_id":          userID,
-		"email":            email,
-		"first_name":       firstName,
-		"type":             "email_verification",
-		"verification_url": verificationURL,
-		"verification_token": verificationToken,
-	}
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		fmt.Printf("Failed to marshal verification email payload: %v\n", err)
-		return
-	}
-
-	resp, err := http.Post(notificationURL+"/send", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		fmt.Printf("Failed to send verification email: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		fmt.Printf("Verification email request failed with status: %d\n", resp.StatusCode)
-	} else {
-		fmt.Printf("Verification email sent successfully to %s\n", email)
-	}
 }
 
 func (s *TenantService) GetBySlug(ctx context.Context, slug string) (*models.Tenant, error) {

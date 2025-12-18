@@ -20,6 +20,7 @@ type TenantStatus string
 
 const (
 	TenantStatusActive    TenantStatus = "active"
+	TenantStatusInactive  TenantStatus = "inactive"
 	TenantStatusSuspended TenantStatus = "suspended"
 	TenantStatusDeleted   TenantStatus = "deleted"
 )

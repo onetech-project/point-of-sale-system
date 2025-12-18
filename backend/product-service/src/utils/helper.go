@@ -10,44 +10,52 @@ import (
 )
 
 // GetEnv retrieves an environment variable or returns a default value
-func GetEnv(key, defaultValue string) string {
+func GetEnv(key string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultValue
+
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set")
 }
 
 // GetEnvBool retrieves a boolean environment variable or returns a default value
-func GetEnvBool(key string, defaultValue bool) bool {
+func GetEnvBool(key string) bool {
 	if value := os.Getenv(key); value != "" {
 		boolVal, err := strconv.ParseBool(value)
 		if err == nil {
 			return boolVal
 		}
 	}
-	return defaultValue
+
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set or is not a valid boolean")
 }
 
 // GetEnvInt retrieves an integer environment variable or returns a default value
-func GetEnvInt(key string, defaultValue int) int {
+func GetEnvInt(key string) int {
 	if value := os.Getenv(key); value != "" {
 		intVal, err := strconv.Atoi(value)
 		if err == nil {
 			return intVal
 		}
 	}
-	return defaultValue
+
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set or is not a valid integer")
 }
 
 // GetEnvInt64 retrieves an int64 environment variable or returns a default value
-func GetEnvInt64(key string, defaultValue int64) int64 {
+func GetEnvInt64(key string) int64 {
 	if value := os.Getenv(key); value != "" {
 		intVal, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			return intVal
 		}
 	}
-	return defaultValue
+
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set or is not a valid int64")
 }
 
 // GetTenantIDFromContext extracts tenant ID from Echo context

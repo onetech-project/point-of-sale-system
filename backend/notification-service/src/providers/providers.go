@@ -59,22 +59,26 @@ type SMTPEmailProvider struct {
 	username      string
 	password      string
 	from          string
+	enableTLS     bool
+	enable        bool
 	retryAttempts int
 	retryDelay    time.Duration
 }
 
 func NewSMTPEmailProvider() *SMTPEmailProvider {
 	retryAttempts := 3
-	if attempts := getEnv("SMTP_RETRY_ATTEMPTS", "3"); attempts != "" {
+	if attempts := getEnv("SMTP_RETRY_ATTEMPTS"); attempts != "" {
 		fmt.Sscanf(attempts, "%d", &retryAttempts)
 	}
 
 	return &SMTPEmailProvider{
-		host:          getEnv("SMTP_HOST", "localhost"),
-		port:          getEnv("SMTP_PORT", "587"),
-		username:      getEnv("SMTP_USERNAME", ""),
-		password:      getEnv("SMTP_PASSWORD", ""),
-		from:          getEnv("SMTP_FROM", "noreply@pos-system.com"),
+		host:          getEnv("SMTP_HOST"),
+		port:          getEnv("SMTP_PORT"),
+		username:      getEnv("SMTP_USERNAME"),
+		password:      getEnv("SMTP_PASSWORD"),
+		from:          getEnv("SMTP_FROM"),
+		enableTLS:     getEnv("SMTP_TLS") == "true",
+		enable:        getEnv("SMTP_ENABLE") == "true",
 		retryAttempts: retryAttempts,
 		retryDelay:    2 * time.Second,
 	}
@@ -92,8 +96,8 @@ func (p *SMTPEmailProvider) Send(to, subject, body string, isHTML bool) error {
 		e.Text = []byte(body)
 	}
 
-	// If no SMTP configured, log and return (for development)
-	if p.username == "" {
+	// If email sending is disabled, just log the email
+	if !p.enable {
 		fmt.Printf("[EMAIL] To: %s, Subject: %s\n%s\n", to, subject, body)
 		return nil
 	}
@@ -197,9 +201,10 @@ func (p *MockPushProvider) Send(token, title, body string, data map[string]strin
 	return nil
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnv(key string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultValue
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set")
 }

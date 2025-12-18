@@ -23,8 +23,9 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
 
-# Copy the binary from builder
+# Copy the binary and templates from builder
 COPY --from=builder /app/notification-service .
+COPY --from=builder /app/templates ./templates
 
 # Expose port
 EXPOSE 8085

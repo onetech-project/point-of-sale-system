@@ -73,7 +73,7 @@ FOR UPDATE
 }
 
 // CreateReservations creates inventory reservations for cart items
-func (s *InventoryService) CreateReservations(ctx context.Context, orderID string, items []models.CartItem) error {
+func (s *InventoryService) CreateReservations(ctx context.Context, tx *sql.Tx, orderID string, items []models.CartItem) error {
 	expiresAt := time.Now().Add(ReservationTTL)
 
 	for _, item := range items {
@@ -85,7 +85,7 @@ func (s *InventoryService) CreateReservations(ctx context.Context, orderID strin
 			ExpiresAt: expiresAt,
 		}
 
-		err := s.reservationRepo.CreateReservation(ctx, reservation)
+		err := s.reservationRepo.CreateReservation(ctx, tx, reservation)
 		if err != nil {
 			log.Error().Err(err).
 				Str("order_id", orderID).

@@ -34,7 +34,7 @@ func NewNotificationService(db *sql.DB) *NotificationService {
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
-		frontendURL:   getEnv("FRONTEND_DOMAIN", "http://localhost:3000"),
+		frontendURL:   getEnv("FRONTEND_DOMAIN"),
 		db:            db,
 	}
 
@@ -46,16 +46,17 @@ func NewNotificationService(db *sql.DB) *NotificationService {
 	return service
 }
 
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
+func getEnv(key string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return value
+
+	//thow error: missing environment variable
+	panic("Environment variable " + key + " is not set")
 }
 
 func (s *NotificationService) loadTemplates() error {
-	templateDir := getEnv("TEMPLATE_DIR", "./templates")
+	templateDir := getEnv("TEMPLATE_DIR")
 
 	templateFiles := []string{
 		"registration.html",
@@ -125,7 +126,7 @@ func (s *NotificationService) handleUserRegistration(ctx context.Context, event 
 	body := s.renderTemplate("registration", map[string]interface{}{
 		"Name":  name,
 		"Token": verificationToken,
-		"URL":   fmt.Sprintf("%s/verify?token=%s", s.frontendURL, verificationToken),
+		"URL":   fmt.Sprintf("%s/verify-email?token=%s", s.frontendURL, verificationToken),
 	})
 
 	// Add event_type to metadata

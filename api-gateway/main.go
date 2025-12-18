@@ -34,10 +34,10 @@ func main() {
 
 	public := e.Group("")
 
-	tenantServiceURL := getEnv("TENANT_SERVICE_URL", "http://localhost:8084")
-	productServiceURL := getEnv("PRODUCT_SERVICE_URL", "http://localhost:8086")
-	authServiceURL := getEnv("AUTH_SERVICE_URL", "http://localhost:8082")
-	userServiceURL := getEnv("USER_SERVICE_URL", "http://localhost:8083")
+	tenantServiceURL := getEnv("TENANT_SERVICE_URL")
+	productServiceURL := getEnv("PRODUCT_SERVICE_URL")
+	authServiceURL := getEnv("AUTH_SERVICE_URL")
+	userServiceURL := getEnv("USER_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
 	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
@@ -86,6 +86,7 @@ func main() {
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
 	public.POST("/api/auth/password-reset/request", proxyHandler(authServiceURL, "/password-reset/request"))
 	public.POST("/api/auth/password-reset/reset", proxyHandler(authServiceURL, "/password-reset/reset"))
+	public.POST("/api/auth/verify-account", proxyHandler(authServiceURL, "/verify-account"))
 
 	public.POST("/api/invitations/:token/accept", proxyHandler(userServiceURL, "/invitations/:token/accept"))
 
@@ -120,7 +121,7 @@ func main() {
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
 
 	// Order service routes
-	orderServiceURL := getEnv("ORDER_SERVICE_URL", "http://localhost:8087")
+	orderServiceURL := getEnv("ORDER_SERVICE_URL")
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
@@ -141,7 +142,7 @@ func main() {
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
 
 	// Notification service routes (owner/manager only)
-	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8085")
+	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL")
 	notificationGroup := protected.Group("/api/v1")
 	notificationGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	notificationGroup.Any("/notifications*", proxyWildcard(notificationServiceURL))
@@ -155,7 +156,7 @@ func main() {
 		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
 	})
 
-	port := getEnv("PORT", "8080")
+	port := getEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
@@ -207,10 +208,11 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 	}
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnv(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		// throw error: missing environment variable
+		panic("Environment variable " + key + " is not set")
 	}
 	return value
 }

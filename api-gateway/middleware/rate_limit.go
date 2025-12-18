@@ -19,7 +19,8 @@ type RateLimiter struct {
 func NewRateLimiter() *RateLimiter {
 	redisHost := os.Getenv("REDIS_HOST")
 	if redisHost == "" {
-		redisHost = "localhost:6379"
+		// throw error: no redis host specified
+		panic("REDIS_HOST environment variable is not set")
 	}
 
 	client := redis.NewClient(&redis.Options{

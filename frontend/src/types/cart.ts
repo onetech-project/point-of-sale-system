@@ -77,6 +77,8 @@ export interface PaymentInfo {
   transaction_status: string;
   qr_code_url?: string;
   expiry_time?: string;
+  server_time?: string;
+  remaining_time?: number;
   payment_type: string;
 }
 

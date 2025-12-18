@@ -17,7 +17,7 @@ func NewTenantRepository(db *sql.DB) *TenantRepository {
 	return &TenantRepository{db: db}
 }
 
-func (r *TenantRepository) Create(ctx context.Context, tenant *models.Tenant) error {
+func (r *TenantRepository) Create(ctx context.Context, tx *sql.Tx, tenant *models.Tenant) error {
 	query := `
 		INSERT INTO tenants (id, business_name, slug, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -32,10 +32,10 @@ func (r *TenantRepository) Create(ctx context.Context, tenant *models.Tenant) er
 	tenant.UpdatedAt = now
 
 	if tenant.Status == "" {
-		tenant.Status = string(models.TenantStatusActive)
+		tenant.Status = string(models.TenantStatusInactive)
 	}
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := tx.ExecContext(ctx, query,
 		tenant.ID,
 		tenant.BusinessName,
 		tenant.Slug,

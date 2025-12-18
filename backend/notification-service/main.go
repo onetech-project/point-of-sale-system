@@ -25,7 +25,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
+	dbURL := getEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -67,9 +67,9 @@ func main() {
 	apiV1.POST("/notifications/:notification_id/resend", resendNotificationHandler.ResendNotification, apimiddleware.RateLimit())
 
 	// Kafka configuration
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
-	kafkaGroupID := getEnv("KAFKA_GROUP_ID", "notification-service-group")
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := getEnv("KAFKA_TOPIC")
+	kafkaGroupID := getEnv("KAFKA_GROUP_ID")
 
 	// Start Kafka consumer
 	consumer := queue.NewKafkaConsumer(
@@ -102,16 +102,17 @@ func main() {
 	}()
 
 	// Start HTTP server
-	port := getEnv("PORT", "8085")
+	port := getEnv("PORT")
 	log.Printf("Notification service starting on port %s", port)
 	if err := e.Start(":" + port); err != nil {
 		log.Printf("Server stopped: %v", err)
 	}
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnv(key string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultValue
+	// throw error: missing environment variable
+	panic("Environment variable " + key + " is not set")
 }

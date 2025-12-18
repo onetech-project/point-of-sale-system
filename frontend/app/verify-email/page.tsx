@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import apiClient from '@/services/api';
 import Link from 'next/link';
+import authService from '@/services/auth';
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -22,16 +22,16 @@ function VerifyEmailContent() {
       }
 
       try {
-        const response = await apiClient.post('/api/auth/verify-email', { token });
+        const response = await authService.verifyAccount(token);
         setStatus('success');
-        setMessage('Email verified successfully!');
-        
+        setMessage('Account verified successfully!');
+
         setTimeout(() => {
-          router.push('/login?verified=true');
-        }, 3000);
+          router.push('/login');
+        }, 5000);
       } catch (error) {
         setStatus('error');
-        setMessage('Verification failed. Link may have expired.');
+        setMessage(error instanceof Error ? error.message : 'Verification failed. Please try again.');
       }
     };
 

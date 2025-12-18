@@ -34,10 +34,6 @@ func main() {
 	}
 	defer config.CloseRedis()
 
-	if err := config.InitMidtrans(); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize Midtrans")
-	}
-
 	if err := config.InitGoogleMaps(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize Google Maps")
 	}
@@ -75,18 +71,15 @@ func main() {
 	addressRepo := repository.NewAddressRepository(config.GetDB())
 
 	// Initialize cart service (shared between cart handler and checkout handler)
-	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL", 86400)) * time.Second
+	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL")) * time.Second
 	cartRepo := repository.NewCartRepository(config.GetRedis(), ttl)
 	reservationRepo := repository.NewReservationRepository(config.GetDB())
 	cartService := services.NewCartService(cartRepo, reservationRepo, config.GetDB())
 
 	// Initialize Kafka producer for notifications (needed by order service)
-	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = "localhost:9092"
-	}
+	kafkaBrokers := config.GetEnvAsString("KAFKA_BROKERS")
 	brokerList := []string{kafkaBrokers}
-	kafkaProducer := queue.NewKafkaProducer(brokerList, "notification-events")
+	kafkaProducer := queue.NewKafkaProducer(brokerList, config.GetEnvAsString("KAFKA_TOPIC"))
 	log.Info().Strs("brokers", brokerList).Msg("Kafka producer initialized")
 
 	// Initialize order service (with Kafka producer and all repos for event publishing)
@@ -136,10 +129,7 @@ func main() {
 	orderSettingsHandler.RegisterRoutes(e)
 
 	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8087"
-	}
+	port := config.GetEnvAsString("PORT")
 
 	log.Info().Str("port", port).Msg("Starting order-service")
 

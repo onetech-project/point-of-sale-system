@@ -32,7 +32,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
+	dbURL := getEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -44,8 +44,8 @@ func main() {
 	}
 
 	// Redis connection
-	redisHost := getEnv("REDIS_HOST", "localhost:6379")
-	redisPassword := getEnv("REDIS_PASSWORD", "")
+	redisHost := getEnv("REDIS_HOST")
+	redisPassword := getEnv("REDIS_PASSWORD")
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisHost,
 		Password: redisPassword,
@@ -59,20 +59,20 @@ func main() {
 	}
 
 	// Initialize services
-	sessionTTL := getEnvInt("SESSION_TTL_MINUTES", 15)
+	sessionTTL := getEnvInt("SESSION_TTL_MINUTES")
 	sessionManager := services.NewSessionManager(redisClient, sessionTTL)
 
-	jwtSecret := getEnv("JWT_SECRET", "default-secret-change-in-production")
-	jwtExpiration := getEnvInt("JWT_EXPIRATION_MINUTES", 15)
+	jwtSecret := getEnv("JWT_SECRET")
+	jwtExpiration := getEnvInt("JWT_EXPIRATION_MINUTES")
 	jwtService := services.NewJWTService(jwtSecret, jwtExpiration)
 
-	rateLimitMax := getEnvInt("RATE_LIMIT_LOGIN_MAX", 5)
-	rateLimitWindow := getEnvInt("RATE_LIMIT_LOGIN_WINDOW", 900) // 15 minutes in seconds
+	rateLimitMax := getEnvInt("RATE_LIMIT_LOGIN_MAX")
+	rateLimitWindow := getEnvInt("RATE_LIMIT_LOGIN_WINDOW")
 	rateLimiter := services.NewRateLimiter(redisClient, rateLimitMax, rateLimitWindow)
 
 	// Initialize Kafka producer and event publisher
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := getEnv("KAFKA_TOPIC")
 	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
 	defer eventPublisher.Close()
 
@@ -92,6 +92,10 @@ func main() {
 	logoutHandler := api.NewLogoutHandler(authService, jwtService)
 	e.POST("/logout", logoutHandler.Logout)
 
+	// Account verification endpoints
+	accountVerificationHandler := api.NewAccountVerificationHandler(authService)
+	e.POST("/verify-account", accountVerificationHandler.VerifyAccount)
+
 	// Password reset endpoints
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
@@ -100,29 +104,31 @@ func main() {
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)
 
 	// Start server
-	port := getEnv("PORT", "8082")
+	port := getEnv("PORT")
 	log.Printf("Auth service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnv(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		// throw error: required environment variable not set
+		panic(key + " environment variable is not set")
 	}
 	return value
 }
 
-func getEnvInt(key string, defaultValue int) int {
+func getEnvInt(key string) int {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		// throw error: required environment variable not set
+		panic(key + " environment variable is not set")
 	}
 
 	intValue, err := strconv.Atoi(value)
 	if err != nil {
-		log.Printf("Warning: invalid integer value for %s, using default: %d", key, defaultValue)
-		return defaultValue
+		// throw error: invalid integer value
+		panic("Invalid integer value for " + key)
 	}
 
 	return intValue

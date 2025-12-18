@@ -16,12 +16,13 @@ type EventPublisher interface {
 }
 
 type AuthService struct {
-	db              *sql.DB
-	sessionRepo     *repository.SessionRepository
-	sessionManager  *SessionManager
-	jwtService      *JWTService
-	rateLimiter     *RateLimiter
-	eventPublisher  EventPublisher
+	db                      *sql.DB
+	sessionRepo             *repository.SessionRepository
+	accountVerificationRepo *repository.AccountVerificationRepository
+	sessionManager          *SessionManager
+	jwtService              *JWTService
+	rateLimiter             *RateLimiter
+	eventPublisher          EventPublisher
 }
 
 func NewAuthService(
@@ -32,28 +33,29 @@ func NewAuthService(
 	eventPublisher EventPublisher,
 ) *AuthService {
 	return &AuthService{
-		db:             db,
-		sessionRepo:    repository.NewSessionRepository(db),
-		sessionManager: sessionManager,
-		jwtService:     jwtService,
-		rateLimiter:    rateLimiter,
-		eventPublisher: eventPublisher,
+		db:                      db,
+		sessionRepo:             repository.NewSessionRepository(db),
+		accountVerificationRepo: repository.NewVerifyAccountRepository(db),
+		sessionManager:          sessionManager,
+		jwtService:              jwtService,
+		rateLimiter:             rateLimiter,
+		eventPublisher:          eventPublisher,
 	}
 }
 
 // Login authenticates a user and creates a session
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.LoginResponse, string, error) {
 	fmt.Printf("DEBUG: Login attempt for email: %s\n", req.Email)
-	
+
 	// First, find the tenant for this email
 	tenantID, err := s.getTenantIDByEmail(ctx, req.Email)
 	if err != nil {
 		fmt.Printf("DEBUG: Failed to get tenant ID: %v\n", err)
 		return nil, "", fmt.Errorf("failed to lookup tenant: %w", err)
 	}
-	
+
 	fmt.Printf("DEBUG: Found tenant ID: %s\n", tenantID)
-	
+
 	if tenantID == "" {
 		fmt.Printf("DEBUG: No tenant found for email\n")
 		return nil, "", ErrInvalidCredentials
@@ -220,6 +222,15 @@ func (s *AuthService) TerminateSession(ctx context.Context, sessionID string) er
 	return s.Logout(ctx, sessionID)
 }
 
+// account verification related methods would go here
+func (s *AuthService) VerifyAccount(ctx context.Context, token string) error {
+	err := s.accountVerificationRepo.FindAndUpdateUserAndTenantStatusByToken(token, time.Now())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Internal helper methods
 
 type User struct {
@@ -236,7 +247,7 @@ type User struct {
 
 func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenantID string) (*User, error) {
 	fmt.Printf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", email, tenantID)
-	
+
 	// Set tenant context for RLS policy
 	setContextSQL := fmt.Sprintf("SET LOCAL app.current_tenant_id = '%s'", tenantID)
 	fmt.Printf("DEBUG: Setting tenant context: %s\n", setContextSQL)
@@ -294,7 +305,7 @@ func (s *AuthService) getTenantIDByEmail(ctx context.Context, email string) (str
 	query := `
 		SELECT tenant_id
 		FROM users
-		WHERE email = $1
+		WHERE email = $1 AND status = 'active'
 		LIMIT 1
 	`
 
@@ -324,8 +335,9 @@ func (s *AuthService) updateLastLogin(ctx context.Context, userID string) {
 // Custom errors
 
 var (
-	ErrInvalidCredentials = fmt.Errorf("invalid email or password")
-	ErrSessionNotFound    = fmt.Errorf("session not found")
+	ErrInvalidCredentials    = fmt.Errorf("invalid email or password")
+	ErrSessionNotFound       = fmt.Errorf("session not found")
+	ErrInvalidOrExpiredToken = fmt.Errorf("invalid or expired token")
 )
 
 type RateLimitError struct {

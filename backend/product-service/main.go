@@ -31,10 +31,7 @@ func main() {
 	defer config.CloseRedis()
 
 	// Initialize storage configuration (Feature 005)
-	storageConfig, err := config.LoadStorageConfig()
-	if err != nil {
-		log.Fatal("Failed to load storage configuration:", err)
-	}
+	storageConfig := config.LoadStorageConfig()
 
 	// Initialize storage service
 	storageService, err := services.NewStorageService(storageConfig)

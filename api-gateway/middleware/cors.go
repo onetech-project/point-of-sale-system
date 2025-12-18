@@ -11,7 +11,8 @@ import (
 func CORS() echo.MiddlewareFunc {
 	allowOrigins := os.Getenv("ALLOWED_ORIGINS")
 	if allowOrigins == "" {
-		allowOrigins = "http://localhost:3000,http://localhost:3001"
+		// throw error: no allowed origins specified
+		panic("ALLOWED_ORIGINS environment variable is not set")
 	}
 
 	origins := strings.Split(allowOrigins, ",")

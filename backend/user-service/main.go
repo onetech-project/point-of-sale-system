@@ -21,7 +21,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
+	dbURL := getEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -33,8 +33,8 @@ func main() {
 	}
 
 	// Kafka configuration
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := getEnv("KAFKA_TOPIC")
 
 	// Initialize Kafka producer
 	eventProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
@@ -60,15 +60,17 @@ func main() {
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
 
 	// Start server
-	port := getEnv("PORT", "8083")
+	port := getEnv("PORT")
 	log.Printf("User service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
 
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
+func getEnv(key string) string {
+
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return value
+
+	// throw error: required environment variable not set
+	panic(key + " environment variable is not set")
 }

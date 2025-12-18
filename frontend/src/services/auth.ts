@@ -130,6 +130,17 @@ export const authService = {
       throw new Error('Failed to reset password. Please try again.');
     }
   },
-};
+
+  async verifyAccount(token: string): Promise<void> {
+    try {
+      await apiClient.post('/api/auth/verify-account', { token });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to verify account. Please try again.');
+    }
+  },
+}
 
 export default authService;
