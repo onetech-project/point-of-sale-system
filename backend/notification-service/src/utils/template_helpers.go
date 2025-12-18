@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 )
 
 // GetTemplateFuncMap returns custom template functions for email templates
@@ -15,6 +16,7 @@ func GetTemplateFuncMap() template.FuncMap {
 		"upper":          strings.ToUpper,
 		"lower":          strings.ToLower,
 		"title":          strings.Title,
+		"now":            time.Now,
 	}
 }
 
