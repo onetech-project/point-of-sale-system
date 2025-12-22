@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PaymentInfo, OrderItem } from '../../types/cart';
 import { renderTextWithLinks, formatCurrency } from '../../utils/text';
+import { download } from '../../utils/download';
 
 interface OrderConfirmationProps {
   orderReference: string;
@@ -19,6 +20,7 @@ interface OrderConfirmationProps {
   paymentInfo?: PaymentInfo;
   notes?: string;
   items?: OrderItem[];
+  customerNotes?: string;
 }
 
 export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
@@ -37,6 +39,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   paymentInfo,
   notes,
   items,
+  customerNotes
 }) => {
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -223,6 +226,16 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
               {t('orderConfirmation.paymentExpiry', 'Please complete payment within 15 minutes')}
             </p>
           </div>
+          {/* rounded block button for download the QR code with fetch */}
+          <div className="mt-6 text-center">
+            <div
+              onClick={() => download(paymentInfo?.qr_code_url || paymentQrUrl || '', `QRIS_${orderReference}.png`, 'image/png')}
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 cursor-pointer"
+            >
+              {t('orderConfirmation.downloadQr', 'Download QR Code')}
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -316,6 +329,18 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                 <span className="font-medium text-gray-900">{formatCurrency(item.total_price)}</span>
               </div>
             ))}
+
+            {/* Customer Note */}
+            {customerNotes && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  {t('orderConfirmation.customerNote', 'Notes')}
+                </h3>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {renderTextWithLinks(customerNotes)}
+                </p>
+              </div>
+            )}
             <div className="border-t my-2"></div>
           </div>
         )}
@@ -352,7 +377,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             </svg>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-amber-900 mb-1">
-                {t('orderConfirmation.noteFromAdmin', 'Note')}
+                {t('orderConfirmation.noteFromAdmin', 'Tenant Notes')}
               </h3>
               <p className="text-sm text-amber-800 whitespace-pre-wrap">
                 {renderTextWithLinks(notes)}

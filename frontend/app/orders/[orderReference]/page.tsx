@@ -212,6 +212,7 @@ export default function OrderStatusPage() {
             paymentInfo={orderData.payment}
             notes={orderData.notes && orderData.notes.length > 0 ? orderData.notes[0].note : undefined}
             items={orderData.items}
+            customerNotes={orderData.order.notes}
           />
 
           {/* Auto-refresh Indicator */}

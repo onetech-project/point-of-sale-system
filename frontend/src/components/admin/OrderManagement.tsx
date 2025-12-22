@@ -420,6 +420,20 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
               )}
 
+              { /* Customer Notes */}
+              {selectedOrderDetails.order.notes && (
+                <div>
+                  <h4 className="font-semibold mb-2">Customer Notes</h4>
+                  <div className="bg-gray-50 border border-gray-200 rounded p-4">
+                    {selectedOrderDetails.order.notes.split('\n').map((line, index) => (
+                      <p key={index} className="text-sm text-gray-700">
+                        {renderTextWithLinks(line)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Latest Note */}
               {selectedOrderDetails.latest_note && (
                 <div>

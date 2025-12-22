@@ -22,6 +22,8 @@ export default function PublicMenuPage() {
   const [tenantConfig, setTenantConfig] = useState<any>(null); // T107
   const [tenantError, setTenantError] = useState<string | null>(null); // T105
   const [tenantLoading, setTenantLoading] = useState<boolean>(true); // T105
+  const [cartMessage, setCartMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [totalItem, setTotalItem] = useState<number>(0);
   const cartRef = useRef<HTMLDivElement>(null);
 
   const scrollToCart = () => {
@@ -152,12 +154,16 @@ export default function PublicMenuPage() {
         product.price
       );
       setCartData(updatedCart);
+      setCartMessage({ type: 'success', text: t('common.cart.added', 'Item added to cart!') });
+      setTotalItem(updatedCart.items.reduce((sum, item) => sum + item.quantity, 0));
     } catch (error: any) {
       console.error('Failed to add item to cart:', error);
       // Extract actual error message from backend
       const errorMessage = error.response?.data?.message || error.message || 'Failed to add item to cart';
-      alert(errorMessage);
+      setCartMessage({ type: 'error', text: errorMessage });
     }
+    // Hide message after 2.5 seconds
+    setTimeout(() => setCartMessage(null), 2500);
   };
 
   const handleUpdateQuantity = async (productId: string, quantity: number) => {
@@ -166,6 +172,7 @@ export default function PublicMenuPage() {
     try {
       const updatedCart = await cart.updateItem(tenantId, productId, quantity);
       setCartData(updatedCart);
+      setTotalItem(updatedCart.items.reduce((sum, item) => sum + item.quantity, 0));
     } catch (error: any) {
       console.error('Failed to update quantity:', error);
       // Extract actual error message from backend
@@ -182,6 +189,7 @@ export default function PublicMenuPage() {
     try {
       const updatedCart = await cart.removeItem(tenantId, productId);
       setCartData(updatedCart);
+      setTotalItem(updatedCart.items.reduce((sum, item) => sum + item.quantity, 0));
     } catch (error: any) {
       console.error('Failed to remove item:', error);
       // Extract actual error message from backend
@@ -373,17 +381,29 @@ export default function PublicMenuPage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={scrollToCart}
-                className="lg:hidden bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
-              >
-                <span className="text-sm font-medium">
-                  {t('common.menu.itemsInCart')}: {cartData?.items.length || 0}
-                </span>
-              </button>
+              {/* Floating Cart Button for Mobile */}
+              <div>
+                <button
+                  onClick={scrollToCart}
+                  className="lg:hidden fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg w-16 h-16 flex items-center justify-center transition-colors"
+                  style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
+                  aria-label={t('common.menu.itemsInCart')}
+                >
+                  {/* Cart Icon */}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9m-5-9V6a2 2 0 10-4 0v3" />
+                  </svg>
+                  {/* Badge */}
+                  {cartData && cartData.items.length > 0 ? (
+                    <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-[1.5rem] text-center border-2 border-white">
+                      {totalItem}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
               <div className="hidden lg:block bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm">
                 <span className="text-sm font-medium">
-                  {t('common.menu.itemsInCart')}: {cartData?.items.length || 0}
+                  {t('common.menu.itemsInCart')}: {totalItem}
                 </span>
               </div>
             </div>
@@ -411,6 +431,19 @@ export default function PublicMenuPage() {
                 onCheckout={handleCheckout}
               />
             </div>
+
+            {/* show timed message for items success or error added to cart */}
+            {cartMessage && (
+              <div
+                className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white transition-all duration-300
+                  ${cartMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+                role="alert"
+              >
+                {cartMessage.text}
+              </div>
+            )}
+
+
           </div>
         </main>
       </div>
