@@ -1,0 +1,27 @@
+services:
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile    # Caddy configuration
+      - caddy_data:/data                          # Persist certs & state
+      - caddy_config:/config
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  pos-network:
+    external: true
