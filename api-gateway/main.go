@@ -5,28 +5,59 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 
 	"github.com/labstack/echo/v4"
+	emw "github.com/labstack/echo/v4/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
+
 	"github.com/pos/api-gateway/middleware"
+	"github.com/pos/api-gateway/utils"
+
+	"github.com/pos/api-gateway/observability"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
+
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	// Metrics
+	middleware.MetricsMiddleware(e)
 
 	e.Use(middleware.Logging())
 	e.Use(middleware.CORS())
 
-	// rateLimiter := middleware.NewRateLimiter()
+	rateLimiter := middleware.NewRateLimiter()
 
 	e.GET("/health", func(c echo.Context) error {
+		tr := otel.Tracer(utils.GetEnv("SERVICE_NAME"))
+		_, span := tr.Start(c.Request().Context(), "call-downstream-service")
+		defer span.End()
+
 		return c.JSON(http.StatusOK, map[string]string{
 			"status":  "ok",
-			"service": "api-gateway",
+			"service": utils.GetEnv("SERVICE_NAME"),
 		})
 	})
 
 	e.GET("/ready", func(c echo.Context) error {
+		if !rateLimiter.IsRedisConnected() {
+			return c.JSON(http.StatusServiceUnavailable, map[string]string{
+				"status": "down",
+				"redis":  "unreachable",
+			})
+		}
 		return c.JSON(http.StatusOK, map[string]string{
 			"status": "ready",
 		})
@@ -34,10 +65,10 @@ func main() {
 
 	public := e.Group("")
 
-	tenantServiceURL := getEnv("TENANT_SERVICE_URL")
-	productServiceURL := getEnv("PRODUCT_SERVICE_URL")
-	authServiceURL := getEnv("AUTH_SERVICE_URL")
-	userServiceURL := getEnv("USER_SERVICE_URL")
+	tenantServiceURL := utils.GetEnv("TENANT_SERVICE_URL")
+	productServiceURL := utils.GetEnv("PRODUCT_SERVICE_URL")
+	authServiceURL := utils.GetEnv("AUTH_SERVICE_URL")
+	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
 	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
@@ -121,7 +152,7 @@ func main() {
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
 
 	// Order service routes
-	orderServiceURL := getEnv("ORDER_SERVICE_URL")
+	orderServiceURL := utils.GetEnv("ORDER_SERVICE_URL")
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
@@ -142,7 +173,7 @@ func main() {
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
 
 	// Notification service routes (owner/manager only)
-	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL")
+	notificationServiceURL := utils.GetEnv("NOTIFICATION_SERVICE_URL")
 	notificationGroup := protected.Group("/api/v1")
 	notificationGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	notificationGroup.Any("/notifications*", proxyWildcard(notificationServiceURL))
@@ -156,7 +187,7 @@ func main() {
 		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
 	})
 
-	port := getEnv("PORT")
+	port := utils.GetEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
@@ -206,15 +237,6 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 
 		return nil
 	}
-}
-
-func getEnv(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		// throw error: missing environment variable
-		panic("Environment variable " + key + " is not set")
-	}
-	return value
 }
 
 func proxyWildcard(targetURL string) echo.HandlerFunc {

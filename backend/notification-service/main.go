@@ -10,22 +10,37 @@ import (
 	"syscall"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/notification-service/api"
-	apimiddleware "github.com/pos/notification-service/api/middleware"
+	"github.com/pos/notification-service/middleware"
+	"github.com/pos/notification-service/src/observability"
 	"github.com/pos/notification-service/src/queue"
 	"github.com/pos/notification-service/src/services"
+	"github.com/pos/notification-service/src/utils"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Logger())
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	middleware.MetricsMiddleware(e)
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL")
+	dbURL := utils.GetEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -56,20 +71,20 @@ func main() {
 	apiV1 := e.Group("/api/v1")
 
 	// Test notification endpoint with stricter rate limiting (5 requests/min)
-	apiV1.POST("/notifications/test", testNotificationHandler.SendTestNotification, apimiddleware.RateLimitForTestNotifications())
+	apiV1.POST("/notifications/test", testNotificationHandler.SendTestNotification, middleware.RateLimitForTestNotifications())
 
 	// Notification config endpoints with normal rate limiting
-	apiV1.GET("/notifications/config", notificationConfigHandler.GetNotificationConfig, apimiddleware.RateLimit())
-	apiV1.PATCH("/notifications/config", notificationConfigHandler.PatchNotificationConfig, apimiddleware.RateLimit())
+	apiV1.GET("/notifications/config", notificationConfigHandler.GetNotificationConfig, middleware.RateLimit())
+	apiV1.PATCH("/notifications/config", notificationConfigHandler.PatchNotificationConfig, middleware.RateLimit())
 
 	// Notification history endpoints
-	apiV1.GET("/notifications/history", notificationHistoryHandler.GetNotificationHistory, apimiddleware.RateLimit())
-	apiV1.POST("/notifications/:notification_id/resend", resendNotificationHandler.ResendNotification, apimiddleware.RateLimit())
+	apiV1.GET("/notifications/history", notificationHistoryHandler.GetNotificationHistory, middleware.RateLimit())
+	apiV1.POST("/notifications/:notification_id/resend", resendNotificationHandler.ResendNotification, middleware.RateLimit())
 
 	// Kafka configuration
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC")
-	kafkaGroupID := getEnv("KAFKA_GROUP_ID")
+	kafkaBrokers := strings.Split(utils.GetEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := utils.GetEnv("KAFKA_TOPIC")
+	kafkaGroupID := utils.GetEnv("KAFKA_GROUP_ID")
 
 	// Start Kafka consumer
 	consumer := queue.NewKafkaConsumer(
@@ -102,17 +117,9 @@ func main() {
 	}()
 
 	// Start HTTP server
-	port := getEnv("PORT")
+	port := utils.GetEnv("PORT")
 	log.Printf("Notification service starting on port %s", port)
 	if err := e.Start(":" + port); err != nil {
 		log.Printf("Server stopped: %v", err)
 	}
-}
-
-func getEnv(key string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	// throw error: missing environment variable
-	panic("Environment variable " + key + " is not set")
 }

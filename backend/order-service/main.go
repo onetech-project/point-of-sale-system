@@ -12,11 +12,13 @@ import (
 	"github.com/point-of-sale-system/order-service/api"
 	"github.com/point-of-sale-system/order-service/src/config"
 	customMiddleware "github.com/point-of-sale-system/order-service/src/middleware"
+	"github.com/point-of-sale-system/order-service/src/observability"
 	"github.com/point-of-sale-system/order-service/src/queue"
 	"github.com/point-of-sale-system/order-service/src/repository"
 	"github.com/point-of-sale-system/order-service/src/services"
 	"github.com/point-of-sale-system/order-service/src/utils"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
@@ -39,6 +41,10 @@ func main() {
 	}
 	defer config.CloseGoogleMaps()
 
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	// Initialize Echo
 	e := echo.New()
 	e.HideBanner = true
@@ -51,6 +57,16 @@ func main() {
 
 	// Rate limiting for public endpoints
 	customMiddleware.InitRateLimiter()
+
+	e.Use(middleware.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(config.GetEnvAsString("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(customMiddleware.TraceLogger)
+
+	customMiddleware.MetricsMiddleware(e)
 
 	// Health check
 	e.GET("/health", func(c echo.Context) error {
