@@ -3,11 +3,11 @@ package middleware
 import (
 	"net/http"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/pos/notification-service/src/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -23,8 +23,8 @@ var limiter *RateLimiter
 
 // InitRateLimiter initializes the rate limiter
 func InitRateLimiter() {
-	ratePerMinute := getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60)
-	burst := getEnvAsInt("RATE_LIMIT_BURST", 10)
+	ratePerMinute := utils.GetEnvInt("RATE_LIMIT_REQUESTS_PER_MINUTE")
+	burst := utils.GetEnvInt("RATE_LIMIT_BURST")
 
 	limiter = &RateLimiter{
 		limiters: make(map[string]*rate.Limiter),
@@ -78,8 +78,8 @@ func RateLimitForTestNotifications() echo.MiddlewareFunc {
 		}
 	}
 
-	ratePerMinute := getEnvAsInt("TEST_NOTIFICATION_RATE_LIMIT", 5)
-	burst := getEnvAsInt("TEST_NOTIFICATION_BURST", 2)
+	ratePerMinute := utils.GetEnvInt("TEST_NOTIFICATION_RATE_LIMIT")
+	burst := utils.GetEnvInt("TEST_NOTIFICATION_BURST")
 
 	testLimiter := &RateLimiter{
 		limiters: make(map[string]*rate.Limiter),
@@ -135,14 +135,4 @@ func (rl *RateLimiter) cleanup() {
 	if len(rl.limiters) > 10000 {
 		rl.limiters = make(map[string]*rate.Limiter)
 	}
-}
-
-// getEnvAsInt gets an environment variable as integer with default
-func getEnvAsInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
 }

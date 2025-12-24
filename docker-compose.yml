@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:14.19-alpine3.21
@@ -87,7 +85,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024M
+          memory: 2048M
         reservations:
           memory: 1024M
 
@@ -171,6 +169,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "order-service"
+      env: "development"
 
   auth-service:
     build:
@@ -203,6 +206,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "auth-service"
+      env: "development"
 
   notification-service:
     build:
@@ -231,6 +239,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "notification-service"
+      env: "development"
 
   product-service:
     build:
@@ -263,6 +276,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "product-service"
+      env: "development"
 
   tenant-service:
     build:
@@ -293,6 +311,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "tenant-service"
+      env: "development"
 
   user-service:
     build:
@@ -323,6 +346,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "user-service"
+      env: "development"
   
   api-gateway:
     build:
@@ -351,6 +379,11 @@ services:
           memory: 128M
         reservations:
           memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "api-gateway"
+      env: "development"
 
   frontend:
     build:
@@ -369,34 +402,19 @@ services:
           memory: 128M
         reservations:
           memory: 128M
-
-  # caddy:
-  #   image: caddy:latest
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./infra/Caddyfile:/etc/caddy/Caddyfile    # Caddy configuration
-  #     - caddy_data:/data                          # Persist certs & state
-  #     - caddy_config:/config
-  #   networks:
-  #     - pos-network
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 256M
-  #       reservations:
-  #         memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "frontend"
+      env: "development"
 
 volumes:
   postgres_data:
   redis_data:
   kafka_data:
   minio_data:
-  # caddy_data:
-  # caddy_config:
 
 networks:
   pos-network:
-    driver: bridge
+    external: true
+      

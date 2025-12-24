@@ -6,10 +6,13 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
 	"github.com/pos/tenant-service/api"
+	"github.com/pos/tenant-service/middleware"
+	"github.com/pos/tenant-service/src/observability"
 	"github.com/pos/tenant-service/src/queue"
 	"github.com/pos/tenant-service/src/repository"
 	"github.com/pos/tenant-service/src/services"
@@ -17,14 +20,25 @@ import (
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
 
 	// Enable debug mode for detailed logging
 	e.Debug = GetEnvBool("DEBUG")
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Recover())
 	// Note: CORS is handled by API Gateway, not by individual services
+
+	// OTEL
+	e.Use(otelecho.Middleware(GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	middleware.MetricsMiddleware(e)
 
 	dbURL := GetEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)

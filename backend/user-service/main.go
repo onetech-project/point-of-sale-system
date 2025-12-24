@@ -3,25 +3,39 @@ package main
 import (
 	"database/sql"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/user-service/api"
+	"github.com/pos/user-service/middleware"
+	"github.com/pos/user-service/src/observability"
 	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/services"
+	"github.com/pos/user-service/src/utils"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	middleware.MetricsMiddleware(e)
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL")
+	dbURL := utils.GetEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -33,8 +47,8 @@ func main() {
 	}
 
 	// Kafka configuration
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC")
+	kafkaBrokers := strings.Split(utils.GetEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := utils.GetEnv("KAFKA_TOPIC")
 
 	// Initialize Kafka producer
 	eventProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
@@ -60,17 +74,7 @@ func main() {
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
 
 	// Start server
-	port := getEnv("PORT")
+	port := utils.GetEnv("PORT")
 	log.Printf("User service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
-}
-
-func getEnv(key string) string {
-
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-
-	// throw error: required environment variable not set
-	panic(key + " environment variable is not set")
 }
