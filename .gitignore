@@ -77,3 +77,6 @@ backend/product-service/uploads/
 # Logs
 logs/
 *.log
+
+# Reports
+reports/

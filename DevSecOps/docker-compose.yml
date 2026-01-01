@@ -1,0 +1,99 @@
+services:
+  nmap:
+    image: instrumentisto/nmap
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      NMAP_TARGET_IP: ${NMAP_TARGET_IP}
+    command: >
+      'nmap -sS -sV -O -oX /reports/nmap-result.xml ${NMAP_TARGET_IP}'
+    volumes:
+      - ./reports:/reports
+
+  trivy:
+    image: aquasec/trivy:latest
+    entrypoint: ["/bin/sh", "/scan-multi.sh"]
+    environment:
+      TRIVY_TARGET_IMAGES: ${TRIVY_TARGET_IMAGES}
+      TRIVY_TARGET_IMAGES_PREFIX: ${TRIVY_TARGET_IMAGES_PREFIX}
+      TRIVY_TARGET_SRC: ${TRIVY_TARGET_SRC}
+    volumes:
+      - ./reports:/reports
+      - ./trivy/scan-multi.sh:/scan-multi.sh
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${TRIVY_TARGET_SRC}:/src
+
+  gitleaks:
+    image: zricethezav/gitleaks:latest
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      GITLEAKS_REPO_PATH: ${GITLEAKS_REPO_PATH}
+    command: >
+      'gitleaks detect --source=/repo --report-format sarif --report-path /reports/gitleaks.sarif'
+    volumes:
+      - ./reports:/reports
+      - ${GITLEAKS_REPO_PATH}:/repo
+
+  zap:
+    image: owasp/zap2docker-stable
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      ZAP_TARGET_URL: ${ZAP_TARGET_URL}
+    command: >
+      'zap-baseline.py -t ${ZAP_TARGET_URL} -g /reports/zap-report.html -r /reports/zap-report.xml -x /reports/zap-report-xml.xml'
+    volumes:
+      - ./reports:/reports
+
+  nikto:
+    image: sullo/nikto
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      NIKTO_TARGET_URL: ${NIKTO_TARGET_URL}
+    command: >
+      'nikto -h ${NIKTO_TARGET_URL} -output /reports/nikto-result.xml -Format xml'
+    volumes:
+      - ./reports:/reports
+
+  hydra:
+    image: vanhauser/hydra
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      HYDRA_TARGET_URL: ${HYDRA_TARGET_URL}
+    command: >
+      'hydra -L /repo/usernames.txt -P /repo/passwords.txt ${HYDRA_TARGET_URL} http-get-form "/login:username=^USER^&password=^PASS^:F=incorrect" -o /reports/hydra-result.txt'
+    volumes:
+      - ./reports:/reports
+      - ./hydra:/repo
+
+  sonarqube:
+    image: sonarqube:community
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - ./reports:/reports
+    ports:
+      - 9001:9000 # WebUI on http://localhost:9001
+    networks:
+      - pos-network
+
+  # optional: CLI scanner for Sonar (manual trigger in code folder)
+  sonarscanner:
+    image: sonarsource/sonar-scanner-cli
+    environment:
+      SONAR_HOST_URL: "http://sonarqube:9000"
+      SONARSCANNER_TARGET_SRC: ${SONARSCANNER_TARGET_SRC}
+      SONAR_TOKEN: ${SONAR_TOKEN}
+    volumes:
+      - ${SONARSCANNER_TARGET_SRC}:/usr/src
+      - ./reports:/reports
+    networks:
+      - pos-network
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+
+networks:
+  pos-network:
+    external: true
