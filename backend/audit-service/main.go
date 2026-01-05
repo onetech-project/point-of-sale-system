@@ -57,9 +57,15 @@ func main() {
 	}
 	defer db.Close()
 
+	// Initialize encryption client
+	encryptor, err := utils.NewVaultClient()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize encryption client")
+	}
+
 	// Initialize repositories
 	auditRepo := repository.NewAuditRepository(db)
-	consentRepo := repository.NewConsentRepository(db)
+	consentRepo := repository.NewConsentRepository(db, encryptor)
 
 	// Initialize partition manager service
 	partitionService := services.NewPartitionService(db)

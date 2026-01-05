@@ -7,16 +7,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pos/audit-service/src/models"
+	"github.com/pos/audit-service/src/utils"
 )
 
 // ConsentRepository handles database operations for consent-related tables
 type ConsentRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
 // NewConsentRepository creates a new consent repository
-func NewConsentRepository(db *sql.DB) *ConsentRepository {
-	return &ConsentRepository{db: db}
+func NewConsentRepository(db *sql.DB, encryptor utils.Encryptor) *ConsentRepository {
+	return &ConsentRepository{
+		db:        db,
+		encryptor: encryptor,
+	}
 }
 
 // ConsentQueryFilter defines search criteria for consent records
@@ -83,6 +88,7 @@ func (r *ConsentRepository) ListConsentRecords(ctx context.Context, filter Conse
 	var records []*models.ConsentRecord
 	for rows.Next() {
 		var record models.ConsentRecord
+		var encryptedIP string
 		err := rows.Scan(
 			&record.RecordID,
 			&record.TenantID,
@@ -92,7 +98,7 @@ func (r *ConsentRepository) ListConsentRecords(ctx context.Context, filter Conse
 			&record.Granted,
 			&record.PolicyVersion,
 			&record.ConsentMethod,
-			&record.IPAddress,
+			&encryptedIP,
 			&record.UserAgent,
 			&record.RevokedAt,
 			&record.CreatedAt,
@@ -101,6 +107,16 @@ func (r *ConsentRepository) ListConsentRecords(ctx context.Context, filter Conse
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
+		
+		// Decrypt IP address
+		if encryptedIP != "" {
+			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
+			}
+			record.IPAddress = &decrypted
+		}
+		
 		records = append(records, &record)
 	}
 
@@ -122,6 +138,7 @@ func (r *ConsentRepository) GetConsentRecord(ctx context.Context, recordID uuid.
 	`
 
 	var record models.ConsentRecord
+	var encryptedIP string
 	err := r.db.QueryRowContext(ctx, query, recordID).Scan(
 		&record.RecordID,
 		&record.TenantID,
@@ -131,7 +148,7 @@ func (r *ConsentRepository) GetConsentRecord(ctx context.Context, recordID uuid.
 		&record.Granted,
 		&record.PolicyVersion,
 		&record.ConsentMethod,
-		&record.IPAddress,
+		&encryptedIP,
 		&record.UserAgent,
 		&record.RevokedAt,
 		&record.CreatedAt,
@@ -143,6 +160,15 @@ func (r *ConsentRepository) GetConsentRecord(ctx context.Context, recordID uuid.
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query consent record: %w", err)
+	}
+
+	// Decrypt IP address
+	if encryptedIP != "" {
+		decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
+		}
+		record.IPAddress = &decrypted
 	}
 
 	return &record, nil
@@ -188,6 +214,36 @@ func (r *ConsentRepository) ListConsentPurposes(ctx context.Context) ([]*models.
 	return purposes, nil
 }
 
+// GetConsentPurposeByCode retrieves a specific consent purpose by its code
+func (r *ConsentRepository) GetConsentPurposeByCode(ctx context.Context, purposeCode string) (*models.ConsentPurpose, error) {
+	query := `
+		SELECT purpose_code, display_name_id, description_id, is_required,
+		       display_order, created_at, updated_at
+		FROM consent_purposes
+		WHERE purpose_code = $1
+	`
+
+	var purpose models.ConsentPurpose
+	err := r.db.QueryRowContext(ctx, query, purposeCode).Scan(
+		&purpose.PurposeCode,
+		&purpose.DisplayNameID,
+		&purpose.DescriptionID,
+		&purpose.IsRequired,
+		&purpose.DisplayOrder,
+		&purpose.CreatedAt,
+		&purpose.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("consent purpose not found: %s", purposeCode)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query consent purpose: %w", err)
+	}
+
+	return &purpose, nil
+}
+
 // GetCurrentPrivacyPolicy retrieves the current active privacy policy
 func (r *ConsentRepository) GetCurrentPrivacyPolicy(ctx context.Context) (*models.PrivacyPolicy, error) {
 	query := `
@@ -216,4 +272,228 @@ func (r *ConsentRepository) GetCurrentPrivacyPolicy(ctx context.Context) (*model
 	}
 
 	return &policy, nil
+}
+
+// GetPrivacyPolicyByVersion retrieves a specific privacy policy by version
+func (r *ConsentRepository) GetPrivacyPolicyByVersion(ctx context.Context, version string) (*models.PrivacyPolicy, error) {
+	query := `
+		SELECT version, policy_text_id, effective_date, is_current,
+		       created_at, updated_at
+		FROM privacy_policies
+		WHERE version = $1
+		LIMIT 1
+	`
+
+	var policy models.PrivacyPolicy
+	err := r.db.QueryRowContext(ctx, query, version).Scan(
+		&policy.Version,
+		&policy.PolicyTextID,
+		&policy.EffectiveDate,
+		&policy.IsCurrent,
+		&policy.CreatedAt,
+		&policy.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("privacy policy version not found: %s", version)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query privacy policy: %w", err)
+	}
+
+	return &policy, nil
+}
+
+// CreateConsentRecord creates a new consent record
+func (r *ConsentRepository) CreateConsentRecord(ctx context.Context, record *models.ConsentRecord) error {
+	query := `
+		INSERT INTO consent_records (
+			record_id, tenant_id, subject_type, subject_id, purpose_code,
+			granted, policy_version, consent_method, ip_address, user_agent
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+
+	if record.RecordID == uuid.Nil {
+		record.RecordID = uuid.New()
+	}
+
+	// Encrypt IP address
+	var encryptedIP string
+	if record.IPAddress != nil && *record.IPAddress != "" {
+		var err error
+		encryptedIP, err = r.encryptor.Encrypt(ctx, *record.IPAddress)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt IP address: %w", err)
+		}
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		record.RecordID,
+		record.TenantID,
+		record.SubjectType,
+		record.SubjectID,
+		record.PurposeCode,
+		record.Granted,
+		record.PolicyVersion,
+		record.ConsentMethod,
+		encryptedIP,
+		record.UserAgent,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create consent record: %w", err)
+	}
+
+	return nil
+}
+
+// GetActiveConsents retrieves all active (non-revoked) consents for a subject
+func (r *ConsentRepository) GetActiveConsents(ctx context.Context, tenantID, subjectType, subjectID string) ([]*models.ConsentRecord, error) {
+	query := `
+		SELECT record_id, tenant_id, subject_type, subject_id, purpose_code,
+		       granted, policy_version, consent_method, ip_address, user_agent,
+		       revoked_at, created_at, updated_at
+		FROM consent_records
+		WHERE tenant_id = $1
+		  AND subject_type = $2
+		  AND subject_id = $3
+		  AND granted = true
+		  AND revoked_at IS NULL
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID, subjectType, subjectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query active consents: %w", err)
+	}
+	defer rows.Close()
+
+	var records []*models.ConsentRecord
+	for rows.Next() {
+		var record models.ConsentRecord
+		var encryptedIP string
+		err := rows.Scan(
+			&record.RecordID,
+			&record.TenantID,
+			&record.SubjectType,
+			&record.SubjectID,
+			&record.PurposeCode,
+			&record.Granted,
+			&record.PolicyVersion,
+			&record.ConsentMethod,
+			&encryptedIP,
+			&record.UserAgent,
+			&record.RevokedAt,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan consent record: %w", err)
+		}
+		
+		// Decrypt IP address
+		if encryptedIP != "" {
+			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
+			}
+			record.IPAddress = &decrypted
+		}
+		
+		records = append(records, &record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return records, nil
+}
+
+// RevokeConsent marks a consent record as revoked
+func (r *ConsentRepository) RevokeConsent(ctx context.Context, recordID uuid.UUID) error {
+	query := `
+		UPDATE consent_records
+		SET revoked_at = NOW(),
+		    updated_at = NOW()
+		WHERE record_id = $1
+		  AND revoked_at IS NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, recordID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke consent: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("consent record not found or already revoked: %s", recordID.String())
+	}
+
+	return nil
+}
+
+// GetConsentHistory retrieves all consent records (including revoked) for a subject
+func (r *ConsentRepository) GetConsentHistory(ctx context.Context, tenantID, subjectType, subjectID string) ([]*models.ConsentRecord, error) {
+	query := `
+		SELECT record_id, tenant_id, subject_type, subject_id, purpose_code,
+		       granted, policy_version, consent_method, ip_address, user_agent,
+		       revoked_at, created_at, updated_at
+		FROM consent_records
+		WHERE tenant_id = $1
+		  AND subject_type = $2
+		  AND subject_id = $3
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID, subjectType, subjectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query consent history: %w", err)
+	}
+	defer rows.Close()
+
+	var records []*models.ConsentRecord
+	for rows.Next() {
+		var record models.ConsentRecord
+		var encryptedIP string
+		err := rows.Scan(
+			&record.RecordID,
+			&record.TenantID,
+			&record.SubjectType,
+			&record.SubjectID,
+			&record.PurposeCode,
+			&record.Granted,
+			&record.PolicyVersion,
+			&record.ConsentMethod,
+			&encryptedIP,
+			&record.UserAgent,
+			&record.RevokedAt,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan consent record: %w", err)
+		}
+		
+		// Decrypt IP address
+		if encryptedIP != "" {
+			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
+			}
+			record.IPAddress = &decrypted
+		}
+		
+		records = append(records, &record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return records, nil
 }

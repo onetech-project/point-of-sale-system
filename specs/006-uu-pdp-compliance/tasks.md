@@ -153,10 +153,10 @@
 
 ### Backend Consent Services for User Story 5
 
-- [ ] T061 [P] [US5] Extend ConsentPurposeRepository in backend/audit-service/src/repository/consent_repo.go with List and GetByCode methods (currently only has ListConsentPurposes)
-- [ ] T062 [P] [US5] Extend PrivacyPolicyRepository in backend/audit-service/src/repository/consent_repo.go with GetCurrent and GetByVersion methods (currently only has GetCurrentPrivacyPolicy)
-- [ ] T063 [US5] Extend ConsentRecordRepository in backend/audit-service/src/repository/consent_repo.go with Create, GetActive, Revoke, and GetHistory methods (currently only has ListConsentRecords and GetConsentRecord)
-- [ ] T064 [US5] Create ConsentService in backend/audit-service/src/services/consent_service.go with ValidateConsents (check required purposes), GrantConsents, RevokeConsent business logic
+- [X] T061 [P] [US5] Extend ConsentPurposeRepository in backend/audit-service/src/repository/consent_repo.go with List and GetByCode methods (currently only has ListConsentPurposes)
+- [X] T062 [P] [US5] Extend PrivacyPolicyRepository in backend/audit-service/src/repository/consent_repo.go with GetCurrent and GetByVersion methods (currently only has GetCurrentPrivacyPolicy)
+- [X] T063 [US5] Extend ConsentRecordRepository in backend/audit-service/src/repository/consent_repo.go with Create, GetActive, Revoke, and GetHistory methods (currently only has ListConsentRecords and GetConsentRecord)
+- [X] T064 [US5] Create ConsentService in backend/audit-service/src/services/consent_service.go with ValidateConsents (check required purposes), GrantConsents, RevokeConsent business logic - INCLUDES IP ADDRESS ENCRYPTION
 - [ ] T065 [US5] Implement consent validation middleware in backend/api-gateway/middleware/consent_check.go to verify active consent before data operations (calls audit-service API)
 
 ### Consent API Implementation (consent-api.yaml) for User Story 5
