@@ -8,6 +8,7 @@ import (
 
 	"github.com/pos/auth-service/src/models"
 	"github.com/pos/auth-service/src/repository"
+	"github.com/pos/auth-service/src/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -23,6 +24,7 @@ type AuthService struct {
 	jwtService              *JWTService
 	rateLimiter             *RateLimiter
 	eventPublisher          EventPublisher
+	encryptor               utils.Encryptor
 }
 
 func NewAuthService(
@@ -31,21 +33,36 @@ func NewAuthService(
 	jwtService *JWTService,
 	rateLimiter *RateLimiter,
 	eventPublisher EventPublisher,
-) *AuthService {
+) (*AuthService, error) {
+	sessionRepo, err := repository.NewSessionRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session repository: %w", err)
+	}
+
+	// Initialize VaultClient for email encryption during login lookups
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize VaultClient: %w", err)
+	}
+
 	return &AuthService{
 		db:                      db,
-		sessionRepo:             repository.NewSessionRepository(db),
+		sessionRepo:             sessionRepo,
 		accountVerificationRepo: repository.NewVerifyAccountRepository(db),
 		sessionManager:          sessionManager,
 		jwtService:              jwtService,
 		rateLimiter:             rateLimiter,
 		eventPublisher:          eventPublisher,
-	}
+		encryptor:               vaultClient,
+	}, nil
 }
 
 // Login authenticates a user and creates a session
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.LoginResponse, string, error) {
-	fmt.Printf("DEBUG: Login attempt for email: %s\n", req.Email)
+	// Mask email for privacy
+	masker := utils.NewLogMasker()
+	maskedEmail := masker.MaskEmail(req.Email)
+	fmt.Printf("DEBUG: Login attempt for email: %s\n", maskedEmail)
 
 	// First, find the tenant for this email
 	tenantID, err := s.getTenantIDByEmail(ctx, req.Email)
@@ -246,7 +263,9 @@ type User struct {
 }
 
 func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenantID string) (*User, error) {
-	fmt.Printf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", email, tenantID)
+	masker := utils.NewLogMasker()
+	maskedEmail := masker.MaskEmail(email)
+	fmt.Printf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", maskedEmail, tenantID)
 
 	// Set tenant context for RLS policy
 	setContextSQL := fmt.Sprintf("SET LOCAL app.current_tenant_id = '%s'", tenantID)
@@ -257,20 +276,25 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 		return nil, fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
+	// Use email hash for efficient O(1) lookup instead of O(n) table scan
+	emailHash := utils.HashForSearch(email)
+
 	query := `
 		SELECT id, tenant_id, email, password_hash, role, status, first_name, last_name, locale
 		FROM users
-		WHERE email = $1 AND tenant_id = $2
+		WHERE tenant_id = $1 AND email_hash = $2 AND status = 'active'
+		LIMIT 1
 	`
 
-	fmt.Printf("DEBUG: Executing query...\n")
+	fmt.Printf("DEBUG: Executing query with email hash...\n")
 	user := &User{}
 	var firstName, lastName sql.NullString
+	var encryptedEmail string
 
-	err = s.db.QueryRowContext(ctx, query, email, tenantID).Scan(
+	err = s.db.QueryRowContext(ctx, query, tenantID, emailHash).Scan(
 		&user.ID,
 		&user.TenantID,
-		&user.Email,
+		&encryptedEmail,
 		&user.PasswordHash,
 		&user.Role,
 		&user.Status,
@@ -280,44 +304,66 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 	)
 
 	if err == sql.ErrNoRows {
-		fmt.Printf("DEBUG: No rows returned from query\n")
+		fmt.Printf("DEBUG: No user found with email hash\n")
 		return nil, nil
 	}
 
 	if err != nil {
-		fmt.Printf("DEBUG: Query error: %v\n", err)
+		fmt.Printf("DEBUG: Query failed: %v\n", err)
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
-	fmt.Printf("DEBUG: User retrieved successfully\n")
+	// Decrypt email
+	user.Email, err = s.encryptor.Decrypt(ctx, encryptedEmail)
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to decrypt email: %v\n", err)
+		return nil, fmt.Errorf("failed to decrypt email: %w", err)
+	}
 
+	// Decrypt first_name if present
 	if firstName.Valid {
-		user.FirstName = firstName.String
-	}
-	if lastName.Valid {
-		user.LastName = lastName.String
+		decryptedFirstName, err := s.encryptor.Decrypt(ctx, firstName.String)
+		if err != nil {
+			fmt.Printf("DEBUG: Failed to decrypt first_name: %v\n", err)
+			user.FirstName = ""
+		} else {
+			user.FirstName = decryptedFirstName
+		}
 	}
 
+	// Decrypt last_name if present
+	if lastName.Valid {
+		decryptedLastName, err := s.encryptor.Decrypt(ctx, lastName.String)
+		if err != nil {
+			fmt.Printf("DEBUG: Failed to decrypt last_name: %v\n", err)
+			user.LastName = ""
+		} else {
+			user.LastName = decryptedLastName
+		}
+	}
+
+	fmt.Printf("DEBUG: User found and verified\n")
 	return user, nil
 }
 
 func (s *AuthService) getTenantIDByEmail(ctx context.Context, email string) (string, error) {
+	// Use email hash for efficient O(1) lookup
+	emailHash := utils.HashForSearch(email)
+
 	query := `
 		SELECT tenant_id
 		FROM users
-		WHERE email = $1 AND status = 'active'
+		WHERE email_hash = $1 AND status = 'active'
 		LIMIT 1
 	`
 
 	var tenantID string
-	err := s.db.QueryRowContext(ctx, query, email).Scan(&tenantID)
-
+	err := s.db.QueryRowContext(ctx, query, emailHash).Scan(&tenantID)
 	if err == sql.ErrNoRows {
-		return "", nil // User not found
+		return "", nil
 	}
-
 	if err != nil {
-		return "", fmt.Errorf("failed to query tenant: %w", err)
+		return "", fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return tenantID, nil

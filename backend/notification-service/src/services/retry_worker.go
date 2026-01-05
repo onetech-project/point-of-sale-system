@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -19,12 +20,17 @@ type RetryWorker struct {
 }
 
 // NewRetryWorker creates a new retry worker
-func NewRetryWorker(db *sql.DB, service *NotificationService) *RetryWorker {
+func NewRetryWorker(db *sql.DB, service *NotificationService) (*RetryWorker, error) {
+	repo, err := repository.NewNotificationRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create notification repository: %w", err)
+	}
+
 	return &RetryWorker{
-		repo:     repository.NewNotificationRepository(db),
+		repo:     repo,
 		service:  service,
 		interval: 1 * time.Minute, // Check every minute
-	}
+	}, nil
 }
 
 // Start begins the retry worker loop

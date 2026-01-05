@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-22
 - PostgreSQL for orders/inventory/tenants (6 new tables), Redis for cart sessions and geocoding cache (003-guest-qris-ordering)
 - Go 1.23.0 + Echo v4.12.0 (web framework), MinIO Go SDK (object storage client), lib/pq (PostgreSQL driver), disintegration/imaging v1.6.2 (image processing) (005-product-photo-storage)
 - PostgreSQL 14.19 (metadata), MinIO/S3 (object storage for photos), Redis 8.0.5 (caching) (005-product-photo-storage)
+- Go 1.24 (backend microservices), TypeScript/Next.js 16 (frontend) + Echo v4 (Go web framework), lib/pq (PostgreSQL driver), OpenTelemetry, Kafka, React 19, next-i18next (006-uu-pdp-compliance)
+- PostgreSQL (primary data storage with RLS and multi-tenancy), Kafka (event streaming) (006-uu-pdp-compliance)
 
 - (001-auth-multitenancy)
 
@@ -32,9 +34,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 006-uu-pdp-compliance: Added Go 1.24 (backend microservices), TypeScript/Next.js 16 (frontend) + Echo v4 (Go web framework), lib/pq (PostgreSQL driver), OpenTelemetry, Kafka, React 19, next-i18next
 - 005-product-photo-storage: Added Go 1.23.0 + Echo v4.12.0 (web framework), MinIO Go SDK (object storage client), lib/pq (PostgreSQL driver), disintegration/imaging v1.6.2 (image processing)
 - 004-order-email-notifications: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 003-guest-qris-ordering: Added Go 1.23.0 (backend microservices), Next.js 16 with TypeScript (frontend) + Echo v4 (API framework), PostgreSQL (persistent data), Redis (session/cart/cache), Midtrans Snap API (payment), Google Maps Geocoding API (address validation)
 
 
 <!-- MANUAL ADDITIONS START -->

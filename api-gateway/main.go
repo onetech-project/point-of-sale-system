@@ -69,6 +69,7 @@ func main() {
 	productServiceURL := utils.GetEnv("PRODUCT_SERVICE_URL")
 	authServiceURL := utils.GetEnv("AUTH_SERVICE_URL")
 	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
+	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
 	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
@@ -186,6 +187,12 @@ func main() {
 		userID := c.Param("user_id")
 		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
 	})
+
+	// Audit service routes (owner only - compliance audit trail access)
+	auditGroup := protected.Group("/api/v1")
+	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
+	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
 
 	port := utils.GetEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)

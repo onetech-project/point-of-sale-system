@@ -12,6 +12,7 @@ import (
 	"github.com/pos/tenant-service/src/models"
 	"github.com/pos/tenant-service/src/queue"
 	"github.com/pos/tenant-service/src/repository"
+	"github.com/pos/tenant-service/src/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,13 +27,20 @@ type TenantService struct {
 	tenantRepo     *repository.TenantRepository
 	db             *sql.DB
 	eventPublisher *queue.EventPublisher
+	encryptor      utils.Encryptor
 }
 
 func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantService {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize Vault client: %v", err))
+	}
+
 	return &TenantService{
 		tenantRepo:     repository.NewTenantRepository(db),
 		db:             db,
 		eventPublisher: eventPublisher,
+		encryptor:      vaultClient,
 	}
 }
 
@@ -108,22 +116,41 @@ func (s *TenantService) createOwnerUser(ctx context.Context, tx *sql.Tx, tenantI
 		return "", "", fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
+	// Encrypt PII fields before storing (FR-009: Field-level encryption)
+	encryptedEmail, err := s.encryptor.Encrypt(ctx, email)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt email: %w", err)
+	}
+
+	encryptedFirstName, err := s.encryptor.Encrypt(ctx, firstName)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt first_name: %w", err)
+	}
+
+	encryptedLastName, err := s.encryptor.Encrypt(ctx, lastName)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt last_name: %w", err)
+	}
+
+	// Generate searchable hash for email (T051 - efficient encrypted field search)
+	emailHash := utils.HashForSearch(email)
+
 	// Generate verification token (valid for 24 hours)
 	verificationToken := generateVerificationToken()
 	expiresAt := time.Now().Add(24 * time.Hour)
 
 	query := `
 		INSERT INTO users (
-			tenant_id, email, password_hash, role, status, 
+			tenant_id, email, email_hash, password_hash, role, status, 
 			first_name, last_name, email_verified, 
 			verification_token, verification_token_expires_at
 		)
-		VALUES ($1, $2, $3, 'owner', 'inactive', $4, $5, false, $6, $7)
+		VALUES ($1, $2, $3, $4, 'owner', 'inactive', $5, $6, false, $7, $8)
 		RETURNING id
 	`
 
 	var userID string
-	err = tx.QueryRowContext(ctx, query, tenantID, email, hashedPassword, firstName, lastName, verificationToken, expiresAt).Scan(&userID)
+	err = tx.QueryRowContext(ctx, query, tenantID, encryptedEmail, emailHash, hashedPassword, encryptedFirstName, encryptedLastName, verificationToken, expiresAt).Scan(&userID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to insert user: %w", err)
 	}

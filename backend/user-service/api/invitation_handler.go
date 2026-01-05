@@ -15,8 +15,12 @@ type InvitationHandler struct {
 }
 
 func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationHandler {
+	invitationService, err := services.NewInvitationService(db, eventProducer)
+	if err != nil {
+		panic("Failed to create invitation service: " + err.Error())
+	}
 	return &InvitationHandler{
-		invitationService: services.NewInvitationService(db, eventProducer),
+		invitationService: invitationService,
 	}
 }
 

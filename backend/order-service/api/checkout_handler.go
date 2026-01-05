@@ -30,6 +30,7 @@ type CheckoutHandler struct {
 	deliveryFeeService *services.DeliveryFeeService
 	addressRepo        *repository.AddressRepository
 	settingsRepo       *repository.OrderSettingsRepository
+	guestOrderRepo     *repository.GuestOrderRepository
 	kafkaProducer      interface { // Interface for Kafka producer
 		Publish(ctx context.Context, key string, value interface{}) error
 	}
@@ -45,6 +46,7 @@ func NewCheckoutHandler(
 	deliveryFeeService *services.DeliveryFeeService,
 	addressRepo *repository.AddressRepository,
 	settingsRepo *repository.OrderSettingsRepository,
+	guestOrderRepo *repository.GuestOrderRepository,
 	kafkaProducer interface {
 		Publish(ctx context.Context, key string, value interface{}) error
 	},
@@ -59,6 +61,7 @@ func NewCheckoutHandler(
 		deliveryFeeService: deliveryFeeService,
 		addressRepo:        addressRepo,
 		settingsRepo:       settingsRepo,
+		guestOrderRepo:     guestOrderRepo,
 		kafkaProducer:      kafkaProducer,
 	}
 }
@@ -240,7 +243,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	// Create order
 	order := &models.GuestOrder{
 		TenantID:       tenantID,
-		SessionID:      &sessionID,
+		SessionID:      sessionID,
 		OrderReference: orderReference,
 		Status:         models.OrderStatusPending,
 		DeliveryType:   models.DeliveryType(req.DeliveryType),
@@ -457,36 +460,7 @@ func (h *CheckoutHandler) getCartFromRedis(ctx context.Context, tenantID, sessio
 }
 
 func (h *CheckoutHandler) insertOrder(ctx context.Context, tx *sql.Tx, order *models.GuestOrder) (string, error) {
-	query := `
-		INSERT INTO guest_orders (
-			tenant_id, session_id, order_reference, status,
-			delivery_type, customer_name, customer_phone, customer_email,
-			table_number, notes,
-			subtotal_amount, delivery_fee, total_amount
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		RETURNING id
-	`
-
-	var orderID string
-	err := tx.QueryRowContext(
-		ctx,
-		query,
-		order.TenantID,
-		order.SessionID,
-		order.OrderReference,
-		order.Status,
-		order.DeliveryType,
-		order.CustomerName,
-		order.CustomerPhone,
-		order.CustomerEmail,
-		order.TableNumber,
-		order.Notes,
-		order.SubtotalAmount,
-		order.DeliveryFee,
-		order.TotalAmount,
-	).Scan(&orderID)
-
-	return orderID, err
+	return h.guestOrderRepo.Create(ctx, tx, order)
 }
 
 func (h *CheckoutHandler) insertOrderItem(ctx context.Context, tx *sql.Tx, item *models.OrderItem) error {
@@ -604,7 +578,13 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 	}
 
 	// Get order from database
-	orderRepo := repository.NewOrderRepository(h.db)
+	orderRepo, err := repository.NewOrderRepositoryWithVault(h.db)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to initialize OrderRepository")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "internal server error",
+		})
+	}
 	order, err := orderRepo.GetOrderByReference(ctx, orderReference)
 	if err != nil {
 		log.Error().Err(err).Str("order_reference", orderReference).Msg("Failed to fetch order")

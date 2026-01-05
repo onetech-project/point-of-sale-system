@@ -41,6 +41,12 @@ func main() {
 	}
 	defer config.CloseGoogleMaps()
 
+	// Initialize Vault client for encryption
+	_, err := config.InitVaultClient()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize Vault client")
+	}
+
 	observability.InitLogger()
 	shutdown := observability.InitTracer()
 	defer shutdown(nil)
@@ -66,6 +72,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(customMiddleware.TraceLogger)
 
+	// Logging with PII masking (T062)
+	e.Use(customMiddleware.LoggingMiddleware)
+
 	customMiddleware.MetricsMiddleware(e)
 
 	// Health check
@@ -82,9 +91,15 @@ func main() {
 
 	// Initialize repositories
 	paymentRepo := repository.NewPaymentRepository(config.GetDB())
-	orderRepo := repository.NewOrderRepository(config.GetDB())
+	orderRepo, err := repository.NewOrderRepositoryWithVault(config.GetDB())
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize OrderRepository")
+	}
 	orderSettingsRepo := repository.NewOrderSettingsRepository(config.GetDB())
-	addressRepo := repository.NewAddressRepository(config.GetDB())
+	addressRepo, err := repository.NewAddressRepositoryWithVault(config.GetDB())
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize AddressRepository")
+	}
 
 	// Initialize cart service (shared between cart handler and checkout handler)
 	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL")) * time.Second
@@ -109,12 +124,18 @@ func main() {
 	geocodingService := services.NewGeocodingService(nil, config.GetRedis())
 	deliveryFeeService := services.NewDeliveryFeeService()
 
+	// Initialize guest order repository with encryption
+	guestOrderRepo, err := repository.NewGuestOrderRepositoryWithVault(config.GetDB())
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize GuestOrderRepository")
+	}
+
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
 	adminOrderHandler := api.NewAdminOrderHandler(orderService)
 	orderSettingsHandler := api.NewOrderSettingsHandler(orderSettingsRepo)
 	cartHandler := api.NewCartHandlerWithService(cartService)
-	checkoutHandler := api.NewCheckoutHandler(config.GetDB(), config.GetRedis(), cartService, inventoryService, paymentService, geocodingService, deliveryFeeService, addressRepo, orderSettingsRepo, kafkaProducer)
+	checkoutHandler := api.NewCheckoutHandler(config.GetDB(), config.GetRedis(), cartService, inventoryService, paymentService, geocodingService, deliveryFeeService, addressRepo, orderSettingsRepo, guestOrderRepo, kafkaProducer)
 
 	// Start reservation cleanup job in background
 	cleanupJob := services.NewReservationCleanupJob(inventoryService)

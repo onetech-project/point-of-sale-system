@@ -38,6 +38,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T063)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	dbURL := GetEnv("DATABASE_URL")
@@ -66,7 +69,10 @@ func main() {
 	e.GET("/tenant", tenantHandler.GetTenant)
 
 	// Tenant configuration routes
-	configRepo := repository.NewTenantConfigRepository(db)
+	configRepo, err := repository.NewTenantConfigRepositoryWithVault(db)
+	if err != nil {
+		log.Fatalf("Failed to create tenant config repository: %v", err)
+	}
 	configService := services.NewTenantConfigService(configRepo, db)
 	configHandler := api.NewTenantConfigHandler(configService)
 

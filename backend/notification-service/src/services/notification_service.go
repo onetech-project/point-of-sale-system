@@ -26,16 +26,29 @@ type NotificationService struct {
 	templates     map[string]*template.Template
 	frontendURL   string
 	db            *sql.DB
+	encryptor     utils.Encryptor
 }
 
-func NewNotificationService(db *sql.DB) *NotificationService {
+func NewNotificationService(db *sql.DB) (*NotificationService, error) {
+	repo, err := repository.NewNotificationRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create notification repository: %w", err)
+	}
+
+	// Initialize Vault encryptor for decrypting user emails
+	encryptor, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault client: %w", err)
+	}
+
 	service := &NotificationService{
-		repo:          repository.NewNotificationRepository(db),
+		repo:          repo,
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
 		frontendURL:   getEnv("FRONTEND_DOMAIN"),
 		db:            db,
+		encryptor:     encryptor,
 	}
 
 	// Load all templates
@@ -43,7 +56,7 @@ func NewNotificationService(db *sql.DB) *NotificationService {
 		log.Printf("Warning: Failed to load templates: %v", err)
 	}
 
-	return service
+	return service, nil
 }
 
 func getEnv(key string) string {
@@ -509,11 +522,19 @@ func (s *NotificationService) queryStaffRecipients(ctx context.Context, tenantID
 
 	var emails []string
 	for rows.Next() {
-		var id, email string
-		if err := rows.Scan(&id, &email); err != nil {
+		var id, encryptedEmail string
+		if err := rows.Scan(&id, &encryptedEmail); err != nil {
 			log.Printf("[ORDER_PAID] Error scanning staff row: %v", err)
 			continue
 		}
+
+		// Decrypt email address
+		email, err := s.encryptor.Decrypt(ctx, encryptedEmail)
+		if err != nil {
+			log.Printf("[ORDER_PAID] Failed to decrypt email for user %s: %v", id, err)
+			continue // Skip this user
+		}
+
 		emails = append(emails, email)
 		log.Printf("[ORDER_PAID] Found staff recipient: %s (ID: %s)", email, id)
 	}

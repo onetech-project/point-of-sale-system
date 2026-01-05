@@ -18,11 +18,11 @@ import (
 )
 
 var (
-	ErrInvitationNotFound = errors.New("invitation not found")
-	ErrInvitationExpired  = errors.New("invitation expired")
-	ErrInvitationInvalid  = errors.New("invitation invalid")
+	ErrInvitationNotFound  = errors.New("invitation not found")
+	ErrInvitationExpired   = errors.New("invitation expired")
+	ErrInvitationInvalid   = errors.New("invitation invalid")
 	ErrEmailAlreadyInvited = errors.New("email already invited")
-	ErrEmailAlreadyExists = errors.New("email already registered")
+	ErrEmailAlreadyExists  = errors.New("email already registered")
 )
 
 type InvitationService struct {
@@ -32,13 +32,23 @@ type InvitationService struct {
 	eventProducer  *queue.KafkaProducer
 }
 
-func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationService {
+func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer) (*InvitationService, error) {
+	userRepo, err := repository.NewUserRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user repository: %w", err)
+	}
+
+	invitationRepo, err := repository.NewInvitationRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invitation repository: %w", err)
+	}
+
 	return &InvitationService{
-		invitationRepo: repository.NewInvitationRepository(db),
-		userRepo:       repository.NewUserRepository(db),
+		invitationRepo: invitationRepo,
+		userRepo:       userRepo,
 		db:             db,
 		eventProducer:  eventProducer,
-	}
+	}, nil
 }
 
 func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, invitedByID string) (*models.Invitation, error) {

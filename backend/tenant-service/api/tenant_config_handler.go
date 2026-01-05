@@ -77,6 +77,7 @@ func (h *TenantConfigHandler) GetMidtransConfig(c echo.Context) error {
 
 	config, err := h.configService.GetMidtransConfig(c.Request().Context(), tenantID)
 	if err != nil {
+		c.Logger().Errorf("Failed to get Midtrans config for tenant %s: %v", tenantID, err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to retrieve Midtrans configuration",
 		})

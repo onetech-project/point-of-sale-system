@@ -7,14 +7,32 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+	"github.com/pos/tenant-service/src/utils"
 )
 
 type TenantConfigRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
-func NewTenantConfigRepository(db *sql.DB) *TenantConfigRepository {
-	return &TenantConfigRepository{db: db}
+// NewTenantConfigRepository creates a repository with custom encryptor (for testing)
+func NewTenantConfigRepository(db *sql.DB, encryptor utils.Encryptor) *TenantConfigRepository {
+	return &TenantConfigRepository{
+		db:        db,
+		encryptor: encryptor,
+	}
+}
+
+// NewTenantConfigRepositoryWithVault creates a repository with Vault encryption (production)
+func NewTenantConfigRepositoryWithVault(db *sql.DB) (*TenantConfigRepository, error) {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault client: %w", err)
+	}
+	return &TenantConfigRepository{
+		db:        db,
+		encryptor: vaultClient,
+	}, nil
 }
 
 type TenantConfig struct {
@@ -33,24 +51,25 @@ type TenantConfig struct {
 
 func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID string) (*TenantConfig, error) {
 	query := `
-SELECT 
-tenant_id,
-enabled_delivery_types,
-COALESCE(service_area_data, '{}'::jsonb) as service_area,
-COALESCE(delivery_fee_config, '{}'::jsonb) as delivery_fee_config,
-COALESCE(enable_delivery_fee_calculation, false) as auto_calculate_fees,
-COALESCE(midtrans_server_key, '') as midtrans_server_key,
-COALESCE(midtrans_client_key, '') as midtrans_client_key,
-COALESCE(midtrans_merchant_id, '') as midtrans_merchant_id,
-COALESCE(midtrans_environment, 'sandbox') as midtrans_environment,
-created_at,
-updated_at
-FROM tenant_configs
-WHERE tenant_id = $1
-`
+		SELECT 
+			tenant_id,
+			enabled_delivery_types,
+			COALESCE(service_area_data, '{}'::jsonb) as service_area,
+			COALESCE(delivery_fee_config, '{}'::jsonb) as delivery_fee_config,
+			COALESCE(enable_delivery_fee_calculation, false) as auto_calculate_fees,
+			COALESCE(midtrans_server_key, '') as midtrans_server_key,
+			COALESCE(midtrans_client_key, '') as midtrans_client_key,
+			COALESCE(midtrans_merchant_id, '') as midtrans_merchant_id,
+			COALESCE(midtrans_environment, 'sandbox') as midtrans_environment,
+			created_at,
+			updated_at
+		FROM tenant_configs
+		WHERE tenant_id = $1
+	`
 
 	var config TenantConfig
 	var serviceArea, deliveryFeeConfig []byte
+	var encryptedServerKey, encryptedClientKey string
 
 	err := r.db.QueryRowContext(ctx, query, tenantID).Scan(
 		&config.TenantID,
@@ -58,8 +77,8 @@ WHERE tenant_id = $1
 		&serviceArea,
 		&deliveryFeeConfig,
 		&config.AutoCalculateFees,
-		&config.MidtransServerKey,
-		&config.MidtransClientKey,
+		&encryptedServerKey,
+		&encryptedClientKey,
 		&config.MidtransMerchantID,
 		&config.MidtransEnvironment,
 		&config.CreatedAt,
@@ -82,6 +101,21 @@ WHERE tenant_id = $1
 		return nil, fmt.Errorf("failed to get tenant config: %w", err)
 	}
 
+	// Decrypt Midtrans keys
+	if encryptedServerKey != "" {
+		config.MidtransServerKey, err = r.encryptor.Decrypt(ctx, encryptedServerKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt midtrans_server_key: %w", err)
+		}
+	}
+
+	if encryptedClientKey != "" {
+		config.MidtransClientKey, err = r.encryptor.Decrypt(ctx, encryptedClientKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt midtrans_client_key: %w", err)
+		}
+	}
+
 	// Unmarshal JSON fields
 	if err := json.Unmarshal(serviceArea, &config.ServiceArea); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal service_area: %w", err)
@@ -95,6 +129,24 @@ WHERE tenant_id = $1
 }
 
 func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfig) error {
+	// Encrypt Midtrans keys
+	var encryptedServerKey, encryptedClientKey string
+	var err error
+
+	if config.MidtransServerKey != "" {
+		encryptedServerKey, err = r.encryptor.Encrypt(ctx, config.MidtransServerKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt midtrans_server_key: %w", err)
+		}
+	}
+
+	if config.MidtransClientKey != "" {
+		encryptedClientKey, err = r.encryptor.Encrypt(ctx, config.MidtransClientKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt midtrans_client_key: %w", err)
+		}
+	}
+
 	serviceArea, err := json.Marshal(config.ServiceArea)
 	if err != nil {
 		return fmt.Errorf("failed to marshal service_area: %w", err)
@@ -106,14 +158,18 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 	}
 
 	query := `
-INSERT INTO tenant_configs (
-tenant_id,
-enabled_delivery_types,
-service_area_data,
-delivery_fee_config,
-enable_delivery_fee_calculation
-) VALUES ($1, $2, $3, $4, $5)
-`
+		INSERT INTO tenant_configs (
+			tenant_id,
+			enabled_delivery_types,
+			service_area_data,
+			delivery_fee_config,
+			enable_delivery_fee_calculation,
+			midtrans_server_key,
+			midtrans_client_key,
+			midtrans_merchant_id,
+			midtrans_environment
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
 
 	_, err = r.db.ExecContext(
 		ctx,
@@ -123,6 +179,10 @@ enable_delivery_fee_calculation
 		serviceArea,
 		deliveryFeeConfig,
 		config.AutoCalculateFees,
+		encryptedServerKey,
+		encryptedClientKey,
+		config.MidtransMerchantID,
+		config.MidtransEnvironment,
 	)
 
 	if err != nil {
@@ -133,6 +193,24 @@ enable_delivery_fee_calculation
 }
 
 func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfig) error {
+	// Encrypt Midtrans keys
+	var encryptedServerKey, encryptedClientKey string
+	var err error
+
+	if config.MidtransServerKey != "" {
+		encryptedServerKey, err = r.encryptor.Encrypt(ctx, config.MidtransServerKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt midtrans_server_key: %w", err)
+		}
+	}
+
+	if config.MidtransClientKey != "" {
+		encryptedClientKey, err = r.encryptor.Encrypt(ctx, config.MidtransClientKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt midtrans_client_key: %w", err)
+		}
+	}
+
 	serviceArea, err := json.Marshal(config.ServiceArea)
 	if err != nil {
 		return fmt.Errorf("failed to marshal service_area: %w", err)
@@ -144,19 +222,19 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 	}
 
 	query := `
-UPDATE tenant_configs
-SET
-enabled_delivery_types = $2,
-service_area_data = $3,
-delivery_fee_config = $4,
-enable_delivery_fee_calculation = $5,
-midtrans_server_key = $6,
-midtrans_client_key = $7,
-midtrans_merchant_id = $8,
-midtrans_environment = $9,
-updated_at = NOW()
-WHERE tenant_id = $1
-`
+		UPDATE tenant_configs
+		SET
+			enabled_delivery_types = $2,
+			service_area_data = $3,
+			delivery_fee_config = $4,
+			enable_delivery_fee_calculation = $5,
+			midtrans_server_key = $6,
+			midtrans_client_key = $7,
+			midtrans_merchant_id = $8,
+			midtrans_environment = $9,
+			updated_at = NOW()
+		WHERE tenant_id = $1
+	`
 
 	result, err := r.db.ExecContext(
 		ctx,
@@ -166,8 +244,8 @@ WHERE tenant_id = $1
 		serviceArea,
 		deliveryFeeConfig,
 		config.AutoCalculateFees,
-		config.MidtransServerKey,
-		config.MidtransClientKey,
+		encryptedServerKey,
+		encryptedClientKey,
 		config.MidtransMerchantID,
 		config.MidtransEnvironment,
 	)

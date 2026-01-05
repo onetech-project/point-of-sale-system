@@ -43,9 +43,11 @@ type GuestOrder struct {
 	PaidAt         *time.Time   `json:"paid_at,omitempty"`
 	CompletedAt    *time.Time   `json:"completed_at,omitempty"`
 	CancelledAt    *time.Time   `json:"cancelled_at,omitempty"`
-	SessionID      *string      `json:"session_id,omitempty"`
+	SessionID      string       `json:"session_id,omitempty"`
 	IPAddress      *string      `json:"ip_address,omitempty"`
 	UserAgent      *string      `json:"user_agent,omitempty"`
+	IsAnonymized   bool         `json:"is_anonymized"`
+	AnonymizedAt   *time.Time   `json:"anonymized_at,omitempty"`
 }
 
 // CreateOrderRequest represents the request to create a new order

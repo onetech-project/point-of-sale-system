@@ -41,6 +41,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T061)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	// Database connection
@@ -88,7 +91,10 @@ func main() {
 	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
 	defer eventPublisher.Close()
 
-	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
+	authService, err := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuthService: %v", err)
+	}
 
 	// Health checks
 	e.GET("/health", api.HealthCheck)
@@ -109,7 +115,10 @@ func main() {
 	e.POST("/verify-account", accountVerificationHandler.VerifyAccount)
 
 	// Password reset endpoints
-	passwordResetRepo := repository.NewPasswordResetRepository(db)
+	passwordResetRepo, err := repository.NewPasswordResetRepositoryWithVault(db)
+	if err != nil {
+		log.Fatalf("Failed to initialize PasswordResetRepository: %v", err)
+	}
 	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)

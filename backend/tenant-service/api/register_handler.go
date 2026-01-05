@@ -37,13 +37,11 @@ func (h *RegisterHandler) Register(c echo.Context) error {
 		})
 	}
 
-	// Debug: Log what we received
-	c.Logger().Infof("DEBUG: Received BusinessName='%s', Email='%s', FirstName='%s', LastName='%s'",
-		req.BusinessName, req.Email, req.FirstName, req.LastName)
+	masker := NewLogMasker()
 
-	// Log registration attempt (without sensitive data)
-	c.Logger().Infof("Tenant registration attempt for business: %s, email: %s",
-		req.BusinessName, MaskEmail(req.Email))
+	// Debug: Log what we received
+	c.Logger().Infof("Tenant registration attempt for BusinessName='%s', Email='%s', FirstName='%s', LastName='%s'",
+		req.BusinessName, masker.MaskEmail(req.Email), masker.MaskName(req.FirstName), masker.MaskName(req.LastName))
 
 	if !services.IsValidBusinessName(req.BusinessName) {
 		c.Logger().Warnf("Invalid business name: %s (length=%d)", req.BusinessName, len(req.BusinessName))
@@ -54,7 +52,8 @@ func (h *RegisterHandler) Register(c echo.Context) error {
 
 	req.Email = services.NormalizeEmail(req.Email)
 	if !services.IsValidEmail(req.Email) {
-		c.Logger().Warnf("Invalid email format: %s", MaskEmail(req.Email))
+		masker := NewLogMasker()
+		c.Logger().Warnf("Invalid email format: %s", masker.MaskEmail(req.Email))
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": GetLocalizedMessage(locale, "validation.emailInvalid"),
 		})

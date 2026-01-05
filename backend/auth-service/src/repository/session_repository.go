@@ -8,18 +8,67 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pos/auth-service/src/models"
+	"github.com/pos/auth-service/src/utils"
 )
 
 type SessionRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
-func NewSessionRepository(db *sql.DB) *SessionRepository {
-	return &SessionRepository{db: db}
+// NewSessionRepository creates a new repository with dependency injection (for testing)
+func NewSessionRepository(db *sql.DB, encryptor utils.Encryptor) *SessionRepository {
+	return &SessionRepository{
+		db:        db,
+		encryptor: encryptor,
+	}
 }
 
-// Create creates a new session record in PostgreSQL
+// NewSessionRepositoryWithVault creates a repository with real VaultClient (for production)
+func NewSessionRepositoryWithVault(db *sql.DB) (*SessionRepository, error) {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize VaultClient: %w", err)
+	}
+	return NewSessionRepository(db, vaultClient), nil
+}
+
+// encryptStringPtr encrypts a pointer to string (handles nil values)
+func (r *SessionRepository) encryptStringPtr(ctx context.Context, value *string) (string, error) {
+	if value == nil || *value == "" {
+		return "", nil
+	}
+	return r.encryptor.Encrypt(ctx, *value)
+}
+
+// decryptToStringPtr decrypts to a pointer to string (handles empty values)
+func (r *SessionRepository) decryptToStringPtr(ctx context.Context, encrypted string) (*string, error) {
+	if encrypted == "" {
+		return nil, nil
+	}
+	decrypted, err := r.encryptor.Decrypt(ctx, encrypted)
+	if err != nil {
+		return nil, err
+	}
+	return &decrypted, nil
+}
+
+// Create creates a new session record in PostgreSQL with encrypted PII
 func (r *SessionRepository) Create(ctx context.Context, session *models.Session) error {
+	// Encrypt PII fields
+	encryptedSessionID, err := r.encryptor.Encrypt(ctx, session.SessionID)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt session_id: %w", err)
+	}
+
+	var encryptedIPAddress string
+	if session.IPAddress != "" {
+		encryptedIPAddress, err = r.encryptor.Encrypt(ctx, session.IPAddress)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt ip_address: %w", err)
+		}
+	}
+
 	query := `
 		INSERT INTO sessions (id, session_id, tenant_id, user_id, ip_address, user_agent, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -33,12 +82,12 @@ func (r *SessionRepository) Create(ctx context.Context, session *models.Session)
 		session.CreatedAt = time.Now()
 	}
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = r.db.ExecContext(ctx, query,
 		session.ID,
-		session.SessionID,
+		encryptedSessionID,
 		session.TenantID,
 		session.UserID,
-		session.IPAddress,
+		encryptedIPAddress,
 		session.UserAgent,
 		session.ExpiresAt,
 		session.CreatedAt,
@@ -51,8 +100,14 @@ func (r *SessionRepository) Create(ctx context.Context, session *models.Session)
 	return nil
 }
 
-// FindByID finds a session by session ID
+// FindByID finds a session by session ID with decrypted PII
 func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*models.Session, error) {
+	// Encrypt the search session ID to match against encrypted database values
+	encryptedSessionID, err := r.encryptor.Encrypt(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt search session_id: %w", err)
+	}
+
 	query := `
 		SELECT id, session_id, tenant_id, user_id, ip_address, user_agent, 
 		       expires_at, terminated_at, created_at
@@ -61,15 +116,16 @@ func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*mo
 	`
 
 	session := &models.Session{}
-	var ipAddress, userAgent sql.NullString
+	var encryptedStoredSessionID, encryptedIPAddress string
+	var userAgent sql.NullString
 	var terminatedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(
+	err = r.db.QueryRowContext(ctx, query, encryptedSessionID).Scan(
 		&session.ID,
-		&session.SessionID,
+		&encryptedStoredSessionID,
 		&session.TenantID,
 		&session.UserID,
-		&ipAddress,
+		&encryptedIPAddress,
 		&userAgent,
 		&session.ExpiresAt,
 		&terminatedAt,
@@ -84,9 +140,20 @@ func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*mo
 		return nil, fmt.Errorf("failed to find session: %w", err)
 	}
 
-	if ipAddress.Valid {
-		session.IPAddress = ipAddress.String
+	// Decrypt PII fields
+	session.SessionID, err = r.encryptor.Decrypt(ctx, encryptedStoredSessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt session_id: %w", err)
 	}
+
+	decryptedIP, err := r.decryptToStringPtr(ctx, encryptedIPAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
+	}
+	if decryptedIP != nil {
+		session.IPAddress = *decryptedIP
+	}
+
 	if userAgent.Valid {
 		session.UserAgent = userAgent.String
 	}

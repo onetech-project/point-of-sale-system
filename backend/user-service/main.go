@@ -32,6 +32,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T060)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	// Database connection
@@ -68,7 +71,10 @@ func main() {
 	e.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
 
 	// Notification preferences endpoints
-	userService := services.NewUserService(db)
+	userService, err := services.NewUserService(db)
+	if err != nil {
+		log.Fatalf("Failed to create user service: %v", err)
+	}
 	notificationPrefsHandler := api.NewNotificationPreferencesHandler(userService)
 	e.GET("/api/v1/users/notification-preferences", notificationPrefsHandler.GetNotificationPreferences)
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
