@@ -24,6 +24,16 @@ func TestUserService_WithMockEncryptor(t *testing.T) {
 			}
 			return ciphertext, nil
 		},
+		EncryptWithContextFunc: func(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
+			return "mock:" + plaintext, nil
+		},
+		DecryptWithContextFunc: func(ctx context.Context, ciphertext string, encryptionContext string) (string, error) {
+			// Remove "mock:" prefix
+			if len(ciphertext) > 5 && ciphertext[:5] == "mock:" {
+				return ciphertext[5:], nil
+			}
+			return ciphertext, nil
+		},
 	}
 
 	// Setup test database (you'd use a test DB or mock DB)

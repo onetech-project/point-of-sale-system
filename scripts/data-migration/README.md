@@ -9,6 +9,7 @@ This migration tool is a standalone module with:
 - **Single entry point**: `main.go` with argument-based routing
 - **Self-contained configuration**: Vault and database config in `config.go`
 - **Docker support**: Can run as container or standalone binary
+- **Modular design**: Each migration type has its own file + wrapper
 
 ## Prerequisites
 
@@ -19,6 +20,18 @@ This migration tool is a standalone module with:
    - `VAULT_ADDR` - Vault server address
    - `VAULT_TOKEN` - Vault authentication token
    - `VAULT_TRANSIT_KEY` - Transit encryption key name
+   - `ENCRYPTION_HMAC_SECRET` - (Optional) HMAC secret for integrity checking
+
+## Available Migration Types
+
+- **users**: Encrypt user PII (email, first_name, last_name)
+- **guest-orders**: Encrypt guest order PII (customer_name, phone, email, ip_address)
+- **tenant-configs**: Encrypt tenant payment credentials (midtrans keys)
+- **notifications**: Encrypt notification recipient, body, and metadata sensitive fields
+- **invitations**: Encrypt invitation email and token
+- **search-hashes**: Populate searchable HMAC hashes for encrypted fields
+- **encrypt-plaintext**: Encrypt plaintext PII data with context-based encryption
+- **all**: Run all migrations sequentially
 
 ## Running Migrations
 
@@ -33,7 +46,7 @@ go mod download
 # Run specific migration
 go run main.go -type=users
 go run main.go -type=guest-orders
-go run main.go -type=tenant-configs
+go run main.go -type=encrypt-plaintext
 
 # Run all migrations
 go run main.go -type=all

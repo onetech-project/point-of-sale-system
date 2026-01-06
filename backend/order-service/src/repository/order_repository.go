@@ -27,7 +27,7 @@ func NewOrderRepository(db *sql.DB, encryptor utils.Encryptor) *OrderRepository 
 
 // NewOrderRepositoryWithVault creates a repository with Vault encryption (production)
 func NewOrderRepositoryWithVault(db *sql.DB) (*OrderRepository, error) {
-	vaultClient, err := utils.NewVaultEncryptor()
+	vaultClient, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Vault client: %w", err)
 	}
@@ -35,11 +35,11 @@ func NewOrderRepositoryWithVault(db *sql.DB) (*OrderRepository, error) {
 }
 
 // Helper function to decrypt pointer string fields
-func (r *OrderRepository) decryptToStringPtr(ctx context.Context, encrypted string) (*string, error) {
+func (r *OrderRepository) decryptToStringPtr(ctx context.Context, encrypted string, encContext string) (*string, error) {
 	if encrypted == "" {
 		return nil, nil
 	}
-	decrypted, err := r.encryptor.Decrypt(ctx, encrypted)
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encContext)
 	if err != nil {
 		return nil, err
 	}
@@ -97,27 +97,27 @@ WHERE order_reference = $1
 
 	// Decrypt PII fields
 	if encryptedName.Valid {
-		if order.CustomerName, err = r.encryptor.Decrypt(ctx, encryptedName.String); err != nil {
+		if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
 		}
 	}
 	if encryptedPhone.Valid {
-		if order.CustomerPhone, err = r.encryptor.Decrypt(ctx, encryptedPhone.String); err != nil {
+		if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
 		}
 	}
 	if encryptedEmail.Valid {
-		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String); err != nil {
+		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
 		}
 	}
 	if encryptedIP.Valid && encryptedIP.String != "" {
-		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String); err != nil {
+		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
 		}
 	}
 	if encryptedUA.Valid && encryptedUA.String != "" {
-		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String); err != nil {
+		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
 		}
 	}
@@ -176,27 +176,27 @@ WHERE id = $1
 
 	// Decrypt PII fields
 	if encryptedName.Valid {
-		if order.CustomerName, err = r.encryptor.Decrypt(ctx, encryptedName.String); err != nil {
+		if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
 		}
 	}
 	if encryptedPhone.Valid {
-		if order.CustomerPhone, err = r.encryptor.Decrypt(ctx, encryptedPhone.String); err != nil {
+		if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
 		}
 	}
 	if encryptedEmail.Valid {
-		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String); err != nil {
+		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
 		}
 	}
 	if encryptedIP.Valid && encryptedIP.String != "" {
-		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String); err != nil {
+		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
 		}
 	}
 	if encryptedUA.Valid && encryptedUA.String != "" {
-		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String); err != nil {
+		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
 			return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
 		}
 	}
@@ -341,31 +341,31 @@ WHERE tenant_id = $1
 
 		// Decrypt PII fields
 		if encryptedName.Valid {
-			if order.CustomerName, err = r.encryptor.Decrypt(ctx, encryptedName.String); err != nil {
+			if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
 				log.Error().Err(err).Msg("Failed to decrypt customer_name")
 				return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
 			}
 		}
 		if encryptedPhone.Valid {
-			if order.CustomerPhone, err = r.encryptor.Decrypt(ctx, encryptedPhone.String); err != nil {
+			if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
 				log.Error().Err(err).Msg("Failed to decrypt customer_phone")
 				return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
 			}
 		}
 		if encryptedEmail.Valid {
-			if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String); err != nil {
+			if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
 				log.Error().Err(err).Msg("Failed to decrypt customer_email")
 				return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
 			}
 		}
 		if encryptedIP.Valid {
-			if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String); err != nil {
+			if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
 				log.Error().Err(err).Msg("Failed to decrypt ip_address")
 				return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
 			}
 		}
 		if encryptedUA.Valid {
-			if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String); err != nil {
+			if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
 				log.Error().Err(err).Msg("Failed to decrypt user_agent")
 				return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
 			}

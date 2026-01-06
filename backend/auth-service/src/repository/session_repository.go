@@ -33,7 +33,27 @@ func NewSessionRepositoryWithVault(db *sql.DB) (*SessionRepository, error) {
 	return NewSessionRepository(db, vaultClient), nil
 }
 
-// encryptStringPtr encrypts a pointer to string (handles nil values)
+// encryptStringPtrWithContext encrypts a pointer to string with context (handles nil values)
+func (r *SessionRepository) encryptStringPtrWithContext(ctx context.Context, value *string, encContext string) (string, error) {
+	if value == nil || *value == "" {
+		return "", nil
+	}
+	return r.encryptor.EncryptWithContext(ctx, *value, encContext)
+}
+
+// decryptToStringPtrWithContext decrypts to a pointer to string with context (handles empty values)
+func (r *SessionRepository) decryptToStringPtrWithContext(ctx context.Context, encrypted string, encContext string) (*string, error) {
+	if encrypted == "" {
+		return nil, nil
+	}
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encContext)
+	if err != nil {
+		return nil, err
+	}
+	return &decrypted, nil
+}
+
+// encryptStringPtr encrypts a pointer to string (handles nil values) - DEPRECATED: Use encryptStringPtrWithContext
 func (r *SessionRepository) encryptStringPtr(ctx context.Context, value *string) (string, error) {
 	if value == nil || *value == "" {
 		return "", nil
@@ -55,15 +75,15 @@ func (r *SessionRepository) decryptToStringPtr(ctx context.Context, encrypted st
 
 // Create creates a new session record in PostgreSQL with encrypted PII
 func (r *SessionRepository) Create(ctx context.Context, session *models.Session) error {
-	// Encrypt PII fields
-	encryptedSessionID, err := r.encryptor.Encrypt(ctx, session.SessionID)
+	// Encrypt PII fields with context
+	encryptedSessionID, err := r.encryptor.EncryptWithContext(ctx, session.SessionID, "session:session_id")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt session_id: %w", err)
 	}
 
 	var encryptedIPAddress string
 	if session.IPAddress != "" {
-		encryptedIPAddress, err = r.encryptor.Encrypt(ctx, session.IPAddress)
+		encryptedIPAddress, err = r.encryptor.EncryptWithContext(ctx, session.IPAddress, "session:ip_address")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt ip_address: %w", err)
 		}
@@ -102,8 +122,8 @@ func (r *SessionRepository) Create(ctx context.Context, session *models.Session)
 
 // FindByID finds a session by session ID with decrypted PII
 func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*models.Session, error) {
-	// Encrypt the search session ID to match against encrypted database values
-	encryptedSessionID, err := r.encryptor.Encrypt(ctx, sessionID)
+	// Encrypt the search session ID with context for deterministic encryption
+	encryptedSessionID, err := r.encryptor.EncryptWithContext(ctx, sessionID, "session:session_id")
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt search session_id: %w", err)
 	}
@@ -140,13 +160,13 @@ func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*mo
 		return nil, fmt.Errorf("failed to find session: %w", err)
 	}
 
-	// Decrypt PII fields
-	session.SessionID, err = r.encryptor.Decrypt(ctx, encryptedStoredSessionID)
+	// Decrypt PII fields with context
+	session.SessionID, err = r.encryptor.DecryptWithContext(ctx, encryptedStoredSessionID, "session:session_id")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt session_id: %w", err)
 	}
 
-	decryptedIP, err := r.decryptToStringPtr(ctx, encryptedIPAddress)
+	decryptedIP, err := r.decryptToStringPtrWithContext(ctx, encryptedIPAddress, "session:ip_address")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
 	}
@@ -166,13 +186,19 @@ func (r *SessionRepository) FindByID(ctx context.Context, sessionID string) (*mo
 
 // Delete marks a session as terminated
 func (r *SessionRepository) Delete(ctx context.Context, sessionID string) error {
+	// Encrypt session ID for search
+	encryptedSessionID, err := r.encryptor.EncryptWithContext(ctx, sessionID, "session:session_id")
+	if err != nil {
+		return fmt.Errorf("failed to encrypt session_id for search: %w", err)
+	}
+
 	query := `
 		UPDATE sessions
 		SET terminated_at = $1
 		WHERE session_id = $2 AND terminated_at IS NULL
 	`
 
-	result, err := r.db.ExecContext(ctx, query, time.Now(), sessionID)
+	result, err := r.db.ExecContext(ctx, query, time.Now(), encryptedSessionID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
@@ -230,15 +256,16 @@ func (r *SessionRepository) FindByUserID(ctx context.Context, userID string) ([]
 
 	for rows.Next() {
 		session := &models.Session{}
-		var ipAddress, userAgent sql.NullString
+		var encryptedSessionID, encryptedIPAddress string
+		var userAgent sql.NullString
 		var terminatedAt sql.NullTime
 
 		err := rows.Scan(
 			&session.ID,
-			&session.SessionID,
+			&encryptedSessionID,
 			&session.TenantID,
 			&session.UserID,
-			&ipAddress,
+			&encryptedIPAddress,
 			&userAgent,
 			&session.ExpiresAt,
 			&terminatedAt,
@@ -249,9 +276,20 @@ func (r *SessionRepository) FindByUserID(ctx context.Context, userID string) ([]
 			return nil, fmt.Errorf("failed to scan session: %w", err)
 		}
 
-		if ipAddress.Valid {
-			session.IPAddress = ipAddress.String
+		// Decrypt PII fields with context
+		session.SessionID, err = r.encryptor.DecryptWithContext(ctx, encryptedSessionID, "session:session_id")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt session_id: %w", err)
 		}
+
+		decryptedIP, err := r.decryptToStringPtrWithContext(ctx, encryptedIPAddress, "session:ip_address")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
+		}
+		if decryptedIP != nil {
+			session.IPAddress = *decryptedIP
+		}
+
 		if userAgent.Valid {
 			session.UserAgent = userAgent.String
 		}

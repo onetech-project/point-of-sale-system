@@ -26,27 +26,27 @@ func NewGuestOrderRepository(db *sql.DB, encryptor utils.Encryptor) *GuestOrderR
 
 // NewGuestOrderRepositoryWithVault creates a repository with real VaultClient (for production)
 func NewGuestOrderRepositoryWithVault(db *sql.DB) (*GuestOrderRepository, error) {
-	vaultEncryptor, err := utils.NewVaultEncryptor()
+	vaultEncryptor, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize VaultEncryptor: %w", err)
 	}
 	return NewGuestOrderRepository(db, vaultEncryptor), nil
 }
 
-// encryptStringPtr encrypts a pointer to string (handles nil values)
-func (r *GuestOrderRepository) encryptStringPtr(ctx context.Context, value *string) (string, error) {
+// encryptStringPtrWithContext encrypts a pointer to string with encryption context (handles nil values)
+func (r *GuestOrderRepository) encryptStringPtrWithContext(ctx context.Context, value *string, encryptionContext string) (string, error) {
 	if value == nil || *value == "" {
 		return "", nil
 	}
-	return r.encryptor.Encrypt(ctx, *value)
+	return r.encryptor.EncryptWithContext(ctx, *value, encryptionContext)
 }
 
-// decryptToStringPtr decrypts to a pointer to string (handles empty values)
-func (r *GuestOrderRepository) decryptToStringPtr(ctx context.Context, encrypted string) (*string, error) {
+// decryptToStringPtrWithContext decrypts to a pointer to string with encryption context (handles empty values)
+func (r *GuestOrderRepository) decryptToStringPtrWithContext(ctx context.Context, encrypted string, encryptionContext string) (*string, error) {
 	if encrypted == "" {
 		return nil, nil
 	}
-	decrypted, err := r.encryptor.Decrypt(ctx, encrypted)
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encryptionContext)
 	if err != nil {
 		return nil, err
 	}
@@ -56,28 +56,28 @@ func (r *GuestOrderRepository) decryptToStringPtr(ctx context.Context, encrypted
 // Create inserts a new guest order with encrypted PII fields
 // Encrypts: CustomerName, CustomerPhone, CustomerEmail, IPAddress, UserAgent
 func (r *GuestOrderRepository) Create(ctx context.Context, tx *sql.Tx, order *models.GuestOrder) (string, error) {
-	// Encrypt PII fields
-	encryptedName, err := r.encryptor.Encrypt(ctx, order.CustomerName)
+	// Encrypt PII fields with context
+	encryptedName, err := r.encryptor.EncryptWithContext(ctx, order.CustomerName, "guest_order:customer_name")
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt customer_name: %w", err)
 	}
 
-	encryptedPhone, err := r.encryptor.Encrypt(ctx, order.CustomerPhone)
+	encryptedPhone, err := r.encryptor.EncryptWithContext(ctx, order.CustomerPhone, "guest_order:customer_phone")
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt customer_phone: %w", err)
 	}
 
-	encryptedEmail, err := r.encryptStringPtr(ctx, order.CustomerEmail)
+	encryptedEmail, err := r.encryptStringPtrWithContext(ctx, order.CustomerEmail, "guest_order:customer_email")
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt customer_email: %w", err)
 	}
 
-	encryptedIPAddress, err := r.encryptStringPtr(ctx, order.IPAddress)
+	encryptedIPAddress, err := r.encryptStringPtrWithContext(ctx, order.IPAddress, "guest_order:ip_address")
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt ip_address: %w", err)
 	}
 
-	encryptedUserAgent, err := r.encryptStringPtr(ctx, order.UserAgent)
+	encryptedUserAgent, err := r.encryptStringPtrWithContext(ctx, order.UserAgent, "guest_order:user_agent")
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt user_agent: %w", err)
 	}
@@ -169,31 +169,31 @@ func (r *GuestOrderRepository) GetByReference(ctx context.Context, tenantID, ord
 		return nil, err
 	}
 
-	// Decrypt PII fields
-	order.CustomerName, err = r.encryptor.Decrypt(ctx, encryptedName)
+	// Decrypt PII fields with context
+	order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName, "guest_order:customer_name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
 	}
 
-	order.CustomerPhone, err = r.encryptor.Decrypt(ctx, encryptedPhone)
+	order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone, "guest_order:customer_phone")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
 	}
 
-	order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail)
+	order.CustomerEmail, err = r.decryptToStringPtrWithContext(ctx, encryptedEmail, "guest_order:customer_email")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
 	}
 
 	if encryptedIPAddress.Valid {
-		order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIPAddress.String)
+		order.IPAddress, err = r.decryptToStringPtrWithContext(ctx, encryptedIPAddress.String, "guest_order:ip_address")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
 		}
 	}
 
 	if encryptedUserAgent.Valid {
-		order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUserAgent.String)
+		order.UserAgent, err = r.decryptToStringPtrWithContext(ctx, encryptedUserAgent.String, "guest_order:user_agent")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
 		}

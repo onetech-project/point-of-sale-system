@@ -22,7 +22,7 @@ func NewKafkaConsumer(brokers []string, topic string, groupID string, handler fu
 		MinBytes:       10e1, // 100B
 		MaxBytes:       10e6, // 10MB
 		CommitInterval: time.Second,
-		StartOffset:    kafka.LastOffset,
+		StartOffset:    kafka.FirstOffset,
 	})
 
 	return &KafkaConsumer{

@@ -28,27 +28,27 @@ func NewAddressRepository(db *sql.DB, encryptor utils.Encryptor) *AddressReposit
 
 // NewAddressRepositoryWithVault creates a repository with real VaultClient (for production)
 func NewAddressRepositoryWithVault(db *sql.DB) (*AddressRepository, error) {
-	vaultEncryptor, err := utils.NewVaultEncryptor()
+	vaultEncryptor, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize VaultEncryptor: %w", err)
 	}
 	return NewAddressRepository(db, vaultEncryptor), nil
 }
 
-// encryptStringPtr encrypts a pointer to string (handles nil values)
-func (r *AddressRepository) encryptStringPtr(ctx context.Context, value *string) (string, error) {
+// encryptStringPtrWithContext encrypts a pointer to string with encryption context (handles nil values)
+func (r *AddressRepository) encryptStringPtrWithContext(ctx context.Context, value *string, encryptionContext string) (string, error) {
 	if value == nil || *value == "" {
 		return "", nil
 	}
-	return r.encryptor.Encrypt(ctx, *value)
+	return r.encryptor.EncryptWithContext(ctx, *value, encryptionContext)
 }
 
-// decryptToStringPtr decrypts to a pointer to string (handles empty values)
-func (r *AddressRepository) decryptToStringPtr(ctx context.Context, encrypted string) (*string, error) {
+// decryptToStringPtrWithContext decrypts to a pointer to string with encryption context (handles empty values)
+func (r *AddressRepository) decryptToStringPtrWithContext(ctx context.Context, encrypted string, encryptionContext string) (*string, error) {
 	if encrypted == "" {
 		return nil, nil
 	}
-	decrypted, err := r.encryptor.Decrypt(ctx, encrypted)
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encryptionContext)
 	if err != nil {
 		return nil, err
 	}
@@ -59,13 +59,13 @@ func (r *AddressRepository) decryptToStringPtr(ctx context.Context, encrypted st
 // Encrypts: FullAddress, GeocodingResult
 // Note: Latitude/Longitude remain plaintext for geocoding queries
 func (r *AddressRepository) Create(ctx context.Context, address *models.DeliveryAddress) error {
-	// Encrypt PII fields
-	encryptedAddress, err := r.encryptor.Encrypt(ctx, address.FullAddress)
+	// Encrypt PII fields with context
+	encryptedAddress, err := r.encryptor.EncryptWithContext(ctx, address.FullAddress, "delivery_address:full_address")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt full_address: %w", err)
 	}
 
-	encryptedGeocodingResult, err := r.encryptStringPtr(ctx, address.GeocodingResult)
+	encryptedGeocodingResult, err := r.encryptStringPtrWithContext(ctx, address.GeocodingResult, "delivery_address:geocoding_result")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt geocoding_result: %w", err)
 	}
@@ -158,13 +158,13 @@ func (r *AddressRepository) GetByOrderID(ctx context.Context, orderID string) (*
 		return nil, err
 	}
 
-	// Decrypt PII fields
-	address.FullAddress, err = r.encryptor.Decrypt(ctx, encryptedAddress)
+	// Decrypt PII fields with context
+	address.FullAddress, err = r.encryptor.DecryptWithContext(ctx, encryptedAddress, "delivery_address:full_address")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt full_address: %w", err)
 	}
 
-	address.GeocodingResult, err = r.decryptToStringPtr(ctx, encryptedGeocodingResult)
+	address.GeocodingResult, err = r.decryptToStringPtrWithContext(ctx, encryptedGeocodingResult, "delivery_address:geocoding_result")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt geocoding_result: %w", err)
 	}
@@ -174,13 +174,13 @@ func (r *AddressRepository) GetByOrderID(ctx context.Context, orderID string) (*
 
 // Update updates an existing delivery address with encrypted PII
 func (r *AddressRepository) Update(ctx context.Context, address *models.DeliveryAddress) error {
-	// Encrypt PII fields
-	encryptedAddress, err := r.encryptor.Encrypt(ctx, address.FullAddress)
+	// Encrypt PII fields with context
+	encryptedAddress, err := r.encryptor.EncryptWithContext(ctx, address.FullAddress, "delivery_address:full_address")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt full_address: %w", err)
 	}
 
-	encryptedGeocodingResult, err := r.encryptStringPtr(ctx, address.GeocodingResult)
+	encryptedGeocodingResult, err := r.encryptStringPtrWithContext(ctx, address.GeocodingResult, "delivery_address:geocoding_result")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt geocoding_result: %w", err)
 	}

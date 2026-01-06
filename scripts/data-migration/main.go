@@ -27,16 +27,18 @@ func main() {
 		fmt.Println("Usage: go run main.go -type=<migration-type>")
 		fmt.Println()
 		fmt.Println("Available migration types:")
-		fmt.Println("  users           - Encrypt user PII (email, first_name, last_name)")
-		fmt.Println("  guest-orders    - Encrypt guest order PII (customer_name, phone, email, ip_address)")
-		fmt.Println("  tenant-configs  - Encrypt tenant payment credentials (midtrans keys)")
-		fmt.Println("  notifications   - Encrypt notification recipient, body, and metadata sensitive fields")
-		fmt.Println("  invitations     - Encrypt invitation email and token")
-		fmt.Println("  search-hashes   - Populate searchable HMAC hashes for encrypted fields")
-		fmt.Println("  all             - Run all migrations sequentially")
+		fmt.Println("  users              - Encrypt user PII (email, first_name, last_name)")
+		fmt.Println("  guest-orders       - Encrypt guest order PII (customer_name, phone, email, ip_address)")
+		fmt.Println("  tenant-configs     - Encrypt tenant payment credentials (midtrans keys)")
+		fmt.Println("  notifications      - Encrypt notification recipient, body, and metadata sensitive fields")
+		fmt.Println("  invitations        - Encrypt invitation email and token")
+		fmt.Println("  search-hashes      - Populate searchable HMAC hashes for encrypted fields")
+		fmt.Println("  encrypt-plaintext  - Encrypt plaintext PII data with context-based encryption")
+		fmt.Println("  all                - Run all migrations sequentially")
 		fmt.Println()
 		fmt.Println("Example:")
 		fmt.Println("  go run main.go -type=users")
+		fmt.Println("  go run main.go -type=encrypt-plaintext")
 		fmt.Println("  go run main.go -type=all")
 		os.Exit(1)
 	}
@@ -62,6 +64,8 @@ func main() {
 		migrationErr = MigrateInvitations()
 	case "search-hashes":
 		migrationErr = PopulateSearchHashes()
+	case "encrypt-plaintext":
+		migrationErr = EncryptPlaintextDataWrapper(config)
 	case "all":
 		log.Println("Running all migrations sequentially...")
 		log.Println()
@@ -126,6 +130,17 @@ func main() {
 			}
 		}
 
+		log.Println()
+		log.Println("---")
+		log.Println()
+
+		if err := EncryptPlaintextDataWrapper(config); err != nil {
+			log.Printf("Plaintext encryption failed: %v", err)
+			if migrationErr == nil {
+				migrationErr = err
+			}
+		}
+
 		if migrationErr != nil {
 			log.Println()
 			log.Println("⚠️  One or more migrations encountered errors. Review the logs above.")
@@ -134,7 +149,7 @@ func main() {
 			log.Println("✓ All migrations completed successfully!")
 		}
 	default:
-		log.Fatalf("Unknown migration type: %s. Use 'users', 'guest-orders', 'tenant-configs', 'notifications', 'invitations', 'search-hashes', or 'all'", *migrationType)
+		log.Fatalf("Unknown migration type: %s. Use 'users', 'guest-orders', 'tenant-configs', 'notifications', 'invitations', 'search-hashes', 'encrypt-plaintext', or 'all'", *migrationType)
 	}
 
 	if migrationErr != nil {

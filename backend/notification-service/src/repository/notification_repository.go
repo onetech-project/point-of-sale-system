@@ -49,15 +49,23 @@ func (r *NotificationRepository) encryptSensitiveMetadata(ctx context.Context, m
 		encryptedMetadata[k] = v
 	}
 
-	// List of sensitive string fields to encrypt
-	sensitiveFields := []string{
-		"email", "name", "inviter_name", "token", "invitation_token",
-		"ip_address", "user_agent", "customer_name", "customer_email", "customer_phone",
+	// List of sensitive string fields to encrypt with their contexts
+	sensitiveFields := map[string]string{
+		"email":            "notification_metadata:email",
+		"name":             "notification_metadata:name",
+		"inviter_name":     "notification_metadata:inviter_name",
+		"token":            "notification_metadata:token",
+		"invitation_token": "notification_metadata:invitation_token",
+		"ip_address":       "notification_metadata:ip_address",
+		"user_agent":       "notification_metadata:user_agent",
+		"customer_name":    "notification_metadata:customer_name",
+		"customer_email":   "notification_metadata:customer_email",
+		"customer_phone":   "notification_metadata:customer_phone",
 	}
 
-	for _, field := range sensitiveFields {
+	for field, context := range sensitiveFields {
 		if val, ok := encryptedMetadata[field].(string); ok && val != "" {
-			encrypted, err := r.encryptor.Encrypt(ctx, val)
+			encrypted, err := r.encryptor.EncryptWithContext(ctx, val, context)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encrypt %s: %w", field, err)
 			}
@@ -80,15 +88,23 @@ func (r *NotificationRepository) decryptSensitiveMetadata(ctx context.Context, m
 		decryptedMetadata[k] = v
 	}
 
-	// List of sensitive string fields to decrypt
-	sensitiveFields := []string{
-		"email", "name", "inviter_name", "token", "invitation_token",
-		"ip_address", "user_agent", "customer_name", "customer_email", "customer_phone",
+	// List of sensitive string fields to decrypt with their contexts
+	sensitiveFields := map[string]string{
+		"email":            "notification_metadata:email",
+		"name":             "notification_metadata:name",
+		"inviter_name":     "notification_metadata:inviter_name",
+		"token":            "notification_metadata:token",
+		"invitation_token": "notification_metadata:invitation_token",
+		"ip_address":       "notification_metadata:ip_address",
+		"user_agent":       "notification_metadata:user_agent",
+		"customer_name":    "notification_metadata:customer_name",
+		"customer_email":   "notification_metadata:customer_email",
+		"customer_phone":   "notification_metadata:customer_phone",
 	}
 
-	for _, field := range sensitiveFields {
+	for field, context := range sensitiveFields {
 		if val, ok := decryptedMetadata[field].(string); ok && val != "" {
-			decrypted, err := r.encryptor.Decrypt(ctx, val)
+			decrypted, err := r.encryptor.DecryptWithContext(ctx, val, context)
 			if err != nil {
 				// If decryption fails, it might be plaintext (old data), keep as is
 				continue
@@ -101,13 +117,13 @@ func (r *NotificationRepository) decryptSensitiveMetadata(ctx context.Context, m
 }
 
 func (r *NotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
-	// Encrypt PII fields
-	encryptedRecipient, err := r.encryptor.Encrypt(ctx, notification.Recipient)
+	// Encrypt PII fields with context
+	encryptedRecipient, err := r.encryptor.EncryptWithContext(ctx, notification.Recipient, "notification:recipient")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt recipient: %w", err)
 	}
 
-	encryptedBody, err := r.encryptor.Encrypt(ctx, notification.Body)
+	encryptedBody, err := r.encryptor.EncryptWithContext(ctx, notification.Body, "notification:body")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt body: %w", err)
 	}
@@ -200,13 +216,13 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*mode
 		return nil, fmt.Errorf("failed to find notification: %w", err)
 	}
 
-	// Decrypt PII fields
-	notification.Body, err = r.encryptor.Decrypt(ctx, encryptedBody)
+	// Decrypt PII fields with context
+	notification.Body, err = r.encryptor.DecryptWithContext(ctx, encryptedBody, "notification:body")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt body: %w", err)
 	}
 
-	notification.Recipient, err = r.encryptor.Decrypt(ctx, encryptedRecipient)
+	notification.Recipient, err = r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
 	}
@@ -279,14 +295,14 @@ func (r *NotificationRepository) GetByID(id string) (*models.Notification, error
 		return nil, err
 	}
 
-	// Decrypt PII fields
+	// Decrypt PII fields with context
 	ctx := context.Background()
-	notification.Body, err = r.encryptor.Decrypt(ctx, encryptedBody)
+	notification.Body, err = r.encryptor.DecryptWithContext(ctx, encryptedBody, "notification:body")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt body: %w", err)
 	}
 
-	notification.Recipient, err = r.encryptor.Decrypt(ctx, encryptedRecipient)
+	notification.Recipient, err = r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
 	}
@@ -423,7 +439,7 @@ func (r *NotificationRepository) GetNotificationHistory(filters map[string]inter
 
 		// Decrypt recipient
 		ctx := context.Background()
-		recipient, err := r.encryptor.Decrypt(ctx, encryptedRecipient)
+		recipient, err := r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
 		}

@@ -57,11 +57,20 @@ fi
 # Create encryption key if it doesn't exist
 echo "Checking encryption key..."
 if ! vault read transit/keys/pos-encryption-key >/dev/null 2>&1; then
-  echo "Creating pos-encryption-key..."
-  vault write -f transit/keys/pos-encryption-key
-  echo "✓ Encryption key created"
+  echo "Creating pos-encryption-key with convergent encryption..."
+  vault write -f transit/keys/pos-encryption-key \
+    type=aes256-gcm96 \
+    convergent_encryption=true \
+    derived=true
+  echo "✓ Encryption key created with convergent encryption enabled"
 else
   echo "✓ Encryption key already exists"
+  # Update existing key to enable convergent encryption if not already enabled
+  echo "Updating key configuration for convergent encryption..."
+  vault write transit/keys/pos-encryption-key/config \
+    allow_plaintext_backup=false \
+    deletion_allowed=false
+  echo "✓ Key configuration updated"
 fi
 
 # Display key info

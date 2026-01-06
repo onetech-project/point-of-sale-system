@@ -276,22 +276,25 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 		return nil, fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
-	// Use email hash for efficient O(1) lookup instead of O(n) table scan
-	emailHash := utils.HashForSearch(email)
+	// Encrypt email for direct comparison (deterministic encryption with context)
+	encryptedEmailForSearch, err := s.encryptor.EncryptWithContext(ctx, email, "user:email")
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt email for search: %w", err)
+	}
 
 	query := `
 		SELECT id, tenant_id, email, password_hash, role, status, first_name, last_name, locale
 		FROM users
-		WHERE tenant_id = $1 AND email_hash = $2 AND status = 'active'
+		WHERE tenant_id = $1 AND email = $2 AND status = 'active'
 		LIMIT 1
 	`
 
-	fmt.Printf("DEBUG: Executing query with email hash...\n")
+	fmt.Printf("DEBUG: Executing query with encrypted email...\n")
 	user := &User{}
 	var firstName, lastName sql.NullString
 	var encryptedEmail string
 
-	err = s.db.QueryRowContext(ctx, query, tenantID, emailHash).Scan(
+	err = s.db.QueryRowContext(ctx, query, tenantID, encryptedEmailForSearch).Scan(
 		&user.ID,
 		&user.TenantID,
 		&encryptedEmail,
@@ -314,7 +317,7 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 	}
 
 	// Decrypt email
-	user.Email, err = s.encryptor.Decrypt(ctx, encryptedEmail)
+	user.Email, err = s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
 	if err != nil {
 		fmt.Printf("DEBUG: Failed to decrypt email: %v\n", err)
 		return nil, fmt.Errorf("failed to decrypt email: %w", err)
@@ -322,7 +325,7 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 
 	// Decrypt first_name if present
 	if firstName.Valid {
-		decryptedFirstName, err := s.encryptor.Decrypt(ctx, firstName.String)
+		decryptedFirstName, err := s.encryptor.DecryptWithContext(ctx, firstName.String, "user:first_name")
 		if err != nil {
 			fmt.Printf("DEBUG: Failed to decrypt first_name: %v\n", err)
 			user.FirstName = ""
@@ -333,7 +336,7 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 
 	// Decrypt last_name if present
 	if lastName.Valid {
-		decryptedLastName, err := s.encryptor.Decrypt(ctx, lastName.String)
+		decryptedLastName, err := s.encryptor.DecryptWithContext(ctx, lastName.String, "user:last_name")
 		if err != nil {
 			fmt.Printf("DEBUG: Failed to decrypt last_name: %v\n", err)
 			user.LastName = ""
@@ -347,18 +350,21 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 }
 
 func (s *AuthService) getTenantIDByEmail(ctx context.Context, email string) (string, error) {
-	// Use email hash for efficient O(1) lookup
-	emailHash := utils.HashForSearch(email)
+	// Encrypt email for direct comparison (deterministic encryption with context)
+	encryptedEmailForSearch, err := s.encryptor.EncryptWithContext(ctx, email, "user:email")
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt email for search: %w", err)
+	}
 
 	query := `
 		SELECT tenant_id
 		FROM users
-		WHERE email_hash = $1 AND status = 'active'
+		WHERE email = $1 AND status = 'active'
 		LIMIT 1
 	`
 
 	var tenantID string
-	err := s.db.QueryRowContext(ctx, query, emailHash).Scan(&tenantID)
+	err = s.db.QueryRowContext(ctx, query, encryptedEmailForSearch).Scan(&tenantID)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}

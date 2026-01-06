@@ -8,10 +8,12 @@ import (
 // MockEncryptor is a mock implementation of the Encryptor interface for testing
 // It simulates encryption by adding a prefix/suffix instead of actual encryption
 type MockEncryptor struct {
-	EncryptFunc      func(ctx context.Context, plaintext string) (string, error)
-	DecryptFunc      func(ctx context.Context, ciphertext string) (string, error)
-	EncryptBatchFunc func(ctx context.Context, plaintexts []string) ([]string, error)
-	DecryptBatchFunc func(ctx context.Context, ciphertexts []string) ([]string, error)
+	EncryptFunc            func(ctx context.Context, plaintext string) (string, error)
+	DecryptFunc            func(ctx context.Context, ciphertext string) (string, error)
+	EncryptBatchFunc       func(ctx context.Context, plaintexts []string) ([]string, error)
+	DecryptBatchFunc       func(ctx context.Context, ciphertexts []string) ([]string, error)
+	EncryptWithContextFunc func(ctx context.Context, plaintext string, encryptionContext string) (string, error)
+	DecryptWithContextFunc func(ctx context.Context, ciphertext string, encryptionContext string) (string, error)
 }
 
 // Encrypt mock implementation
@@ -74,6 +76,16 @@ func (m *MockEncryptor) DecryptBatch(ctx context.Context, ciphertexts []string) 
 	return result, nil
 }
 
+// Encrypt With Context mock implementation
+func (m *MockEncryptor) EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
+	return m.Encrypt(ctx, plaintext)
+}
+
+// Decrypt With Context mock implementation
+func (m *MockEncryptor) DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error) {
+	return m.Decrypt(ctx, ciphertext)
+}
+
 // NoOpEncryptor is a pass-through encryptor for testing without encryption
 type NoOpEncryptor struct{}
 
@@ -91,4 +103,12 @@ func (n *NoOpEncryptor) EncryptBatch(ctx context.Context, plaintexts []string) (
 
 func (n *NoOpEncryptor) DecryptBatch(ctx context.Context, ciphertexts []string) ([]string, error) {
 	return ciphertexts, nil
+}
+
+func (n *NoOpEncryptor) EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
+	return plaintext, nil
+}
+
+func (n *NoOpEncryptor) DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error) {
+	return ciphertext, nil
 }

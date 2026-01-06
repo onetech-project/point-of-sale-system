@@ -13,11 +13,13 @@ import (
 	vault "github.com/hashicorp/vault/api"
 )
 
-// Encryptor defines the interface for encryption operations
-// Enables dependency injection for testing
+// Encryptor defines the interface for encryption/decryption operations
+// This interface enables dependency injection and mock testing
 type Encryptor interface {
 	Encrypt(ctx context.Context, plaintext string) (string, error)
+	EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error)
 	Decrypt(ctx context.Context, ciphertext string) (string, error)
+	DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error)
 	EncryptBatch(ctx context.Context, plaintexts []string) ([]string, error)
 	DecryptBatch(ctx context.Context, ciphertexts []string) ([]string, error)
 }
@@ -25,6 +27,7 @@ type Encryptor interface {
 // VaultClient handles encryption/decryption via Vault Transit Engine
 // Implements FR-009: Secure key storage outside primary data storage
 // Implements FR-012: HMAC integrity verification
+// Implements Encryptor interface for dependency injection
 type VaultClient struct {
 	client     *vault.Client
 	transitKey string
@@ -78,7 +81,16 @@ func NewVaultClient() (*VaultClient, error) {
 // Encrypt encrypts plaintext using Vault Transit Engine Encrypt API
 // Returns base64-encoded ciphertext with HMAC for integrity verification
 // Format: "vault:v1:<base64_ciphertext>:<hex_hmac>"
+// Uses empty context for backward compatibility - delegates to EncryptWithContext
 func (vc *VaultClient) Encrypt(ctx context.Context, plaintext string) (string, error) {
+	return vc.EncryptWithContext(ctx, plaintext, "")
+}
+
+// EncryptWithContext encrypts plaintext using Vault Transit Engine with convergent encryption
+// The context parameter enables deterministic encryption - same plaintext + context = same ciphertext
+// This allows for efficient encrypted field search and deduplication
+// Format: "vault:v1:<base64_ciphertext>:<hex_hmac>"
+func (vc *VaultClient) EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
 	if plaintext == "" {
 		return "", nil // Don't encrypt empty strings
 	}
@@ -86,10 +98,15 @@ func (vc *VaultClient) Encrypt(ctx context.Context, plaintext string) (string, e
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 
-	// Call Vault Transit Engine Encrypt API
+	// Call Vault Transit Engine Encrypt API with context for convergent encryption
 	path := fmt.Sprintf("transit/encrypt/%s", vc.transitKey)
 	data := map[string]interface{}{
 		"plaintext": base64.StdEncoding.EncodeToString([]byte(plaintext)),
+	}
+
+	// Add context for deterministic encryption (Vault derived key feature)
+	if encryptionContext != "" {
+		data["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContext))
 	}
 
 	secret, err := vc.client.Logical().Write(path, data)
@@ -114,7 +131,15 @@ func (vc *VaultClient) Encrypt(ctx context.Context, plaintext string) (string, e
 
 // Decrypt decrypts ciphertext using Vault Transit Engine Decrypt API
 // Verifies HMAC integrity before decryption (FR-012)
+// Uses empty context for backward compatibility - delegates to DecryptWithContext
 func (vc *VaultClient) Decrypt(ctx context.Context, ciphertext string) (string, error) {
+	return vc.DecryptWithContext(ctx, ciphertext, "")
+}
+
+// DecryptWithContext decrypts ciphertext using Vault Transit Engine with convergent encryption context
+// The context parameter must match the one used during encryption
+// Verifies HMAC integrity before decryption (FR-012)
+func (vc *VaultClient) DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error) {
 	if ciphertext == "" {
 		return "", nil // Don't decrypt empty strings
 	}
@@ -168,10 +193,15 @@ func (vc *VaultClient) Decrypt(ctx context.Context, ciphertext string) (string, 
 		}
 	}
 
-	// Call Vault Transit Engine Decrypt API
+	// Call Vault Transit Engine Decrypt API with context
 	path := fmt.Sprintf("transit/decrypt/%s", vc.transitKey)
 	data := map[string]interface{}{
 		"ciphertext": vaultCiphertext,
+	}
+
+	// Add context for deterministic decryption (must match encryption context)
+	if encryptionContext != "" {
+		data["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContext))
 	}
 
 	secret, err := vc.client.Logical().Write(path, data)
@@ -266,34 +296,10 @@ func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string) (
 			continue
 		}
 
-		// Parse vault:v1:data:hmac format
+		// Parse and verify HMAC
 		var vaultCiphertext, providedHmac string
-		lastColonIdx := strings.LastIndex(ct, ":")
+		fmt.Sscanf(ct, "%[^:]:%s", &vaultCiphertext, &providedHmac)
 
-		// Check if suffix looks like HMAC (64 hex chars)
-		isHmacPresent := false
-		if lastColonIdx != -1 && lastColonIdx < len(ct)-1 {
-			suffix := ct[lastColonIdx+1:]
-			if len(suffix) == 64 {
-				allHex := true
-				for _, c := range suffix {
-					if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-						allHex = false
-						break
-					}
-				}
-				isHmacPresent = allHex
-			}
-		}
-
-		if isHmacPresent {
-			vaultCiphertext = ct[:lastColonIdx]
-			providedHmac = ct[lastColonIdx+1:]
-		} else {
-			vaultCiphertext = ct
-		}
-
-		// Verify HMAC if present
 		if providedHmac != "" {
 			mac := hmac.New(sha256.New, vc.hmacSecret)
 			mac.Write([]byte(vaultCiphertext))
@@ -348,4 +354,14 @@ func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string) (
 func (vc *VaultClient) Close() error {
 	// Vault client doesn't require explicit cleanup
 	return nil
+}
+
+// HashForSearch creates a deterministic HMAC-SHA256 hash for searching encrypted fields
+// This allows efficient database lookups without decrypting all records
+func HashForSearch(value string) string {
+	// Use a secret key from environment for HMAC
+	secretKey := GetEnv("SEARCH_HASH_SECRET")
+	h := hmac.New(sha256.New, []byte(secretKey))
+	h.Write([]byte(value))
+	return hex.EncodeToString(h.Sum(nil))
 }

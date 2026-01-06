@@ -107,16 +107,16 @@ func (r *ConsentRepository) ListConsentRecords(ctx context.Context, filter Conse
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
-		
-		// Decrypt IP address
+
+		// Decrypt IP address with context
 		if encryptedIP != "" {
-			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			decrypted, err := r.encryptor.DecryptWithContext(ctx, encryptedIP, "consent_record:ip_address")
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
 			}
 			record.IPAddress = &decrypted
 		}
-		
+
 		records = append(records, &record)
 	}
 
@@ -162,9 +162,9 @@ func (r *ConsentRepository) GetConsentRecord(ctx context.Context, recordID uuid.
 		return nil, fmt.Errorf("failed to query consent record: %w", err)
 	}
 
-	// Decrypt IP address
+	// Decrypt IP address with context
 	if encryptedIP != "" {
-		decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+		decrypted, err := r.encryptor.DecryptWithContext(ctx, encryptedIP, "consent_record:ip_address")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
 		}
@@ -317,11 +317,11 @@ func (r *ConsentRepository) CreateConsentRecord(ctx context.Context, record *mod
 		record.RecordID = uuid.New()
 	}
 
-	// Encrypt IP address
+	// Encrypt IP address with context
 	var encryptedIP string
 	if record.IPAddress != nil && *record.IPAddress != "" {
 		var err error
-		encryptedIP, err = r.encryptor.Encrypt(ctx, *record.IPAddress)
+		encryptedIP, err = r.encryptor.EncryptWithContext(ctx, *record.IPAddress, "consent_record:ip_address")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt IP address: %w", err)
 		}
@@ -390,16 +390,16 @@ func (r *ConsentRepository) GetActiveConsents(ctx context.Context, tenantID, sub
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
-		
-		// Decrypt IP address
+
+		// Decrypt IP address with context
 		if encryptedIP != "" {
-			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			decrypted, err := r.encryptor.DecryptWithContext(ctx, encryptedIP, "consent_record:ip_address")
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
 			}
 			record.IPAddress = &decrypted
 		}
-		
+
 		records = append(records, &record)
 	}
 
@@ -478,16 +478,16 @@ func (r *ConsentRepository) GetConsentHistory(ctx context.Context, tenantID, sub
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
-		
-		// Decrypt IP address
+
+		// Decrypt IP address with context
 		if encryptedIP != "" {
-			decrypted, err := r.encryptor.Decrypt(ctx, encryptedIP)
+			decrypted, err := r.encryptor.DecryptWithContext(ctx, encryptedIP, "consent_record:ip_address")
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt IP address: %w", err)
 			}
 			record.IPAddress = &decrypted
 		}
-		
+
 		records = append(records, &record)
 	}
 

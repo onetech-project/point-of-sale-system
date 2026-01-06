@@ -81,20 +81,20 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 		// Decrypt PII fields
 		var firstName, lastName string
 		if encryptedFirstName.Valid && encryptedFirstName.String != "" {
-			firstName, err = s.userRepo.DecryptField(ctx, encryptedFirstName.String)
+			firstName, err = s.userRepo.DecryptFieldWithContext(ctx, encryptedFirstName.String, "user:first_name")
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt first_name for user %s: %w", id, err)
 			}
 		}
 
 		if encryptedLastName.Valid && encryptedLastName.String != "" {
-			lastName, err = s.userRepo.DecryptField(ctx, encryptedLastName.String)
+			lastName, err = s.userRepo.DecryptFieldWithContext(ctx, encryptedLastName.String, "user:last_name")
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt last_name for user %s: %w", id, err)
 			}
 		}
 
-		email, err := s.userRepo.DecryptField(ctx, encryptedEmail)
+		email, err := s.userRepo.DecryptFieldWithContext(ctx, encryptedEmail, "user:email")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt email for user %s: %w", id, err)
 		}

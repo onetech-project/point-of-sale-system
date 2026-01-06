@@ -34,9 +34,9 @@ func NewPasswordResetRepositoryWithVault(db *sql.DB) (*PasswordResetRepository, 
 }
 
 func (r *PasswordResetRepository) Create(token *models.PasswordResetToken) error {
-	// Encrypt token before storing
+	// Encrypt token with context before storing
 	ctx := context.Background()
-	encryptedToken, err := r.encryptor.Encrypt(ctx, token.Token)
+	encryptedToken, err := r.encryptor.EncryptWithContext(ctx, token.Token, "reset_token:token")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt token: %w", err)
 	}
@@ -48,9 +48,9 @@ func (r *PasswordResetRepository) Create(token *models.PasswordResetToken) error
 }
 
 func (r *PasswordResetRepository) FindByToken(token string) (*models.PasswordResetToken, error) {
-	// Encrypt the search token to match against encrypted database values
+	// Encrypt the search token with context for deterministic encryption
 	ctx := context.Background()
-	encryptedToken, err := r.encryptor.Encrypt(ctx, token)
+	encryptedToken, err := r.encryptor.EncryptWithContext(ctx, token, "reset_token:token")
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt search token: %w", err)
 	}
@@ -72,8 +72,8 @@ func (r *PasswordResetRepository) FindByToken(token string) (*models.PasswordRes
 		return nil, err
 	}
 
-	// Decrypt the token for use in the application
-	resetToken.Token, err = r.encryptor.Decrypt(ctx, storedEncryptedToken)
+	// Decrypt the token with context for use in the application
+	resetToken.Token, err = r.encryptor.DecryptWithContext(ctx, storedEncryptedToken, "reset_token:token")
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt token: %w", err)
 	}

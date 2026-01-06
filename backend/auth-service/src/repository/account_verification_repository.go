@@ -3,21 +3,39 @@ package repository
 // verify account verification repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/pos/auth-service/src/utils"
 )
 
 type AccountVerificationRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
 func NewVerifyAccountRepository(db *sql.DB) *AccountVerificationRepository {
-	return &AccountVerificationRepository{db: db}
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize Vault client for account verification: %v", err))
+	}
+	return &AccountVerificationRepository{
+		db:        db,
+		encryptor: vaultClient,
+	}
 }
 
 // Find And Update User And TenantStatus By Token
 func (r *AccountVerificationRepository) FindAndUpdateUserAndTenantStatusByToken(token string, now time.Time) error {
+	// Encrypt token for database lookup (deterministic encryption)
+	ctx := context.Background()
+	encryptedToken, err := r.encryptor.EncryptWithContext(ctx, token, "verification_token:token")
+	if err != nil {
+		return fmt.Errorf("failed to encrypt verification token: %w", err)
+	}
+
 	var id string
 	var tenantID string
 
@@ -33,7 +51,7 @@ func (r *AccountVerificationRepository) FindAndUpdateUserAndTenantStatusByToken(
 		WHERE verification_token = $1 AND verification_token_expires_at > $2 AND email_verified = FALSE
 		FOR UPDATE
 	`
-	row := tx.QueryRow(query, token, now)
+	row := tx.QueryRow(query, encryptedToken, now)
 	if err := row.Scan(&id, &tenantID); err != nil {
 		fmt.Printf("DEBUG: error check user by token, verification_token_expires_at, and email_verified %v\n", err)
 		return fmt.Errorf("invalid or expired token")

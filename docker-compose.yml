@@ -445,9 +445,13 @@ services:
 
 volumes:
   postgres_data:
+    name: pos_postgres_data
   redis_data:
+    name: pos_redis_data
   kafka_data:
+    name: pos_kafka_data
   minio_data:
+    name: pos_minio_data
 
 networks:
   pos-network:

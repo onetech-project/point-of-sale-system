@@ -101,16 +101,16 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 		return nil, fmt.Errorf("failed to get tenant config: %w", err)
 	}
 
-	// Decrypt Midtrans keys
+	// Decrypt Midtrans keys with context
 	if encryptedServerKey != "" {
-		config.MidtransServerKey, err = r.encryptor.Decrypt(ctx, encryptedServerKey)
+		config.MidtransServerKey, err = r.encryptor.DecryptWithContext(ctx, encryptedServerKey, "tenant_config:midtrans_server_key")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt midtrans_server_key: %w", err)
 		}
 	}
 
 	if encryptedClientKey != "" {
-		config.MidtransClientKey, err = r.encryptor.Decrypt(ctx, encryptedClientKey)
+		config.MidtransClientKey, err = r.encryptor.DecryptWithContext(ctx, encryptedClientKey, "tenant_config:midtrans_client_key")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt midtrans_client_key: %w", err)
 		}
@@ -129,19 +129,19 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 }
 
 func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfig) error {
-	// Encrypt Midtrans keys
+	// Encrypt Midtrans keys with context
 	var encryptedServerKey, encryptedClientKey string
 	var err error
 
 	if config.MidtransServerKey != "" {
-		encryptedServerKey, err = r.encryptor.Encrypt(ctx, config.MidtransServerKey)
+		encryptedServerKey, err = r.encryptor.EncryptWithContext(ctx, config.MidtransServerKey, "tenant_config:midtrans_server_key")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt midtrans_server_key: %w", err)
 		}
 	}
 
 	if config.MidtransClientKey != "" {
-		encryptedClientKey, err = r.encryptor.Encrypt(ctx, config.MidtransClientKey)
+		encryptedClientKey, err = r.encryptor.EncryptWithContext(ctx, config.MidtransClientKey, "tenant_config:midtrans_client_key")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt midtrans_client_key: %w", err)
 		}
@@ -193,19 +193,19 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 }
 
 func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfig) error {
-	// Encrypt Midtrans keys
+	// Encrypt Midtrans keys with context
 	var encryptedServerKey, encryptedClientKey string
 	var err error
 
 	if config.MidtransServerKey != "" {
-		encryptedServerKey, err = r.encryptor.Encrypt(ctx, config.MidtransServerKey)
+		encryptedServerKey, err = r.encryptor.EncryptWithContext(ctx, config.MidtransServerKey, "tenant_config:midtrans_server_key")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt midtrans_server_key: %w", err)
 		}
 	}
 
 	if config.MidtransClientKey != "" {
-		encryptedClientKey, err = r.encryptor.Encrypt(ctx, config.MidtransClientKey)
+		encryptedClientKey, err = r.encryptor.EncryptWithContext(ctx, config.MidtransClientKey, "tenant_config:midtrans_client_key")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt midtrans_client_key: %w", err)
 		}

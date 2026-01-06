@@ -116,41 +116,44 @@ func (s *TenantService) createOwnerUser(ctx context.Context, tx *sql.Tx, tenantI
 		return "", "", fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
-	// Encrypt PII fields before storing (FR-009: Field-level encryption)
-	encryptedEmail, err := s.encryptor.Encrypt(ctx, email)
+	// Encrypt PII fields with context before storing (FR-009: Field-level encryption)
+	encryptedEmail, err := s.encryptor.EncryptWithContext(ctx, email, "user:email")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encrypt email: %w", err)
 	}
 
-	encryptedFirstName, err := s.encryptor.Encrypt(ctx, firstName)
+	encryptedFirstName, err := s.encryptor.EncryptWithContext(ctx, firstName, "user:first_name")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encrypt first_name: %w", err)
 	}
 
-	encryptedLastName, err := s.encryptor.Encrypt(ctx, lastName)
+	encryptedLastName, err := s.encryptor.EncryptWithContext(ctx, lastName, "user:last_name")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encrypt last_name: %w", err)
 	}
-
-	// Generate searchable hash for email (T051 - efficient encrypted field search)
-	emailHash := utils.HashForSearch(email)
 
 	// Generate verification token (valid for 24 hours)
 	verificationToken := generateVerificationToken()
 	expiresAt := time.Now().Add(24 * time.Hour)
 
+	// Encrypt verification token with context before storing
+	encryptedToken, err := s.encryptor.EncryptWithContext(ctx, verificationToken, "verification_token:token")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt verification token: %w", err)
+	}
+
 	query := `
 		INSERT INTO users (
-			tenant_id, email, email_hash, password_hash, role, status, 
+			tenant_id, email, password_hash, role, status, 
 			first_name, last_name, email_verified, 
 			verification_token, verification_token_expires_at
 		)
-		VALUES ($1, $2, $3, $4, 'owner', 'inactive', $5, $6, false, $7, $8)
+		VALUES ($1, $2, $3, 'owner', 'inactive', $4, $5, false, $6, $7)
 		RETURNING id
 	`
 
 	var userID string
-	err = tx.QueryRowContext(ctx, query, tenantID, encryptedEmail, emailHash, hashedPassword, encryptedFirstName, encryptedLastName, verificationToken, expiresAt).Scan(&userID)
+	err = tx.QueryRowContext(ctx, query, tenantID, encryptedEmail, hashedPassword, encryptedFirstName, encryptedLastName, encryptedToken, expiresAt).Scan(&userID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to insert user: %w", err)
 	}

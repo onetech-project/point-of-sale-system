@@ -43,11 +43,29 @@ func (r *UserRepository) encryptStringPtr(ctx context.Context, value *string) (s
 	return r.encryptor.Encrypt(ctx, *value)
 }
 
+func (r *UserRepository) encryptStringPtrWithContext(ctx context.Context, value *string, encryptionContext string) (string, error) {
+	if value == nil || *value == "" {
+		return "", nil
+	}
+	return r.encryptor.EncryptWithContext(ctx, *value, encryptionContext)
+}
+
 func (r *UserRepository) decryptToStringPtr(ctx context.Context, encrypted string) (*string, error) {
 	if encrypted == "" {
 		return nil, nil
 	}
 	decrypted, err := r.encryptor.Decrypt(ctx, encrypted)
+	if err != nil {
+		return nil, err
+	}
+	return &decrypted, nil
+}
+
+func (r *UserRepository) decryptToStringPtrWithContext(ctx context.Context, encrypted string, encryptionContext string) (*string, error) {
+	if encrypted == "" {
+		return nil, nil
+	}
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encryptionContext)
 	if err != nil {
 		return nil, err
 	}
@@ -62,10 +80,18 @@ func (r *UserRepository) DecryptField(ctx context.Context, encrypted string) (st
 	return r.encryptor.Decrypt(ctx, encrypted)
 }
 
+// DecryptFieldWithContext decrypts a field with the specified context
+func (r *UserRepository) DecryptFieldWithContext(ctx context.Context, encrypted string, encryptionContext string) (string, error) {
+	if encrypted == "" {
+		return "", nil
+	}
+	return r.encryptor.DecryptWithContext(ctx, encrypted, encryptionContext)
+}
+
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (id, tenant_id, email, email_hash, password_hash, role, status, first_name, last_name, locale, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO users (id, tenant_id, email, password_hash, role, status, first_name, last_name, locale, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	if user.ID == "" {
@@ -84,20 +110,17 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.Locale = "en"
 	}
 
-	// Encrypt PII fields (T050 - UU PDP compliance)
-	encryptedEmail, err := r.encryptor.Encrypt(ctx, user.Email)
+	// Encrypt PII fields with context for deterministic encryption (Phase 2)
+	encryptedEmail, err := r.encryptor.EncryptWithContext(ctx, user.Email, "user:email")
 	if err != nil {
 		return err
 	}
 
-	// Generate searchable hash for email (T051 - efficient encrypted field search)
-	emailHash := utils.HashForSearch(user.Email)
-
-	encryptedFirstName, err := r.encryptStringPtr(ctx, user.FirstName)
+	encryptedFirstName, err := r.encryptStringPtrWithContext(ctx, user.FirstName, "user:first_name")
 	if err != nil {
 		return err
 	}
-	encryptedLastName, err := r.encryptStringPtr(ctx, user.LastName)
+	encryptedLastName, err := r.encryptStringPtrWithContext(ctx, user.LastName, "user:last_name")
 	if err != nil {
 		return err
 	}
@@ -106,7 +129,6 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.ID,
 		user.TenantID,
 		encryptedEmail,
-		emailHash,
 		user.PasswordHash,
 		user.Role,
 		user.Status,
@@ -127,8 +149,8 @@ func (r *UserRepository) FindByEmail(ctx context.Context, tenantID, email string
 		WHERE tenant_id = $1 AND email = $2 AND status != 'deleted'
 	`
 
-	// Encrypt email for lookup (T051 - encrypted data comparison)
-	encryptedEmail, err := r.encryptor.Encrypt(ctx, email)
+	// Encrypt email with context for deterministic lookup (Phase 2)
+	encryptedEmail, err := r.encryptor.EncryptWithContext(ctx, email, "user:email")
 	if err != nil {
 		return nil, err
 	}
@@ -159,16 +181,16 @@ func (r *UserRepository) FindByEmail(ctx context.Context, tenantID, email string
 		return nil, err
 	}
 
-	// Decrypt PII fields (T051 - transparent decryption)
-	user.Email, err = r.encryptor.Decrypt(ctx, encryptedEmailDB)
+	// Decrypt PII fields with context (Phase 2)
+	user.Email, err = r.encryptor.DecryptWithContext(ctx, encryptedEmailDB, "user:email")
 	if err != nil {
 		return nil, err
 	}
-	user.FirstName, err = r.decryptToStringPtr(ctx, encryptedFirstNameDB)
+	user.FirstName, err = r.decryptToStringPtrWithContext(ctx, encryptedFirstNameDB, "user:first_name")
 	if err != nil {
 		return nil, err
 	}
-	user.LastName, err = r.decryptToStringPtr(ctx, encryptedLastNameDB)
+	user.LastName, err = r.decryptToStringPtrWithContext(ctx, encryptedLastNameDB, "user:last_name")
 	if err != nil {
 		return nil, err
 	}
@@ -209,16 +231,16 @@ func (r *UserRepository) FindByID(ctx context.Context, tenantID, id string) (*mo
 		return nil, err
 	}
 
-	// Decrypt PII fields (T051 - transparent decryption)
-	user.Email, err = r.encryptor.Decrypt(ctx, encryptedEmailDB)
+	// Decrypt PII fields with context (Phase 2)
+	user.Email, err = r.encryptor.DecryptWithContext(ctx, encryptedEmailDB, "user:email")
 	if err != nil {
 		return nil, err
 	}
-	user.FirstName, err = r.decryptToStringPtr(ctx, encryptedFirstNameDB)
+	user.FirstName, err = r.decryptToStringPtrWithContext(ctx, encryptedFirstNameDB, "user:first_name")
 	if err != nil {
 		return nil, err
 	}
-	user.LastName, err = r.decryptToStringPtr(ctx, encryptedLastNameDB)
+	user.LastName, err = r.decryptToStringPtrWithContext(ctx, encryptedLastNameDB, "user:last_name")
 	if err != nil {
 		return nil, err
 	}
@@ -235,16 +257,16 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 
 	user.UpdatedAt = time.Now()
 
-	// Encrypt PII fields (T050 - UU PDP compliance)
-	encryptedEmail, err := r.encryptor.Encrypt(ctx, user.Email)
+	// Encrypt PII fields with context (Phase 2)
+	encryptedEmail, err := r.encryptor.EncryptWithContext(ctx, user.Email, "user:email")
 	if err != nil {
 		return err
 	}
-	encryptedFirstName, err := r.encryptStringPtr(ctx, user.FirstName)
+	encryptedFirstName, err := r.encryptStringPtrWithContext(ctx, user.FirstName, "user:first_name")
 	if err != nil {
 		return err
 	}
-	encryptedLastName, err := r.encryptStringPtr(ctx, user.LastName)
+	encryptedLastName, err := r.encryptStringPtrWithContext(ctx, user.LastName, "user:last_name")
 	if err != nil {
 		return err
 	}
@@ -306,16 +328,16 @@ func (r *UserRepository) FindStaffWithOrderNotifications(ctx context.Context, te
 			return nil, err
 		}
 
-		// Decrypt PII fields (T051 - transparent decryption)
-		user.Email, err = r.encryptor.Decrypt(ctx, encryptedEmailDB)
+		// Decrypt PII fields with context (Phase 2)
+		user.Email, err = r.encryptor.DecryptWithContext(ctx, encryptedEmailDB, "user:email")
 		if err != nil {
 			return nil, err
 		}
-		user.FirstName, err = r.decryptToStringPtr(ctx, encryptedFirstNameDB)
+		user.FirstName, err = r.decryptToStringPtrWithContext(ctx, encryptedFirstNameDB, "user:first_name")
 		if err != nil {
 			return nil, err
 		}
-		user.LastName, err = r.decryptToStringPtr(ctx, encryptedLastNameDB)
+		user.LastName, err = r.decryptToStringPtrWithContext(ctx, encryptedLastNameDB, "user:last_name")
 		if err != nil {
 			return nil, err
 		}

@@ -96,6 +96,12 @@ func main() {
 		log.Fatalf("Failed to initialize AuthService: %v", err)
 	}
 
+	// Initialize VaultClient for password reset service
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		log.Fatalf("Failed to initialize VaultClient for password reset: %v", err)
+	}
+
 	// Health checks
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
@@ -119,7 +125,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize PasswordResetRepository: %v", err)
 	}
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher, vaultClient)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)

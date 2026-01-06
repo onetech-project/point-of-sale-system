@@ -140,9 +140,13 @@ services:
 
 volumes:
   grafana_data:
+    name: pos_grafana_data
   prometheus_data:
+    name: pos_prometheus_data
   tempo_data:
+    name: pos_tempo_data
   loki_data:
+    name: pos_loki_data
 
 networks:
   pos-network:
