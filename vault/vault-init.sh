@@ -66,11 +66,16 @@ if ! vault read transit/keys/pos-encryption-key >/dev/null 2>&1; then
 else
   echo "✓ Encryption key already exists"
   # Update existing key to enable convergent encryption if not already enabled
-  echo "Updating key configuration for convergent encryption..."
-  vault write transit/keys/pos-encryption-key/config \
-    allow_plaintext_backup=false \
-    deletion_allowed=false
-  echo "✓ Key configuration updated"
+  IS_CONVERGENT=$(vault read -field=convergent_encryption transit/keys/pos-encryption-key)
+  IS_DERIVED=$(vault read -field=derived transit/keys/pos-encryption-key)
+  if [ "$IS_CONVERGENT" != "true" ] || [ "$IS_DERIVED" != "true" ]; then
+    echo "Updating pos-encryption-key to enable convergent encryption..."
+    vault write -f transit/keys/pos-encryption-key \
+      type=aes256-gcm96 \
+      convergent_encryption=true \
+      derived=true
+    echo "✓ Encryption key updated to enable convergent encryption"
+  fi
 fi
 
 # Display key info

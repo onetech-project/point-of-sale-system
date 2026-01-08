@@ -47,6 +47,9 @@ else
             order|order-service)
                 TARGET_SERVICES+=("order")
                 ;;
+            audit|audit-service)
+                TARGET_SERVICES+=("audit")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -64,6 +67,7 @@ else
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
                 echo "  order            - Order Service"
+                echo "  audit            - Audit Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -126,6 +130,7 @@ TENANT_SERVICE_PORT=${TENANT_SERVICE_PORT:-8084}
 NOTIFICATION_SERVICE_PORT=${NOTIFICATION_SERVICE_PORT:-8085}
 PRODUCT_SERVICE_PORT=${PRODUCT_SERVICE_PORT:-8086}
 ORDER_SERVICE_PORT=${ORDER_SERVICE_PORT:-8087}
+AUDIT_SERVICE_PORT=${AUDIT_SERVICE_PORT:-8088}
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
 # Map ports to services
@@ -137,11 +142,12 @@ PORT_SERVICE_MAP[$TENANT_SERVICE_PORT]="tenant"
 PORT_SERVICE_MAP[$NOTIFICATION_SERVICE_PORT]="notification"
 PORT_SERVICE_MAP[$PRODUCT_SERVICE_PORT]="product"
 PORT_SERVICE_MAP[$ORDER_SERVICE_PORT]="order"
+PORT_SERVICE_MAP[$AUDIT_SERVICE_PORT]="audit"
 PORT_SERVICE_MAP[$FRONTEND_PORT]="frontend"
 
 STOPPED_PORTS=()
 
-for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $FRONTEND_PORT; do
+for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $FRONTEND_PORT; do
     service_name=${PORT_SERVICE_MAP[$port]}
     
     if should_stop_service "$service_name"; then
@@ -196,6 +202,12 @@ fi
 if should_stop_service "product"; then
     LOG_FILES+=("/tmp/product-service.log")
 fi
+if should_stop_service "order"; then
+    LOG_FILES+=("/tmp/order-service.log")
+fi
+if should_stop_service "audit"; then
+    LOG_FILES+=("/tmp/audit-service.log")
+fi
 if should_stop_service "frontend"; then
     LOG_FILES+=("/tmp/frontend.log")
 fi
@@ -241,7 +253,7 @@ echo ""
 
 if [ "$STOP_ALL" = true ]; then
     echo "📊 Summary:"
-    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $FRONTEND_PORT"
+    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $ORDER_SERVICE_PORT, $AUDIT_SERVICE_PORT, $FRONTEND_PORT"
 else
     if [ ${#STOPPED_PORTS[@]} -gt 0 ]; then
         echo "📊 Summary:"
