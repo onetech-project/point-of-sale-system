@@ -99,17 +99,8 @@ func (s *StorageService) GetPhotoURL(ctx context.Context, storageKey string) (st
 			return fmt.Errorf("failed to generate presigned URL: %w", err)
 		}
 
-		log.Debug().
-			Str("storage_key", storageKey).
-			Str("url", urlObj.String()).
-			Msg("Generated presigned URL for photo")
+		url = urlObj.String()
 
-		url = strings.Replace(urlObj.String(), s.config.Endpoint, s.config.PublicEndpoint, 1)
-
-		log.Debug().
-			Str("storage_key", storageKey).
-			Str("public_url", url).
-			Msg("Replaced endpoint in presigned URL with public endpoint")
 		return nil
 	})
 

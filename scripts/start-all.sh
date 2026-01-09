@@ -175,14 +175,14 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     if docker info > /dev/null 2>&1; then
         echo "📦 Starting Docker services (PostgreSQL & Redis)..."
         cd "$PROJECT_ROOT"
-        docker-compose up -d
+        docker compose up -d
         echo "✅ Docker services started"
         echo ""
         
         # Wait for PostgreSQL to be ready
         echo "⏳ Waiting for PostgreSQL to be ready..."
         for i in {1..30}; do
-            if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
                 echo "✅ PostgreSQL is ready"
                 break
             fi
