@@ -22,10 +22,10 @@
 
 **Purpose**: Project initialization for encryption, audit, and consent infrastructure
 
-- [X] T001 Setup HashiCorp Vault dev server for local development per research.md decision (Docker container, port 8200)
-- [X] T002 [P] Add Vault client dependencies to each backend service go.mod (hashicorp/vault/api)
-- [X] T003 [P] Add environment variables to each backend service .env.example for Vault configuration (VAULT_ADDR, VAULT_TOKEN, VAULT_TRANSIT_KEY)
-- [X] T004 Verify migration numbering continuity - last migration is 000027, new migrations start at 000028
+- [x] T001 Setup HashiCorp Vault dev server for local development per research.md decision (Docker container, port 8200)
+- [x] T002 [P] Add Vault client dependencies to each backend service go.mod (hashicorp/vault/api)
+- [x] T003 [P] Add environment variables to each backend service .env.example for Vault configuration (VAULT_ADDR, VAULT_TOKEN, VAULT_TRANSIT_KEY)
+- [x] T004 Verify migration numbering continuity - last migration is 000027, new migrations start at 000028
 
 ---
 
@@ -37,50 +37,50 @@
 
 ### Database Schema Foundation
 
-- [X] T005 Create migration 000028_create_consent_purposes.up.sql in backend/migrations/ for consent_purposes table
-- [X] T006 Create migration 000029_create_privacy_policies.up.sql in backend/migrations/ for privacy_policies table with versioning
-- [X] T007 Create migration 000030_create_consent_records.up.sql in backend/migrations/ for consent_records table with tenant/guest support
-- [X] T008 Create migration 000031_create_audit_events.up.sql in backend/migrations/ for partitioned audit_events table
-- [X] T009 Create migration 000032_create_retention_policies.up.sql in backend/migrations/ for retention_policies configuration table
-- [X] T010 Create migration 000033_seed_consent_purposes.up.sql with initial purposes (operational, analytics, advertising, third_party_midtrans)
-- [X] T011 Create migration 000034_seed_privacy_policy_v1.up.sql with version 1.0.0 Indonesian privacy policy text
-- [X] T012 Create migration 000035_seed_retention_policies.up.sql with tax (5 years), audit (7 years), temp data (48 hours) policies
-- [X] T013 Run all foundational migrations and verify schema in local PostgreSQL database
+- [x] T005 Create migration 000028_create_consent_purposes.up.sql in backend/migrations/ for consent_purposes table
+- [x] T006 Create migration 000029_create_privacy_policies.up.sql in backend/migrations/ for privacy_policies table with versioning
+- [x] T007 Create migration 000030_create_consent_records.up.sql in backend/migrations/ for consent_records table with tenant/guest support
+- [x] T008 Create migration 000031_create_audit_events.up.sql in backend/migrations/ for partitioned audit_events table
+- [x] T009 Create migration 000032_create_retention_policies.up.sql in backend/migrations/ for retention_policies configuration table
+- [x] T010 Create migration 000033_seed_consent_purposes.up.sql with initial purposes (operational, analytics, advertising, third_party_midtrans)
+- [x] T011 Create migration 000034_seed_privacy_policy_v1.up.sql with version 1.0.0 Indonesian privacy policy text
+- [x] T012 Create migration 000035_seed_retention_policies.up.sql with tax (5 years), audit (7 years), temp data (48 hours) policies
+- [x] T013 Run all foundational migrations and verify schema in local PostgreSQL database
 
 ### Shared Utility Implementation (Per-Service Pattern)
 
-- [X] T014 [P] Implement VaultClient in backend/user-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
-- [X] T015 [P] Implement VaultClient in backend/auth-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
-- [X] T016 [P] Implement VaultClient in backend/order-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
-- [X] T017 [P] Implement VaultClient in backend/tenant-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
-- [X] T018 [P] Implement VaultClient in backend/notification-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
-- [X] T018a [P] Implement HMAC integrity verification in VaultClient for all services - generate HMAC on encrypt, verify on decrypt to detect tampering (FR-012)
-- [X] T019 [P] Implement LogMasker in backend/user-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
-- [X] T020 [P] Implement LogMasker in backend/auth-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
-- [X] T021 [P] Implement LogMasker in backend/order-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
-- [X] T022 [P] Implement LogMasker in backend/tenant-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
-- [X] T023 [P] Implement LogMasker in backend/notification-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
-- [X] T024 [P] Implement AuditPublisher in backend/user-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
-- [X] T025 [P] Implement AuditPublisher in backend/auth-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
-- [X] T026 [P] Implement AuditPublisher in backend/order-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
-- [X] T027 [P] Implement AuditPublisher in backend/tenant-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
-- [X] T028 [P] Implement AuditPublisher in backend/notification-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
-- [X] T029 [P] Create audit event schemas in backend/user-service/src/events/audit_events.go (DataAccessEvent, ConsentEvent, DeletionEvent)
-- [X] T030 [P] Create audit event schemas in backend/auth-service/src/events/audit_events.go (AuthenticationEvent, SessionEvent)
-- [X] T031 [P] Create audit event schemas in backend/order-service/src/events/audit_events.go (OrderEvent, GuestDataEvent)
-- [X] T032 [P] Create audit event schemas in backend/tenant-service/src/events/audit_events.go (TenantConfigEvent)
-- [X] T033 [P] Create audit event schemas in backend/notification-service/src/events/audit_events.go (NotificationEvent)
-- [X] T034 Create ConsentPurpose model in backend/audit-service/src/models/consent_purpose.go with purpose_code, is_required fields
-- [X] T035 Create PrivacyPolicy model in backend/audit-service/src/models/privacy_policy.go with version, policy_text_id, is_current fields
-- [X] T036 Create ConsentRecord model in backend/audit-service/src/models/consent_record.go with subject_type (tenant/guest), granted, revoked_at fields
-- [X] T037 Create AuditEvent model in backend/audit-service/src/models/audit_event.go with actor_type, action, resource_type, before/after values
+- [x] T014 [P] Implement VaultClient in backend/user-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
+- [x] T015 [P] Implement VaultClient in backend/auth-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
+- [x] T016 [P] Implement VaultClient in backend/order-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
+- [x] T017 [P] Implement VaultClient in backend/tenant-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
+- [x] T018 [P] Implement VaultClient in backend/notification-service/src/utils/encryption.go with Encrypt/Decrypt methods using Vault Transit Engine Encrypt/Decrypt API (POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name)
+- [x] T018a [P] Implement HMAC integrity verification in VaultClient for all services - generate HMAC on encrypt, verify on decrypt to detect tampering (FR-012)
+- [x] T019 [P] Implement LogMasker in backend/user-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
+- [x] T020 [P] Implement LogMasker in backend/auth-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
+- [x] T021 [P] Implement LogMasker in backend/order-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
+- [x] T022 [P] Implement LogMasker in backend/tenant-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
+- [x] T023 [P] Implement LogMasker in backend/notification-service/src/utils/masker.go with regex patterns for email, phone, token, IP, name masking
+- [x] T024 [P] Implement AuditPublisher in backend/user-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
+- [x] T025 [P] Implement AuditPublisher in backend/auth-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
+- [x] T026 [P] Implement AuditPublisher in backend/order-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
+- [x] T027 [P] Implement AuditPublisher in backend/tenant-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
+- [x] T028 [P] Implement AuditPublisher in backend/notification-service/src/utils/audit.go for Kafka event publishing with idempotency (event_id)
+- [x] T029 [P] Create audit event schemas in backend/user-service/src/events/audit_events.go (DataAccessEvent, ConsentEvent, DeletionEvent)
+- [x] T030 [P] Create audit event schemas in backend/auth-service/src/events/audit_events.go (AuthenticationEvent, SessionEvent)
+- [x] T031 [P] Create audit event schemas in backend/order-service/src/events/audit_events.go (OrderEvent, GuestDataEvent)
+- [x] T032 [P] Create audit event schemas in backend/tenant-service/src/events/audit_events.go (TenantConfigEvent)
+- [x] T033 [P] Create audit event schemas in backend/notification-service/src/events/audit_events.go (NotificationEvent)
+- [x] T034 Create ConsentPurpose model in backend/audit-service/src/models/consent_purpose.go with purpose_code, is_required fields
+- [x] T035 Create PrivacyPolicy model in backend/audit-service/src/models/privacy_policy.go with version, policy_text_id, is_current fields
+- [x] T036 Create ConsentRecord model in backend/audit-service/src/models/consent_record.go with subject_type (tenant/guest), granted, revoked_at fields
+- [x] T037 Create AuditEvent model in backend/audit-service/src/models/audit_event.go with actor_type, action, resource_type, before/after values
 
 ### Audit Service (Dedicated Service)
 
-- [X] T038 Create audit consumer worker in backend/audit-service/src/queue/audit_consumer.go to read audit events from Kafka topic
-- [X] T039 Create audit repository in backend/audit-service/src/repository/audit_repo.go for PostgreSQL persistence with partition awareness
-- [X] T040 Create partition manager in backend/audit-service/src/services/partition_service.go for monthly audit_events partition creation
-- [X] T041 Implement audit query API handler in backend/audit-service/src/handlers/audit/query.go for tenant audit trail retrieval
+- [x] T038 Create audit consumer worker in backend/audit-service/src/queue/audit_consumer.go to read audit events from Kafka topic
+- [x] T039 Create audit repository in backend/audit-service/src/repository/audit_repo.go for PostgreSQL persistence with partition awareness
+- [x] T040 Create partition manager in backend/audit-service/src/services/partition_service.go for monthly audit_events partition creation
+- [x] T041 Implement audit query API handler in backend/audit-service/src/handlers/audit/query.go for tenant audit trail retrieval
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -90,51 +90,52 @@
 
 **Goal**: Encrypt all PII at rest and mask sensitive data in logs to comply with UU PDP No.27 Tahun 2022
 
-**Independent Test**: 
+**Independent Test**:
+
 1. Inspect database directly - all PII fields encrypted (not readable as plaintext)
-2. Review application logs - all sensitive data masked (e.g., "us***@example.com", "******1234")
+2. Review application logs - all sensitive data masked (e.g., "us**\*@example.com", "\*\*\*\***1234")
 3. Create backup - PII remains encrypted in backup files
 
 ### Database Schema Changes for User Story 1
 
-- [X] T042 [P] [US1] Create migration 000036_encrypt_users_data.up.sql in backend/migrations/ - NO SCHEMA CHANGES (encryption at application layer, existing email/first_name/last_name/verification_token columns will store encrypted values)
-- [X] T043 [P] [US1] Create migration 000037_add_guest_orders_anonymization_flag.up.sql in backend/migrations/ adding is_anonymized BOOLEAN DEFAULT FALSE, anonymized_at TIMESTAMP columns to guest_orders table (customer_name/phone/email/ip_address use existing columns for encrypted data)
-- [X] T044 [P] [US1] NO MIGRATION NEEDED - delivery_addresses encryption uses existing address/latitude/longitude/geocoded_address columns (application-level encryption)
-- [X] T045 [P] [US1] NO MIGRATION NEEDED - password_reset_tokens encryption uses existing token column (application-level encryption)
-- [X] T046 [P] [US1] NO MIGRATION NEEDED - invitations encryption uses existing email/token columns (application-level encryption)
-- [X] T047 [P] [US1] NO MIGRATION NEEDED - sessions encryption uses existing session_id/ip_address columns (application-level encryption)
-- [X] T048 [P] [US1] NO MIGRATION NEEDED - notifications encryption uses existing recipient/message_body columns (application-level encryption)
-- [X] T049 [P] [US1] NO MIGRATION NEEDED - tenant_configs encryption uses existing midtrans_server_key/midtrans_client_key columns (application-level encryption)
+- [x] T042 [P] [US1] Create migration 000036_encrypt_users_data.up.sql in backend/migrations/ - NO SCHEMA CHANGES (encryption at application layer, existing email/first_name/last_name/verification_token columns will store encrypted values)
+- [x] T043 [P] [US1] Create migration 000037_add_guest_orders_anonymization_flag.up.sql in backend/migrations/ adding is_anonymized BOOLEAN DEFAULT FALSE, anonymized_at TIMESTAMP columns to guest_orders table (customer_name/phone/email/ip_address use existing columns for encrypted data)
+- [x] T044 [P] [US1] NO MIGRATION NEEDED - delivery_addresses encryption uses existing address/latitude/longitude/geocoded_address columns (application-level encryption)
+- [x] T045 [P] [US1] NO MIGRATION NEEDED - password_reset_tokens encryption uses existing token column (application-level encryption)
+- [x] T046 [P] [US1] NO MIGRATION NEEDED - invitations encryption uses existing email/token columns (application-level encryption)
+- [x] T047 [P] [US1] NO MIGRATION NEEDED - sessions encryption uses existing session_id/ip_address columns (application-level encryption)
+- [x] T048 [P] [US1] NO MIGRATION NEEDED - notifications encryption uses existing recipient/message_body columns (application-level encryption)
+- [x] T049 [P] [US1] NO MIGRATION NEEDED - tenant_configs encryption uses existing midtrans_server_key/midtrans_client_key columns (application-level encryption)
 
 ### Backend Encryption Implementation for User Story 1
 
-- [X] T050 [US1] Update UserRepository in backend/user-service/src/repository/user_repo.go to encrypt email, first_name, last_name on Create/Update using VaultClient from src/utils/encryption.go
-- [X] T051 [US1] Update UserRepository GetByID/GetByEmail methods to decrypt PII fields transparently using VaultClient
-- [X] T052 [US1] Update GuestOrderRepository in backend/order-service/src/repository/guest_order_repo.go to encrypt customer_name, customer_phone, customer_email, ip_address on Create using VaultClient from src/utils/encryption.go
-- [X] T053 [US1] Update GuestOrderRepository GetByReference to decrypt customer PII fields using VaultClient
-- [X] T054 [US1] Update DeliveryAddressRepository in backend/order-service/src/repository/delivery_address_repo.go to encrypt address, latitude, longitude, geocoded_address using VaultClient from src/utils/encryption.go
-- [X] T055 [P] [US1] Update PasswordResetTokenRepository in backend/auth-service/src/repository/reset_token_repo.go to encrypt token field using VaultClient from src/utils/encryption.go
-- [X] T056 [P] [US1] Update InvitationRepository in backend/user-service/src/repository/invitation_repo.go to encrypt email and token fields using VaultClient from src/utils/encryption.go
-- [X] T057 [P] [US1] Update SessionRepository in backend/auth-service/src/repository/session_repo.go to encrypt session_id and ip_address using VaultClient from src/utils/encryption.go
-- [X] T058 [P] [US1] Update NotificationRepository in backend/notification-service/src/repository/notification_repo.go to conditionally encrypt recipient and message_body if contains PII using VaultClient from src/utils/encryption.go
-- [X] T059 [US1] Update TenantConfigRepository in backend/tenant-service/src/repository/tenant_config_repo.go to encrypt midtrans_server_key and midtrans_client_key using VaultClient from src/utils/encryption.go
+- [x] T050 [US1] Update UserRepository in backend/user-service/src/repository/user_repo.go to encrypt email, first_name, last_name on Create/Update using VaultClient from src/utils/encryption.go
+- [x] T051 [US1] Update UserRepository GetByID/GetByEmail methods to decrypt PII fields transparently using VaultClient
+- [x] T052 [US1] Update GuestOrderRepository in backend/order-service/src/repository/guest_order_repo.go to encrypt customer_name, customer_phone, customer_email, ip_address on Create using VaultClient from src/utils/encryption.go
+- [x] T053 [US1] Update GuestOrderRepository GetByReference to decrypt customer PII fields using VaultClient
+- [x] T054 [US1] Update DeliveryAddressRepository in backend/order-service/src/repository/delivery_address_repo.go to encrypt address, latitude, longitude, geocoded_address using VaultClient from src/utils/encryption.go
+- [x] T055 [P] [US1] Update PasswordResetTokenRepository in backend/auth-service/src/repository/reset_token_repo.go to encrypt token field using VaultClient from src/utils/encryption.go
+- [x] T056 [P] [US1] Update InvitationRepository in backend/user-service/src/repository/invitation_repo.go to encrypt email and token fields using VaultClient from src/utils/encryption.go
+- [x] T057 [P] [US1] Update SessionRepository in backend/auth-service/src/repository/session_repo.go to encrypt session_id and ip_address using VaultClient from src/utils/encryption.go
+- [x] T058 [P] [US1] Update NotificationRepository in backend/notification-service/src/repository/notification_repo.go to conditionally encrypt recipient and message_body if contains PII using VaultClient from src/utils/encryption.go
+- [x] T059 [US1] Update TenantConfigRepository in backend/tenant-service/src/repository/tenant_config_repo.go to encrypt midtrans_server_key and midtrans_client_key using VaultClient from src/utils/encryption.go
 
 ### Log Masking Implementation for User Story 1
 
-- [X] T060 [P] [US1] Integrate LogMasker from src/utils/masker.go into user-service logging middleware in backend/user-service/middleware/logging.go
-- [X] T061 [P] [US1] Integrate LogMasker from src/utils/masker.go into auth-service logging middleware in backend/auth-service/middleware/logging.go
-- [X] T062 [P] [US1] Integrate LogMasker from src/utils/masker.go into order-service logging middleware in backend/order-service/middleware/logging.go
-- [X] T063 [P] [US1] Integrate LogMasker from src/utils/masker.go into tenant-service logging middleware in backend/tenant-service/middleware/logging.go
-- [X] T064 [P] [US1] Integrate LogMasker from src/utils/masker.go into notification-service logging middleware in backend/notification-service/middleware/logging.go
-- [X] T065 [P] [US1] Add log masking unit tests in backend/user-service/src/utils/masker_test.go verifying email, phone, token, IP, name masking patterns
+- [x] T060 [P] [US1] Integrate LogMasker from src/utils/masker.go into user-service logging middleware in backend/user-service/middleware/logging.go
+- [x] T061 [P] [US1] Integrate LogMasker from src/utils/masker.go into auth-service logging middleware in backend/auth-service/middleware/logging.go
+- [x] T062 [P] [US1] Integrate LogMasker from src/utils/masker.go into order-service logging middleware in backend/order-service/middleware/logging.go
+- [x] T063 [P] [US1] Integrate LogMasker from src/utils/masker.go into tenant-service logging middleware in backend/tenant-service/middleware/logging.go
+- [x] T064 [P] [US1] Integrate LogMasker from src/utils/masker.go into notification-service logging middleware in backend/notification-service/middleware/logging.go
+- [x] T065 [P] [US1] Add log masking unit tests in backend/user-service/src/utils/masker_test.go verifying email, phone, token, IP, name masking patterns
 
 ### Data Migration for User Story 1
 
-- [X] T066 [US1] Create independent data-migration module in scripts/data-migration/ with go.mod, config.go (VaultClient), and migrate_users.go to encrypt existing user PII in-place (read plaintext from email/first_name/last_name, encrypt via VaultClient, update same columns with ciphertext)
-- [X] T067 [US1] Create migrate_guest_orders.go in data-migration module to encrypt existing guest order PII in-place (customer_name/phone/email/ip_address columns)
-- [X] T068 [US1] Create migrate_tenant_configs.go in data-migration module to encrypt existing payment credentials in-place (midtrans_server_key/client_key columns), add main.go CLI entry point with -type flag, Dockerfile for containerized execution
-- [X] T069a [US1] PREREQUISITE: Run database migration 000042 to increase column sizes for encrypted data (users: email/first_name/last_name → VARCHAR(512), guest_orders: customer_name/email → VARCHAR(512), customer_phone → VARCHAR(100), ip_address → VARCHAR(100), tenant_configs: midtrans keys → VARCHAR(512)) - REQUIRED before T069 because Vault Transit Engine ciphertext is 8-10x larger than plaintext
-- [X] T069 [US1] Run data migration scripts and verify 100% of records encrypted (check that values start with "vault:v1:" prefix indicating Vault Transit Engine ciphertext format) - BLOCKED until T069a completes
+- [x] T066 [US1] Create independent data-migration module in scripts/data-migration/ with go.mod, config.go (VaultClient), and migrate_users.go to encrypt existing user PII in-place (read plaintext from email/first_name/last_name, encrypt via VaultClient, update same columns with ciphertext)
+- [x] T067 [US1] Create migrate_guest_orders.go in data-migration module to encrypt existing guest order PII in-place (customer_name/phone/email/ip_address columns)
+- [x] T068 [US1] Create migrate_tenant_configs.go in data-migration module to encrypt existing payment credentials in-place (midtrans_server_key/client_key columns), add main.go CLI entry point with -type flag, Dockerfile for containerized execution
+- [x] T069a [US1] PREREQUISITE: Run database migration 000042 to increase column sizes for encrypted data (users: email/first_name/last_name → VARCHAR(512), guest_orders: customer_name/email → VARCHAR(512), customer_phone → VARCHAR(100), ip_address → VARCHAR(100), tenant_configs: midtrans keys → VARCHAR(512)) - REQUIRED before T069 because Vault Transit Engine ciphertext is 8-10x larger than plaintext
+- [x] T069 [US1] Run data migration scripts and verify 100% of records encrypted (check that values start with "vault:v1:" prefix indicating Vault Transit Engine ciphertext format) - BLOCKED until T069a completes
 
 **Checkpoint**: At this point, User Story 1 is fully functional - all PII encrypted at rest, all logs masked
 
@@ -145,6 +146,7 @@
 **Goal**: Collect explicit consent from tenants during registration and customers during checkout per UU PDP Article 20
 
 **Independent Test**:
+
 1. Register new tenant - consent checkboxes appear, required consents block submission
 2. Place guest order - checkout consent consent checkboxes appear and are enforced
 3. Query consent_records table - all consents recorded with timestamp, IP, user agent
@@ -153,39 +155,39 @@
 
 ### Backend Consent Services for User Story 5
 
-- [X] T061 [P] [US5] Extend ConsentPurposeRepository in backend/audit-service/src/repository/consent_repo.go with List and GetByCode methods (currently only has ListConsentPurposes)
-- [X] T062 [P] [US5] Extend PrivacyPolicyRepository in backend/audit-service/src/repository/consent_repo.go with GetCurrent and GetByVersion methods (currently only has GetCurrentPrivacyPolicy)
-- [X] T063 [US5] Extend ConsentRecordRepository in backend/audit-service/src/repository/consent_repo.go with Create, GetActive, Revoke, and GetHistory methods (currently only has ListConsentRecords and GetConsentRecord)
-- [X] T064 [US5] Create ConsentService in backend/audit-service/src/services/consent_service.go with ValidateConsents (check required purposes), GrantConsents, RevokeConsent business logic - INCLUDES IP ADDRESS ENCRYPTION
-- [ ] T065 [US5] Implement consent validation middleware in backend/api-gateway/middleware/consent_check.go to verify active consent before data operations (calls audit-service API)
+- [x] T061 [P] [US5] Extend ConsentPurposeRepository in backend/audit-service/src/repository/consent_repo.go with List and GetByCode methods (currently only has ListConsentPurposes)
+- [x] T062 [P] [US5] Extend PrivacyPolicyRepository in backend/audit-service/src/repository/consent_repo.go with GetCurrent and GetByVersion methods (currently only has GetCurrentPrivacyPolicy)
+- [x] T063 [US5] Extend ConsentRecordRepository in backend/audit-service/src/repository/consent_repo.go with Create, GetActive, Revoke, and GetHistory methods (currently only has ListConsentRecords and GetConsentRecord)
+- [x] T064 [US5] Create ConsentService in backend/audit-service/src/services/consent_service.go with ValidateConsents (check required purposes), GrantConsents, RevokeConsent business logic - INCLUDES IP ADDRESS ENCRYPTION
+- [x] T065 [US5] Implement consent validation middleware in backend/api-gateway/middleware/consent_check.go to verify active consent before data operations (calls audit-service API)
 
 ### Consent API Implementation (consent-api.yaml) for User Story 5
 
-- [ ] T066 [P] [US5] Implement GET /consent/purposes handler in backend/api-gateway/handlers/consent/list_purposes.go returning consent_purposes with i18n support
-- [ ] T067 [US5] Implement POST /consent/grant handler in backend/api-gateway/handlers/consent/grant_consent.go with validation (required purposes enforced)
-- [ ] T068 [P] [US5] Implement GET /consent/status handler in backend/api-gateway/handlers/consent/get_status.go returning active consents for tenant or guest
-- [ ] T069 [P] [US5] Implement POST /consent/revoke handler in backend/api-gateway/handlers/consent/revoke_consent.go (optional purposes only, sets revoked_at)
-- [ ] T070 [P] [US5] Implement GET /consent/history handler in backend/api-gateway/handlers/consent/get_history.go returning all consent grants/revokes with timestamps
-- [ ] T071 [P] [US5] Implement GET /privacy-policy handler in backend/api-gateway/handlers/consent/get_privacy_policy.go returning current policy version with Indonesian text
-- [ ] T072 [US5] Add consent API routes to backend/api-gateway/routes/consent_routes.go with authentication middleware
+- [x] T066 [P] [US5] Implement GET /consent/purposes handler in backend/api-gateway/handlers/consent/list_purposes.go returning consent_purposes with i18n support
+- [x] T067 [US5] Implement POST /consent/grant handler in backend/api-gateway/handlers/consent/grant_consent.go with validation (required purposes enforced)
+- [x] T068 [P] [US5] Implement GET /consent/status handler in backend/api-gateway/handlers/consent/get_status.go returning active consents for tenant or guest
+- [x] T069 [P] [US5] Implement POST /consent/revoke handler in backend/api-gateway/handlers/consent/revoke_consent.go (optional purposes only, sets revoked_at)
+- [x] T070 [P] [US5] Implement GET /consent/history handler in backend/api-gateway/handlers/consent/get_history.go returning all consent grants/revokes with timestamps
+- [x] T071 [P] [US5] Implement GET /privacy-policy handler in backend/api-gateway/handlers/consent/get_privacy_policy.go returning current policy version with Indonesian text
+- [x] T072 [US5] Add consent API routes to backend/api-gateway/routes/consent_routes.go with authentication middleware
 
 ### Frontend Consent UI for User Story 5
 
-- [ ] T073 [US5] Create ConsentCheckbox component in frontend/src/components/consent/ConsentCheckbox.tsx with required/optional styling, Indonesian labels
-- [ ] T074 [US5] Create ConsentPurposeList component in frontend/src/components/consent/ConsentPurposeList.tsx fetching from /consent/purposes API
+- [x] T073 [US5] Create ConsentCheckbox component in frontend/src/components/consent/ConsentCheckbox.tsx with required/optional styling, Indonesian labels
+- [x] T074 [US5] Create ConsentPurposeList component in frontend/src/components/consent/ConsentPurposeList.tsx fetching from /consent/purposes API
 - [ ] T075 [US5] Update tenant registration form in frontend/app/auth/register/page.tsx to include consent checkboxes (operational, analytics, advertising, third_party_midtrans)
 - [ ] T076 [US5] Add frontend validation to tenant registration - block submission if required consents unchecked, show error message
 - [ ] T077 [US5] Update guest checkout page in frontend/app/checkout/guest/page.tsx to include consent checkboxes (order_processing, order_communications, promotional_communications, payment_processing_midtrans)
 - [ ] T078 [US5] Add frontend validation to guest checkout - block submission if required consents unchecked
 - [ ] T079 [US5] Implement POST /consent/grant API call on registration submit and checkout submit, pass IP address and user agent from request headers
-- [ ] T080 [P] [US5] Create i18n translations for consent purposes in frontend/public/locales/id/consent.json (Indonesian)
-- [ ] T081 [P] [US5] Create i18n translations for consent purposes in frontend/public/locales/en/consent.json (English)
+- [x] T080 [P] [US5] Create i18n translations for consent purposes in frontend/src/i18n/locales/id/consent.json (Indonesian)
+- [x] T081 [P] [US5] Create i18n translations for consent purposes in frontend/src/i18n/locales/en/consent.json (English)
 
 ### Audit Trail for Consent Events (User Story 5)
 
-- [ ] T082 [US5] Update ConsentService.GrantConsents to publish ConsentGrantedEvent to Kafka audit topic with consent details
-- [ ] T083 [US5] Update ConsentService.RevokeConsent to publish ConsentRevokedEvent to Kafka audit topic
-- [ ] T084 [US5] Verify audit-service consumer persists consent events to audit_events table with action='CONSENT_GRANT' or action='CONSENT_REVOKE'
+- [x] T082 [US5] Update ConsentService.GrantConsents to publish ConsentGrantedEvent to Kafka audit topic with consent details
+- [x] T083 [US5] Update ConsentService.RevokeConsent to publish ConsentRevokedEvent to Kafka audit topic
+- [x] T084 [US5] Verify audit-service consumer persists consent events to audit_events table with action='CONSENT_GRANT' or action='CONSENT_REVOKE'
 
 **Checkpoint**: At this point, User Story 5 is fully functional - consents collected during registration/checkout, recorded with metadata, queryable via API
 
@@ -196,6 +198,7 @@
 **Goal**: Display clear privacy policy explaining data collection, usage, retention, and user rights per UU PDP Article 6
 
 **Independent Test**:
+
 1. Access /privacy-policy page - loads in <2s (p95), displays all required sections in Indonesian
 2. Click Privacy Policy link from registration/checkout - navigates correctly
 3. Verify all required disclosures present: data collected, purposes, retention, rights, contact info
@@ -231,6 +234,7 @@
 **Goal**: Comprehensive audit trail of all data access and modifications for UU PDP compliance investigations
 
 **Independent Test**:
+
 1. Perform various operations (user create, order create, PII read, data update, deletion)
 2. Query audit_events table - verify each operation logged with complete context (who, what, when, where, before/after)
 3. Attempt to UPDATE or DELETE audit_events row - verify operation fails (immutable)
@@ -277,6 +281,7 @@
 **Goal**: Tenants can view, update, and delete their own data and team members' data per UU PDP Articles 3-6
 
 **Independent Test**:
+
 1. Login as tenant owner, navigate to account settings - view all tenant data (business profile, team members, configurations)
 2. Update business name - verify change persists and audit log records modification
 3. Soft delete team member - verify user status='deleted', data retained, audit log records deletion
@@ -323,6 +328,7 @@
 **Goal**: Guest customers can view order data and request deletion of personal information per UU PDP
 
 **Independent Test**:
+
 1. Place guest order, access via order reference + email/phone verification - view all personal data (name, phone, email, delivery address)
 2. Click "Request Data Deletion" - confirm deletion, verify personal data anonymized (name="Deleted User", phone/email/address=null)
 3. Merchant views same order - verify order record exists with items/amounts but customer info shows "Deleted User"
@@ -367,6 +373,7 @@
 **Goal**: Tenants and guests can revoke optional consents (analytics, advertising) per UU PDP Article 21
 
 **Independent Test**:
+
 1. Login as tenant, navigate to Privacy Settings - view current consent status (operational=granted, cannot revoke; analytics=granted, can revoke)
 2. Uncheck "Analytics" consent - verify consent revoked (revoked_at timestamp set), system stops collecting analytics
 3. Guest accesses order, revokes "Promotional Communications" - verify preference saved, email removed from marketing lists
@@ -402,6 +409,7 @@
 **Goal**: Automated cleanup of expired temporary data and enforcement of retention policies per UU PDP data minimization principle
 
 **Independent Test**:
+
 1. Create verification token, wait 48 hours (or mock time), run cleanup job - verify token deleted
 2. Soft delete tenant account, wait 90 days (or mock time), run cleanup job - verify user notified at 60 days, hard deleted at 90 days
 3. Create guest order, wait 5 years (or mock retention policy), run cleanup job - verify order hard deleted with audit log entry
@@ -482,6 +490,7 @@
 ### User Story Dependencies
 
 **Critical Path (Must be sequential)**:
+
 1. **Setup → Foundational** (BLOCKING)
 2. **Foundational → US1 (Encryption)** (Must encrypt before collecting consents)
 3. **US1 → US5 (Consent)** (Must encrypt consent records at rest)
@@ -489,13 +498,16 @@
 5. **US6 → US2/US3 (Data Rights)** (Users must understand rights via privacy policy before exercising them)
 
 **Can Run in Parallel After Foundational**:
+
 - US4 (Audit Trail) - independent, instruments all services
 - US1 (Encryption) and US4 (Audit) can proceed in parallel if encryption service publishes audit events
 
 **Can Run in Parallel After US1+US4+US5**:
+
 - US2 (Tenant Data Rights) and US3 (Guest Data Rights) - different entities, no conflicts
 
 **Must be Last**:
+
 - US7 (Revoke Consent) - requires US5 complete
 - US8 (Data Retention) - requires US1, US2, US3 complete (applies to encrypted data, deleted users, guest orders)
 
@@ -512,7 +524,8 @@
 
 **Phase 1 (Setup)**: All 7 tasks marked [P] can run in parallel (different packages/files)
 
-**Phase 2 (Foundational)**: 
+**Phase 2 (Foundational)**:
+
 - Database migrations T008-T015 can run sequentially (migration order matters)
 - After migrations, T017-T032 can largely run in parallel:
   - VaultClient + EncryptionService (T017-T018)
@@ -522,27 +535,32 @@
   - Audit service (T026-T032) in parallel
 
 **Phase 3 (US1)**:
+
 - All migration tasks T033-T040 can run in parallel (different tables)
 - All repository updates T041-T050 can run in parallel (different services)
 - All log masking integrations T051-T055 can run in parallel (different services)
 - Data migration scripts T057-T059 can run in parallel (different tables)
 
 **Phase 4 (US5)**:
+
 - Repository creation T061-T062 can run in parallel
 - All API handlers T066-T071 can run in parallel
 - All frontend components T073-T081 can run in parallel
 
 **Phase 6 (US4)**:
+
 - All audit instrumentation tasks T098-T105 can run in parallel (different repositories)
 - All frontend components T111-T112 can run in parallel
 - All monitoring tasks T116-T118 can run in parallel
 
 **Phase 7 (US2)**, **Phase 8 (US3)**, **Phase 9 (US7)**, **Phase 10 (US8)**:
+
 - API handlers marked [P] can run in parallel
 - Frontend components marked [P] can run in parallel
 - i18n translations marked [P] can run in parallel
 
 **Phase 11 (Polish)**:
+
 - All documentation tasks T190-T192 can run in parallel
 - All script updates T197-T198 can run in parallel
 
@@ -605,6 +623,7 @@ T081: frontend/public/locales/en/consent.json
 ### MVP First (Critical Path Only)
 
 **Minimum Viable Product for UU PDP Compliance**:
+
 1. Complete Phase 1: Setup (Vault, encryption, masking, audit packages)
 2. Complete Phase 2: Foundational (all database schema, shared services, audit-service)
 3. Complete Phase 3: User Story 1 (Encryption at Rest) - legal compliance blocker
@@ -616,6 +635,7 @@ T081: frontend/public/locales/en/consent.json
 **Suggested MVP Timeline**: 4-6 weeks with 2-3 developers
 
 **Why this MVP**:
+
 - US1 (Encryption) + US5 (Consent) + US6 (Privacy Policy) = minimum UU PDP compliance
 - Addresses biggest legal risks: unencrypted PII, undocumented consent, no privacy transparency
 - US2/US3 (Data Rights) can be added post-MVP (legal grace period for data subject requests)
@@ -625,28 +645,33 @@ T081: frontend/public/locales/en/consent.json
 ### Incremental Delivery After MVP
 
 **Phase 1 MVP (4-6 weeks)**:
+
 - Setup + Foundational + US1 + US5 + US6
 - **Deliverable**: Encryption at rest, consent collection, privacy policy
 - **Value**: Basic UU PDP compliance, avoid immediate legal penalties
 
 **Phase 2 (2-3 weeks)**:
+
 - US4 (Audit Trail) instrumentation completion
 - US2 (Tenant Data Rights)
 - **Deliverable**: Full audit trail, tenant data access/deletion
 - **Value**: Tenant data subject rights compliance, forensic investigation capability
 
 **Phase 3 (1-2 weeks)**:
+
 - US3 (Guest Data Rights)
 - **Deliverable**: Guest data access/deletion
 - **Value**: Guest data subject rights compliance, complete UU PDP coverage
 
 **Phase 4 (1-2 weeks)**:
+
 - US7 (Revoke Consent)
 - US8 (Data Retention)
 - **Deliverable**: Consent revocation, automated data cleanup
 - **Value**: Advanced privacy controls, data minimization compliance
 
 **Phase 5 (1 week)**:
+
 - Phase 11: Polish (documentation, runbooks, compliance verification)
 - **Deliverable**: Production-ready system with full documentation
 - **Value**: Maintainable, auditable compliance system
@@ -656,21 +681,25 @@ T081: frontend/public/locales/en/consent.json
 **Team of 3 developers**:
 
 **Week 1-2**: All together on Setup + Foundational (CRITICAL - must not have conflicts)
+
 - Developer A: Vault setup, encryption package, database migrations
 - Developer B: Audit infrastructure (Kafka, audit-service, models)
 - Developer C: Log masking, shared models, migration scripts
 
 **Week 3-4**: Split on US1 (Encryption) - largest task
+
 - Developer A: Backend encryption (repositories, user-service, auth-service)
 - Developer B: Backend encryption (order-service, tenant-service, notification-service)
 - Developer C: Log masking integration across all services
 
 **Week 5**: Split on US5 (Consent)
+
 - Developer A: Backend consent services and API handlers
 - Developer B: Frontend consent UI (registration, checkout)
 - Developer C: Audit instrumentation for consent events
 
 **Week 6**: Split on US6 (Privacy Policy)
+
 - Developer A: Privacy policy API and seed data
 - Developer B: Frontend privacy policy page and i18n
 - Developer C: MVP testing and validation
@@ -682,6 +711,7 @@ T081: frontend/public/locales/en/consent.json
 ## Notes
 
 ### Task Format Compliance
+
 - ✅ ALL tasks use checklist format: `- [ ] [ID] [P?] [Story] Description with file path`
 - ✅ Task IDs sequential: T001-T200
 - ✅ [P] markers for parallelizable tasks (different files, no dependencies)
@@ -689,6 +719,7 @@ T081: frontend/public/locales/en/consent.json
 - ✅ File paths included in all implementation tasks
 
 ### User Story Coverage
+
 - ✅ US1 (Encryption at Rest): 28 tasks (T033-T060) - P1 priority
 - ✅ US5 (Consent Collection): 24 tasks (T061-T084) - P1 priority
 - ✅ US6 (Privacy Policy): 13 tasks (T085-T097) - P2 priority
@@ -699,6 +730,7 @@ T081: frontend/public/locales/en/consent.json
 - ✅ US8 (Data Retention): 19 tasks (T171-T189) - P3 priority
 
 ### Entity Mapping
+
 - ✅ consent_purposes, privacy_policies, consent_records → US5
 - ✅ audit_events (partitioned) → US4
 - ✅ retention_policies → US8
@@ -709,6 +741,7 @@ T081: frontend/public/locales/en/consent.json
 - ✅ invitations, sessions, notifications, tenant_configs (encryption fields) → US1
 
 ### API Contract Mapping
+
 - ✅ Consent API (6 endpoints) → US5, US7
   - GET /consent/purposes → T066
   - POST /consent/grant → T067
@@ -724,6 +757,7 @@ T081: frontend/public/locales/en/consent.json
   - POST /guest/order/:order_reference/delete → T145
 
 ### Compliance Validation
+
 - ✅ Encryption at rest: US1 covers all 79 FRs for PII encryption
 - ✅ Log masking: US1 covers all 8 FRs for sensitive data masking
 - ✅ Consent collection: US5 covers all 12 FRs for consent management
@@ -735,11 +769,13 @@ T081: frontend/public/locales/en/consent.json
 - ✅ Data retention: US8 covers all 10 FRs for automated cleanup
 
 ### Test Strategy (Omitted per Instructions)
+
 - Tests NOT explicitly requested in spec.md
 - Test tasks OMITTED from all phases per speckit.tasks instructions
 - Testing can be added post-implementation if requested
 
 ### Open Risks
+
 1. **Key rotation**: Deferred to post-MVP (research.md notes quarterly rotation, manual trigger for MVP). FR-041 encryption key rotation logging is OUT OF SCOPE for initial release - will be implemented in separate feature after MVP validation. Vault Transit Engine supports key rotation natively; logging implementation requires separate audit instrumentation for key management operations.
 2. **Audit archival to S3**: Deferred to post-MVP (PostgreSQL only for MVP, S3 in future phase)
 3. **Legal review of privacy policy**: Manual step (T097) - requires Indonesian legal counsel approval before production

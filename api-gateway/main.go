@@ -194,6 +194,16 @@ func main() {
 	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
 	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
 
+	// Consent management routes (public for registration/checkout, authenticated for status/revoke)
+	public.GET("/api/v1/consent/purposes", proxyHandler(auditServiceURL, "/api/v1/consent/purposes"))
+	public.GET("/api/v1/privacy-policy", proxyHandler(auditServiceURL, "/api/v1/privacy-policy"))
+	public.POST("/api/v1/consent/grant", proxyHandler(auditServiceURL, "/api/v1/consent/grant")) // Used during registration/checkout
+	
+	// Protected consent routes (require authentication)
+	protected.GET("/api/v1/consent/status", proxyHandler(auditServiceURL, "/api/v1/consent/status"))
+	protected.POST("/api/v1/consent/revoke", proxyHandler(auditServiceURL, "/api/v1/consent/revoke"))
+	protected.GET("/api/v1/consent/history", proxyHandler(auditServiceURL, "/api/v1/consent/history"))
+
 	port := utils.GetEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))

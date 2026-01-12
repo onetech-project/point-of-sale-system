@@ -17,6 +17,7 @@ import (
 
 	"github.com/pos/audit-service/src/config"
 	"github.com/pos/audit-service/src/handlers/audit"
+	"github.com/pos/audit-service/src/handlers/consent"
 	"github.com/pos/audit-service/src/queue"
 	"github.com/pos/audit-service/src/repository"
 	"github.com/pos/audit-service/src/services"
@@ -67,6 +68,9 @@ func main() {
 	auditRepo := repository.NewAuditRepository(db)
 	consentRepo := repository.NewConsentRepository(db, encryptor)
 
+	// Initialize services
+	consentService := services.NewConsentService(consentRepo)
+
 	// Initialize partition manager service
 	partitionService := services.NewPartitionService(db)
 
@@ -113,6 +117,16 @@ func main() {
 	api.GET("/audit-events", auditHandler.ListAuditEvents)
 	api.GET("/audit-events/:event_id", auditHandler.GetAuditEvent)
 	api.GET("/consent-records", auditHandler.ListConsentRecords)
+
+	// Consent management API handlers
+	consentHandler := consent.NewHandler(consentService, consentRepo)
+	api.GET("/consent/purposes", consentHandler.ListConsentPurposes)
+	api.GET("/consent/purposes/:purpose_code", consentHandler.GetConsentPurposeByCode)
+	api.POST("/consent/grant", consentHandler.GrantConsent)
+	api.GET("/consent/status", consentHandler.GetConsentStatus)
+	api.POST("/consent/revoke", consentHandler.RevokeConsent)
+	api.GET("/consent/history", consentHandler.GetConsentHistory)
+	api.GET("/privacy-policy", consentHandler.GetPrivacyPolicy)
 
 	// Start HTTP server
 	go func() {
