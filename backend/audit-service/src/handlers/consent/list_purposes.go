@@ -3,6 +3,8 @@ package consent
 import (
 	"net/http"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/labstack/echo/v4"
 	"github.com/pos/audit-service/src/repository"
 	"github.com/pos/audit-service/src/services"
@@ -23,12 +25,29 @@ func NewHandler(consentService *services.ConsentService, consentRepo *repository
 }
 
 // ListConsentPurposes retrieves all available consent purposes
-// GET /api/v1/consent/purposes
+// GET /api/v1/consent/purposes?context=tenant|guest
 func (h *Handler) ListConsentPurposes(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	purposes, err := h.consentRepo.ListConsentPurposes(ctx)
+	// get accept language header
+	acceptLanguage := c.Request().Header.Get("Accept-Language")
+	
+	// get context query parameter (tenant or guest)
+	contextFilter := c.QueryParam("context")
+	
+	// validate context parameter if provided
+	if contextFilter != "" && contextFilter != "tenant" && contextFilter != "guest" {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]string{
+				"code":    "INVALID_CONTEXT",
+				"message": "Context must be either 'tenant' or 'guest'",
+			},
+		})
+	}
+
+	purposes, err := h.consentRepo.ListConsentPurposes(ctx, acceptLanguage, contextFilter)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to list consent purposes")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]string{
 				"code":    "INTERNAL_ERROR",
@@ -40,7 +59,8 @@ func (h *Handler) ListConsentPurposes(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"data": purposes,
 		"meta": map[string]interface{}{
-			"total": len(purposes),
+			"total":   len(purposes),
+			"context": contextFilter,
 		},
 	})
 }

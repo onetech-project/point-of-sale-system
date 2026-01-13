@@ -33,10 +33,10 @@ type ConsentGrantRequest struct {
 	UserAgent     string
 }
 
-// ValidateConsents checks if all required consent purposes are included
-func (s *ConsentService) ValidateConsents(ctx context.Context, purposeCodes []string) error {
-	// Get all consent purposes
-	purposes, err := s.consentRepo.ListConsentPurposes(ctx)
+// ValidateConsents checks if all required consent purposes are included for a given context
+func (s *ConsentService) ValidateConsents(ctx context.Context, purposeCodes []string, contextFilter string) error {
+	// Get consent purposes for the specified context (tenant or guest)
+	purposes, err := s.consentRepo.ListConsentPurposes(ctx, "en", contextFilter)
 	if err != nil {
 		return fmt.Errorf("failed to list consent purposes: %w", err)
 	}
@@ -64,15 +64,21 @@ func (s *ConsentService) ValidateConsents(ctx context.Context, purposeCodes []st
 
 // GrantConsents creates consent records for the provided purposes
 func (s *ConsentService) GrantConsents(ctx context.Context, req ConsentGrantRequest) error {
-	// Validate that all required purposes are included
-	if err := s.ValidateConsents(ctx, req.PurposeCodes); err != nil {
+	// Determine context from subject type
+	contextFilter := req.SubjectType
+	if contextFilter != "tenant" && contextFilter != "guest" {
+		return fmt.Errorf("invalid subject_type: must be 'tenant' or 'guest'")
+	}
+
+	// Validate that all required purposes are included for the given context
+	if err := s.ValidateConsents(ctx, req.PurposeCodes, contextFilter); err != nil {
 		return err
 	}
 
 	// Get current privacy policy if version not specified
 	policyVersion := req.PolicyVersion
 	if policyVersion == "" {
-		policy, err := s.consentRepo.GetCurrentPrivacyPolicy(ctx)
+		policy, err := s.consentRepo.GetCurrentPrivacyPolicy(ctx, "en")
 		if err != nil {
 			return fmt.Errorf("failed to get current privacy policy: %w", err)
 		}

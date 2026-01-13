@@ -3,12 +3,15 @@ package consent
 import (
 	"net/http"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/labstack/echo/v4"
 	"github.com/pos/audit-service/src/services"
 )
 
 // GrantConsentRequest represents the request body for granting consent
 type GrantConsentRequest struct {
+	TenantID      string   `json:"tenant_id"` // Required for guest checkouts
 	PurposeCodes  []string `json:"purpose_codes" validate:"required,min=1"`
 	SubjectType   string   `json:"subject_type" validate:"required,oneof=tenant guest"`
 	SubjectID     string   `json:"subject_id"`
@@ -32,8 +35,12 @@ func (h *Handler) GrantConsent(c echo.Context) error {
 		})
 	}
 
-	// Extract tenant ID from header (set by API gateway)
+	// Extract tenant ID from header (set by API gateway for authenticated requests)
+	// or from request body (for guest checkouts)
 	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		tenantID = req.TenantID
+	}
 	if tenantID == "" {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]string{
@@ -43,20 +50,36 @@ func (h *Handler) GrantConsent(c echo.Context) error {
 		})
 	}
 
-	// Extract user ID from header for tenant users
-	subjectID := req.SubjectID
+	// Extract subject ID based on context
+	var subjectID string
 	if req.SubjectType == "tenant" {
-		userID := c.Request().Header.Get("X-User-ID")
-		if userID == "" {
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+		// For registration, use subject_id from request body (tenant just registered, no session yet)
+		// For other methods (settings_update), require authenticated user ID from header
+		if req.ConsentMethod != "registration" {
+			userID := c.Request().Header.Get("X-User-ID")
+			if userID == "" {
+				return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+					"error": map[string]string{
+						"code":    "UNAUTHORIZED",
+						"message": "User ID not found",
+					},
+				})
+			}
+			subjectID = userID
+		} else {
+			// For registration, use subject_id from request body (tenant_id)
+			subjectID = req.SubjectID
+		}
+	} else if req.SubjectType == "guest" {
+		// For guest, use guest_order_id field (order UUID)
+		if req.GuestOrderID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": map[string]string{
-					"code":    "UNAUTHORIZED",
-					"message": "User ID not found",
+					"code":    "MISSING_GUEST_ORDER_ID",
+					"message": "Guest order ID is required for guest consent",
 				},
 			})
 		}
-		subjectID = userID
-	} else if req.SubjectType == "guest" && req.GuestOrderID != "" {
 		subjectID = req.GuestOrderID
 	}
 
@@ -77,6 +100,7 @@ func (h *Handler) GrantConsent(c echo.Context) error {
 	}
 
 	if err := h.consentService.GrantConsents(ctx, grantReq); err != nil {
+		log.Error().Err(err).Msg("Failed to grant consents")
 		// Check if validation error (missing required consents)
 		if err.Error() == "missing required consent purposes" {
 			return c.JSON(http.StatusBadRequest, map[string]interface{}{

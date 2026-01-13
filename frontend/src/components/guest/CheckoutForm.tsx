@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { tenant } from '../../services/tenant';
+import consentService from '../../services/consent';
 import DeliveryTypeSelector from './DeliveryTypeSelector';
 import AddressInput from './AddressInput';
+import ConsentPurposeList from '../consent/ConsentPurposeList';
 import { useTranslation } from 'react-i18next';
 import { CheckoutData, TenantConfig } from '../../types/checkout';
 import { formatPrice } from '../../utils/format';
@@ -21,7 +23,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
   loading = false,
   estimatedDeliveryFee = 0, // T084: Default to 0
 }) => {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'consent']);
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [formData, setFormData] = useState<CheckoutData>({
@@ -34,6 +36,8 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
     notes: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
 
   useEffect(() => {
     fetchTenantConfig();
@@ -103,7 +107,16 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       }
     }
 
+    // Validate required consents (order_processing and payment_processing_midtrans)
+    const requiredConsentCodes = ['order_processing', 'payment_processing_midtrans'];
+    const hasAllRequiredConsents = requiredConsentCodes.every(code => consents[code] === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return false;
+    }
+
     setErrors(newErrors);
+    setConsentError('');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -121,6 +134,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       customer_phone: formData.customer_phone.replace(/[\s-]/g, ''),
       customer_email: formData.customer_email?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
+      consents: consents, // Include consents in submission
     };
 
     if (formData.delivery_type === 'delivery') {
@@ -335,6 +349,23 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Consent Collection Section */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-lg font-semibold mb-4">
+          {t('common.checkout.form.dataConsent', 'Data Privacy Consent')}
+        </h2>
+        <ConsentPurposeList
+          context="guest"
+          onConsentChange={(newConsents) => {
+            setConsents(newConsents);
+            if (consentError) setConsentError('');
+          }}
+          initialConsents={consents}
+          showError={!!consentError}
+          errorMessage={consentError}
+        />
       </div>
 
       {/* Submit Button */}

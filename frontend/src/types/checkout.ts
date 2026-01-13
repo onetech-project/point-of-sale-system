@@ -6,6 +6,7 @@ export interface CheckoutData {
   delivery_address?: string;
   table_number?: string;
   notes?: string;
+  consents?: { [key: string]: boolean };
 }
 
 export interface TenantConfig {

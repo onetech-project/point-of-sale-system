@@ -57,7 +57,7 @@ func (h *Handler) GetConsentStatus(c echo.Context) error {
 	}
 
 	// Get current privacy policy
-	policy, err := h.consentRepo.GetCurrentPrivacyPolicy(ctx)
+	policy, err := h.consentRepo.GetCurrentPrivacyPolicy(ctx, "en")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]string{
@@ -75,9 +75,9 @@ func (h *Handler) GetConsentStatus(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"data": map[string]interface{}{
-			"subject_type":        subjectType,
-			"consents":            consents,
-			"policy_version":      policy.Version,
+			"subject_type":       subjectType,
+			"consents":           consents,
+			"policy_version":     policy.Version,
 			"requires_reconsent": requiresReconsent,
 		},
 	})

@@ -5,7 +5,7 @@
 **Status**: Draft  
 **Input**: User description: "Indonesian data protection compliance (UU PDP No.27 Tahun 2022) with encryption at rest, audit trails, consent management, and data privacy controls"
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Platform Owner Compliance Audit (Priority: P1)
 
@@ -18,7 +18,7 @@ As a platform owner, I need to ensure all personally identifiable information (P
 **Acceptance Scenarios**:
 
 1. **Given** the system is storing user account data, **When** I inspect data storage directly, **Then** all PII fields (email, names, phone, addresses, tokens, API keys) are encrypted and cannot be read as plaintext
-2. **Given** a user registration occurs, **When** I review application logs, **Then** sensitive data (email, password, tokens) is masked (e.g., "us***@example.com", "tok***xyz") and never appears in plaintext
+2. **Given** a user registration occurs, **When** I review application logs, **Then** sensitive data (email, password, tokens) is masked (e.g., "us**_@example.com", "tok\_**xyz") and never appears in plaintext
 3. **Given** a guest order is created, **When** I check customer order information and delivery location data, **Then** customer PII (name, phone, email, address, coordinates, IP address) is encrypted at rest
 4. **Given** a tenant configures payment processing, **When** I inspect tenant payment configuration data, **Then** payment gateway API credentials are encrypted and not visible in plaintext
 5. **Given** any data backup is created, **When** I examine the backup file, **Then** all PII remains encrypted within the backup
@@ -167,16 +167,17 @@ As the platform owner, I need automated cleanup of expired temporary data (token
 - What if multiple users access same sensitive data concurrently during encryption migration? System must ensure data consistency and prevent race conditions.
 - How does system handle partial consent (user consents to some but not all optional items)? System stores individual consent preferences and respects each one independently.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ## 2. Functional Requirements
 
 ### Terminology
+
 - **Soft Delete**: Setting status='deleted' flag while retaining data for grace period (90 days for tenants)
 - **Hard Delete**: Permanent removal of all data from database (no recovery possible)
 - **Anonymization**: Replacing PII with generic values ("Deleted User") while preserving non-PII transaction data
 - **PII (Personal Identifiable Information)**: Email, name, phone, address, IP, verification tokens, session IDs
-- **Masking**: Obfuscating sensitive data in logs (e.g., "us***@example.com", "******1234")
+- **Masking**: Obfuscating sensitive data in logs (e.g., "us**\*@example.com", "\*\*\*\***1234")
 
 ### Data Encryption at Rest
 
@@ -195,12 +196,12 @@ As the platform owner, I need automated cleanup of expired temporary data (token
 
 #### Log Data Masking
 
-- **FR-013**: System MUST mask email addresses in logs by showing only first 2 characters and domain (e.g., "us***@example.com")
-- **FR-014**: System MUST mask phone numbers in logs by showing only last 4 digits (e.g., "******1234")
-- **FR-015**: System MUST mask tokens in logs by showing only first 3 and last 3 characters (e.g., "abc***xyz")
-- **FR-016**: System MUST mask IP addresses in logs by showing only first two segments (e.g., "192.168.*.*")
-- **FR-017**: System MUST mask API keys/credentials in logs completely (e.g., "***REDACTED***")
-- **FR-018**: System MUST mask personal names in logs using first name initial only (e.g., "J*** D***")
+- **FR-013**: System MUST mask email addresses in logs by showing only first 2 characters and domain (e.g., "us\*\*\*@example.com")
+- **FR-014**: System MUST mask phone numbers in logs by showing only last 4 digits (e.g., "**\*\***1234")
+- **FR-015**: System MUST mask tokens in logs by showing only first 3 and last 3 characters (e.g., "abc\*\*\*xyz")
+- **FR-016**: System MUST mask IP addresses in logs by showing only first two segments (e.g., "192.168._._")
+- **FR-017**: System MUST mask API keys/credentials in logs completely (e.g., "**_REDACTED_**")
+- **FR-018**: System MUST mask personal names in logs using first name initial only (e.g., "J**_ D_**")
 - **FR-019**: System MUST apply masking to all log levels (debug, info, warn, error) before writing to log output
 - **FR-020**: System MUST NOT log password hashes or any password-related data even in masked form
 
@@ -281,7 +282,7 @@ As the platform owner, I need automated cleanup of expired temporary data (token
 - **FR-078**: System MUST hard delete guest order data automatically after 5 year retention period expires
 - **FR-079**: System MUST log all automated cleanup actions in audit trail
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Consent Record**: Tracks user consent for data processing purposes, links to tenant or guest order, records grant/revoke timestamps, IP address, consent version. Supports compliance with UU PDP consent requirements.
 
@@ -293,7 +294,7 @@ As the platform owner, I need automated cleanup of expired temporary data (token
 
 - **Data Deletion Request**: Guest customer request to anonymize personal data while retaining order history for merchant, records request timestamp, processing status, completion timestamp. Supports right to erasure under UU PDP.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

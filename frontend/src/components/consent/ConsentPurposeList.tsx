@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import ConsentCheckbox from './ConsentCheckbox';
+import ConsentService from '../../services/consent';
 
 interface ConsentPurpose {
   purpose_code: string;
@@ -15,6 +16,7 @@ interface ConsentPurposeListProps {
   initialConsents?: { [key: string]: boolean };
   showError?: boolean;
   errorMessage?: string;
+  context: 'tenant' | 'guest'; // Context: tenant for registration, guest for checkout
 }
 
 export default function ConsentPurposeList({
@@ -22,6 +24,7 @@ export default function ConsentPurposeList({
   initialConsents = {},
   showError = false,
   errorMessage,
+  context,
 }: ConsentPurposeListProps) {
   const { t } = useTranslation('consent');
   const [purposes, setPurposes] = useState<ConsentPurpose[]>([]);
@@ -31,23 +34,15 @@ export default function ConsentPurposeList({
 
   useEffect(() => {
     fetchConsentPurposes();
-  }, []);
+  }, [context]);
 
   const fetchConsentPurposes = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/consent/purposes', {
-        headers: {
-          'Accept-Language': 'id', // Indonesian
-        },
-      });
+      // get consent purposes from Consent Service filtered by context
+      const response = await ConsentService.getConsentPurposes(localStorage.getItem('locale') || 'en', context);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch consent purposes');
-      }
-
-      const data = await response.json();
-      const sortedPurposes = data.data.sort((a: ConsentPurpose, b: ConsentPurpose) => 
+      const sortedPurposes = response.sort((a: ConsentPurpose, b: ConsentPurpose) => 
         a.display_order - b.display_order
       );
       setPurposes(sortedPurposes);
@@ -107,7 +102,7 @@ export default function ConsentPurposeList({
 
   return (
     <div className="space-y-2">
-      <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
+      <div className="rounded-lg">
         {purposes.map((purpose) => (
           <ConsentCheckbox
             key={purpose.purpose_code}

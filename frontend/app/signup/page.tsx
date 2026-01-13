@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { authService } from '@/services/auth';
+import consentService from '@/services/consent';
 import PublicLayout from '@/components/layout/PublicLayout';
+import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
 interface FormData {
   businessName: string;
@@ -26,7 +28,7 @@ interface FormErrors {
 }
 
 export default function SignupPage() {
-  const { t } = useTranslation(['auth', 'common']);
+  const { t } = useTranslation(['auth', 'common', 'consent']);
   const router = useRouter();
 
   const [formData, setFormData] = useState<FormData>({
@@ -48,6 +50,8 @@ export default function SignupPage() {
     hasUpperCase: false,
     hasSpecialChar: false,
   });
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -109,6 +113,7 @@ export default function SignupPage() {
     e.preventDefault();
     setServerError('');
     setStatus(null);
+    setConsentError('');
 
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
@@ -116,10 +121,23 @@ export default function SignupPage() {
       return;
     }
 
+    // Validate required consents
+    const requiredConsents = Object.entries(consents).filter(([key, value]) => {
+      // Operational, third_party_midtrans are required for tenant registration
+      return ['operational', 'third_party_midtrans'].includes(key);
+    });
+
+    const hasAllRequiredConsents = requiredConsents.every(([, value]) => value === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await authService.registerTenant({
+      // Register tenant first
+      const registrationResponse = await authService.registerTenant({
         businessName: formData.businessName,
         email: formData.email.toLowerCase(),
         password: formData.password,
@@ -128,6 +146,22 @@ export default function SignupPage() {
           lastName: formData.lastName
         }
       });
+
+      // Grant consents after successful registration
+      const tenantId = registrationResponse.tenant.id;
+      const grantedConsents = Object.entries(consents)
+        .filter(([, granted]) => granted)
+        .map(([purpose_code]) => ({ purpose_code, granted: true }));
+
+      if (grantedConsents.length > 0) {
+        await consentService.grantConsents({
+          tenant_id: tenantId,
+          subject_type: 'tenant',
+          subject_id: tenantId,
+          consents: grantedConsents,
+          metadata: consentService.getConsentMetadata(),
+        });
+      }
 
       setStatus('success');
 
@@ -328,6 +362,23 @@ export default function SignupPage() {
                     {errors.confirmPassword && (
                       <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                     )}
+                  </div>
+
+                  {/* Consent Collection Section */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      {t('auth.signup.dataConsent', 'Data Privacy Consent')}
+                    </h3>
+                    <ConsentPurposeList
+                      context="tenant"
+                      onConsentChange={(newConsents) => {
+                        setConsents(newConsents);
+                        if (consentError) setConsentError('');
+                      }}
+                      initialConsents={consents}
+                      showError={!!consentError}
+                      errorMessage={consentError}
+                    />
                   </div>
 
                   <button

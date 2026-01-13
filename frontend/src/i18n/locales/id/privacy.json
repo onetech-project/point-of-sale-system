@@ -1,0 +1,105 @@
+{
+  "title": "Kebijakan Privasi",
+  "version": "Versi",
+  "effectiveDate": "Tanggal Berlaku",
+  "loadError": "Gagal memuat kebijakan privasi",
+  
+  "introduction": {
+    "title": "Pendahuluan",
+    "text": "Selamat datang di Sistem Point of Sale (POS) kami. Kami berkomitmen untuk melindungi data pribadi Anda sesuai dengan Undang-Undang Nomor 27 Tahun 2022 tentang Perlindungan Data Pribadi (UU PDP). Kebijakan privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi informasi pribadi Anda."
+  },
+  
+  "dataCollected": {
+    "title": "Data yang Kami Kumpulkan",
+    "accountData": "Data Akun",
+    "email": "Alamat email",
+    "name": "Nama lengkap (nama depan dan belakang)",
+    "businessName": "Nama bisnis",
+    "phone": "Nomor telepon",
+    "orderData": "Informasi Pesanan",
+    "customerName": "Nama pelanggan",
+    "customerPhone": "Nomor telepon pelanggan",
+    "customerEmail": "Email pelanggan (opsional)",
+    "deliveryAddress": "Alamat pengiriman",
+    "ipAddress": "Alamat IP",
+    "technicalData": "Data Teknis",
+    "cookies": "Cookie sesi",
+    "browserInfo": "Informasi browser dan perangkat",
+    "usageData": "Pola penggunaan dan analitik"
+  },
+  
+  "dataUse": {
+    "title": "Bagaimana Kami Menggunakan Data Anda",
+    "serviceOperation": "Untuk menyediakan dan memelihara layanan POS kami",
+    "orderProcessing": "Untuk memproses dan memenuhi pesanan",
+    "communication": "Untuk berkomunikasi dengan Anda tentang akun dan pesanan Anda",
+    "analytics": "Untuk menganalisis dan meningkatkan layanan kami",
+    "payment": "Untuk memfasilitasi pemrosesan pembayaran yang aman",
+    "compliance": "Untuk mematuhi kewajiban hukum"
+  },
+  
+  "legalBasis": {
+    "title": "Dasar Hukum Pemrosesan",
+    "text": "Kami memproses data pribadi Anda berdasarkan:",
+    "consent": "Persetujuan eksplisit Anda (Pasal 20, UU PDP)",
+    "contract": "Pelaksanaan kontrak dengan Anda",
+    "legal": "Kepatuhan terhadap kewajiban hukum",
+    "legitimate": "Kepentingan bisnis yang sah"
+  },
+  
+  "retention": {
+    "title": "Penyimpanan Data",
+    "intro": "Kami menyimpan data pribadi Anda untuk periode yang berbeda berdasarkan jenis data dan persyaratan hukum:",
+    "activeAccounts": "Akun aktif: disimpan selama akun aktif",
+    "closedAccounts": "Akun yang ditutup: periode tenggang 90 hari untuk pemulihan",
+    "guestOrders": "Pesanan tamu: 5 tahun (persyaratan hukum pajak Indonesia)",
+    "auditLogs": "Log audit: 7 tahun untuk investigasi kepatuhan",
+    "temporary": "Data sementara (token verifikasi): 48 jam"
+  },
+  
+  "security": {
+    "title": "Keamanan Data",
+    "intro": "Kami menerapkan langkah-langkah keamanan yang komprehensif untuk melindungi data Anda:",
+    "encryption": "Enkripsi at rest untuk semua data pribadi",
+    "accessControl": "Kontrol akses dan autentikasi yang ketat",
+    "auditTrail": "Jejak audit lengkap dari semua akses data",
+    "logMasking": "Penyembunyian otomatis data sensitif dalam log",
+    "regularAudits": "Audit keamanan dan pembaruan rutin"
+  },
+  
+  "thirdParty": {
+    "title": "Berbagi Data dengan Pihak Ketiga",
+    "intro": "Kami membagikan informasi pembayaran Anda dengan:",
+    "midtrans": "Midtrans (Pemroses Pembayaran)",
+    "midtransDesc": "Kami menggunakan Midtrans untuk memproses QRIS dan metode pembayaran lainnya dengan aman. Hanya informasi terkait pembayaran yang dibagikan.",
+    "viewPolicy": "Lihat Kebijakan Privasi Midtrans"
+  },
+  
+  "yourRights": {
+    "title": "Hak Anda",
+    "intro": "Berdasarkan UU PDP, Anda memiliki hak-hak berikut:",
+    "access": "Hak Akses",
+    "accessDesc": "Melihat semua data pribadi Anda yang kami miliki",
+    "correction": "Hak Koreksi",
+    "correctionDesc": "Memperbarui data yang salah atau tidak lengkap",
+    "deletion": "Hak Penghapusan",
+    "deletionDesc": "Meminta penghapusan data pribadi Anda",
+    "revoke": "Hak Mencabut Persetujuan",
+    "revokeDesc": "Menarik persetujuan untuk pemrosesan data opsional",
+    "complaint": "Hak Mengajukan Keluhan",
+    "complaintDesc": "Mengajukan keluhan ke otoritas perlindungan data"
+  },
+  
+  "contact": {
+    "title": "Hubungi Kami",
+    "intro": "Untuk pertanyaan tentang kebijakan privasi ini atau untuk menjalankan hak Anda:",
+    "emailLabel": "Email",
+    "responseTime": "Waktu Respons",
+    "responseTimeValue": "Dalam 14 hari sesuai yang disyaratkan oleh UU PDP Pasal 6"
+  },
+  
+  "updates": {
+    "title": "Pembaruan Kebijakan",
+    "text": "Kami dapat memperbarui kebijakan privasi ini secara berkala. Perubahan material akan dikomunikasikan melalui email kepada pengguna terdaftar. Tanggal efektif di bagian atas halaman ini menunjukkan kapan kebijakan terakhir diperbarui."
+  }
+}

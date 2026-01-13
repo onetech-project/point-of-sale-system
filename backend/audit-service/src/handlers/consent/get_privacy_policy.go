@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog/log"
 )
 
 // GetPrivacyPolicy retrieves the current privacy policy
@@ -11,9 +12,13 @@ import (
 func (h *Handler) GetPrivacyPolicy(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	// get accept language header
+	acceptLanguage := c.Request().Header.Get("Accept-Language")
+
 	// Get current privacy policy
-	policy, err := h.consentRepo.GetCurrentPrivacyPolicy(ctx)
+	policy, err := h.consentRepo.GetCurrentPrivacyPolicy(ctx, acceptLanguage)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to retrieve privacy policy")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]string{
 				"code":    "INTERNAL_ERROR",
