@@ -5,7 +5,6 @@ services:
     entrypoint: ["/vault/scripts/vault-entrypoint.sh"]
     environment:
       VAULT_ADDR: ${VAULT_ADDR}
-      VAULT_TOKEN: "${VAULT_TOKEN}"
     ports:
       - "8200:8200"
     cap_add:

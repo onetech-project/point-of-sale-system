@@ -20,8 +20,11 @@ func NewRateLimiter() *RateLimiter {
 	redisHost := utils.GetEnv("REDIS_HOST")
 	redisPass := utils.GetEnv("REDIS_PASSWORD")
 	client := redis.NewClient(&redis.Options{
-		Addr:     redisHost,
-		Password: redisPass,
+		Addr:         redisHost,
+		Password:     redisPass,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
 	})
 
 	return &RateLimiter{redis: client}

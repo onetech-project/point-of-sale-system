@@ -28,6 +28,9 @@ vault operator init -key-shares=1 -key-threshold=1 > /vault/data/init-keys.txt
 - ❌ Need to update .env files after reset
 
 **When to use:** Production, staging, or any environment requiring security
+**How to copy the token to service's .env:** 
+- ```docker exec -i <vault_container> cat vault/data/init-keys.txt```
+- find the token with pattern ```hvs.XXX```
 
 ---
 

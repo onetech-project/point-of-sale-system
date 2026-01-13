@@ -171,6 +171,15 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
         echo ""
     fi
 
+    # Start vault from directory /vault if available
+    if [ -d "$PROJECT_ROOT/vault" ]; then
+        echo "🔐 Starting Vault server..."
+        cd "$PROJECT_ROOT/vault"
+        docker compose up -d &
+        echo "✅ Vault server started"
+        echo ""
+    fi
+
     # Start Docker services if available
     if docker info > /dev/null 2>&1; then
         echo "📦 Starting Docker services (PostgreSQL & Redis)..."

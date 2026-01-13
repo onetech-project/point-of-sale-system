@@ -151,7 +151,6 @@ export default function InviteUserPage() {
                 >
                   <option value={ROLES.CASHIER}>Cashier</option>
                   <option value={ROLES.MANAGER}>Manager</option>
-                  <option value={ROLES.ADMIN}>Admin</option>
                 </select>
               </div>
             </div>

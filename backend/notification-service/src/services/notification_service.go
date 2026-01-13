@@ -528,8 +528,8 @@ func (s *NotificationService) queryStaffRecipients(ctx context.Context, tenantID
 			continue
 		}
 
-		// Decrypt email address
-		email, err := s.encryptor.Decrypt(ctx, encryptedEmail)
+		// Decrypt email address with context (user:email is the encryption context used during encryption)
+		email, err := s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
 		if err != nil {
 			log.Printf("[ORDER_PAID] Failed to decrypt email for user %s: %v", id, err)
 			continue // Skip this user
