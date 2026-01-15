@@ -7,6 +7,7 @@ import (
 
 	"github.com/pos/user-service/src/repository"
 	"github.com/pos/user-service/src/services"
+	"github.com/pos/user-service/src/utils"
 	"github.com/pos/user-service/src/utils/mocks"
 )
 
@@ -36,6 +37,12 @@ func TestUserService_WithMockEncryptor(t *testing.T) {
 		},
 	}
 
+	mockPublisher := &mocks.MockAuditPublisher{
+		PublishFunc: func(ctx context.Context, event *utils.AuditEvent) error {
+			return nil // Mock successful publish
+		},
+	}
+
 	// Setup test database (you'd use a test DB or mock DB)
 	// db := setupTestDatabase(t)
 	// defer db.Close()
@@ -43,7 +50,7 @@ func TestUserService_WithMockEncryptor(t *testing.T) {
 	var db *sql.DB // placeholder for example
 
 	// Create repository with mock encryptor (NO VAULT REQUIRED)
-	userRepo := repository.NewUserRepository(db, mockEncryptor)
+	userRepo := repository.NewUserRepository(db, mockEncryptor, mockPublisher)
 
 	// Create service with injected repository
 	userService := services.NewUserServiceWithRepository(db, userRepo)
@@ -58,12 +65,13 @@ func TestUserService_WithMockEncryptor(t *testing.T) {
 // Example: Testing UserService with NoOpEncryptor (plaintext for tests)
 func TestUserService_WithNoOpEncryptor(t *testing.T) {
 	noOpEncryptor := &mocks.NoOpEncryptor{}
+	noOpPublisher := &mocks.NoOpAuditPublisher{}
 
 	// Setup test database
 	var db *sql.DB // placeholder
 
 	// Create repository with no-op encryptor (data stays plaintext)
-	userRepo := repository.NewUserRepository(db, noOpEncryptor)
+	userRepo := repository.NewUserRepository(db, noOpEncryptor, noOpPublisher)
 
 	// Create service with injected repository
 	userService := services.NewUserServiceWithRepository(db, userRepo)

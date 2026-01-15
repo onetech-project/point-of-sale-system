@@ -227,3 +227,106 @@ func (h *QueryHandler) ListConsentRecords(c echo.Context) error {
 		},
 	})
 }
+
+// ListTenantAuditEvents retrieves audit events for the authenticated tenant (T107, T108, T109)
+// GET /api/v1/audit/tenant?action=CREATE&resource_type=user&start_time=2026-01-01T00:00:00Z&limit=100
+func (h *QueryHandler) ListTenantAuditEvents(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Extract tenant_id from JWT claims (set by auth middleware)
+	tenantIDInterface := c.Get("tenant_id")
+	if tenantIDInterface == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Missing tenant_id in authentication context",
+		})
+	}
+	tenantID, ok := tenantIDInterface.(string)
+	if !ok || tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Invalid tenant_id in authentication context",
+		})
+	}
+
+	// Build filter from query parameters
+	filter := repository.AuditQueryFilter{
+		TenantID: tenantID, // From JWT - enforces tenant isolation
+		Limit:    100,      // Default limit (T108)
+		Offset:   0,
+	}
+
+	// Optional filters: action_type (action), resource_type, actor_id, date_range (start_time/end_time)
+	if action := c.QueryParam("action"); action != "" {
+		filter.Action = &action
+	}
+	if resourceType := c.QueryParam("resource_type"); resourceType != "" {
+		filter.ResourceType = &resourceType
+	}
+	if actorID := c.QueryParam("actor_id"); actorID != "" {
+		filter.ActorID = &actorID
+	}
+
+	// Date range filters
+	if startTimeStr := c.QueryParam("start_time"); startTimeStr != "" {
+		startTime, err := time.Parse(time.RFC3339, startTimeStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid start_time format (expected RFC3339)",
+			})
+		}
+		filter.StartTime = &startTime
+	}
+	if endTimeStr := c.QueryParam("end_time"); endTimeStr != "" {
+		endTime, err := time.Parse(time.RFC3339, endTimeStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid end_time format (expected RFC3339)",
+			})
+		}
+		filter.EndTime = &endTime
+	}
+
+	// Pagination (T108)
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > 1000 {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid limit (must be 1-1000)",
+			})
+		}
+		filter.Limit = limit
+	}
+	if offsetStr := c.QueryParam("offset"); offsetStr != "" {
+		offset, err := strconv.Atoi(offsetStr)
+		if err != nil || offset < 0 {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid offset (must be >= 0)",
+			})
+		}
+		filter.Offset = offset
+	}
+
+	// Retrieve audit events for tenant
+	events, err := h.auditRepo.List(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "failed to retrieve audit events",
+		})
+	}
+
+	// Get total count for pagination
+	total, err := h.auditRepo.Count(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "failed to count audit events",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"events": events,
+		"pagination": map[string]interface{}{
+			"total":  total,
+			"limit":  filter.Limit,
+			"offset": filter.Offset,
+		},
+	})
+}

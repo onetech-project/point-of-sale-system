@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { authService } from '@/services/auth';
-import consentService from '@/services/consent';
 import PublicLayout from '@/components/layout/PublicLayout';
 import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
@@ -136,7 +135,17 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      // Register tenant first
+      // Get granted optional consents only (required consents are implicit on backend)
+      const grantedOptionalConsents = Object.entries(consents)
+        .filter(([key, granted]) => {
+          // Only include optional consents that were granted
+          // Required consents (operational, third_party_midtrans) are NOT sent (backend enforces)
+          const isOptional = !['operational', 'third_party_midtrans'].includes(key);
+          return isOptional && granted;
+        })
+        .map(([purpose_code]) => purpose_code); // Array of consent codes only
+
+      // Register tenant with consents in single request
       const registrationResponse = await authService.registerTenant({
         businessName: formData.businessName,
         email: formData.email.toLowerCase(),
@@ -144,24 +153,9 @@ export default function SignupPage() {
         ownerProfile: {
           firstName: formData.firstName,
           lastName: formData.lastName
-        }
+        },
+        consents: grantedOptionalConsents, // Simplified payload
       });
-
-      // Grant consents after successful registration
-      const tenantId = registrationResponse.tenant.id;
-      const grantedConsents = Object.entries(consents)
-        .filter(([, granted]) => granted)
-        .map(([purpose_code]) => ({ purpose_code, granted: true }));
-
-      if (grantedConsents.length > 0) {
-        await consentService.grantConsents({
-          tenant_id: tenantId,
-          subject_type: 'tenant',
-          subject_id: tenantId,
-          consents: grantedConsents,
-          metadata: consentService.getConsentMetadata(),
-        });
-      }
 
       setStatus('success');
 

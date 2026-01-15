@@ -7,7 +7,6 @@ import { CheckoutData } from '../../../src/types/checkout';
 import { cart as cartService } from '../../../src/services/cart';
 import { order } from '../../../src/services/order';
 import { tenant } from '../../../src/services/tenant';
-import consentService from '../../../src/services/consent';
 import { Cart } from '../../../src/types/cart';
 import PublicLayout from '../../../src/components/layout/PublicLayout';
 import { useTranslation } from 'react-i18next';
@@ -121,27 +120,8 @@ export default function CheckoutPage() {
         data
       );
 
-      // Grant consents for guest order (using order_id as guest identifier)
-      if (data.consents && Object.keys(data.consents).length > 0) {
-        const grantedConsents = Object.entries(data.consents)
-          .filter(([, granted]) => granted)
-          .map(([purpose_code]) => ({ purpose_code, granted: true }));
-
-        if (grantedConsents.length > 0) {
-          try {
-            await consentService.grantConsents({
-              tenant_id: tenantId,
-              subject_type: 'guest',
-              subject_id: orderResponse.order_id,
-              consents: grantedConsents,
-              metadata: consentService.getConsentMetadata(),
-            });
-          } catch (consentErr) {
-            // Log but don't block order creation - consents are ancillary
-            console.error('Failed to grant consents:', consentErr);
-          }
-        }
-      }
+      // Consents are now sent with the order creation request
+      // No separate API call needed - backend publishes ConsentGrantedEvent
 
       // T068: Redirect to order confirmation page
       // The order confirmation page will display the QR code for payment

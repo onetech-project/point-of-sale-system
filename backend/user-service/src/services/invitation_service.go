@@ -14,6 +14,7 @@ import (
 	"github.com/pos/user-service/src/models"
 	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/repository"
+	"github.com/pos/user-service/src/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,8 +33,8 @@ type InvitationService struct {
 	eventProducer  *queue.KafkaProducer
 }
 
-func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer) (*InvitationService, error) {
-	userRepo, err := repository.NewUserRepositoryWithVault(db)
+func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer, auditPublisher utils.AuditPublisherInterface) (*InvitationService, error) {
+	userRepo, err := repository.NewUserRepositoryWithVault(db, auditPublisher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user repository: %w", err)
 	}

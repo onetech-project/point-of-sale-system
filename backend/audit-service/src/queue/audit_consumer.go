@@ -10,6 +10,7 @@ import (
 	"github.com/segmentio/kafka-go"
 
 	"github.com/pos/audit-service/src/models"
+	"github.com/pos/audit-service/src/observability"
 	"github.com/pos/audit-service/src/repository"
 )
 
@@ -86,30 +87,48 @@ func (c *AuditConsumer) Start(ctx context.Context) {
 	}
 }
 
-// processMessage deserializes and persists audit event
+// processMessage deserializes and persists audit event (T116: with metrics)
 func (c *AuditConsumer) processMessage(ctx context.Context, msg kafka.Message) error {
+	startTime := time.Now()
+
 	var auditEvent models.AuditEvent
 
 	// Deserialize JSON message
 	if err := json.Unmarshal(msg.Value, &auditEvent); err != nil {
+		observability.AuditEventsPersistErrorsTotal.WithLabelValues("unmarshal_error").Inc()
 		return fmt.Errorf("failed to unmarshal audit event: %w", err)
 	}
 
 	// Validate required fields
 	if auditEvent.TenantID == "" {
+		observability.AuditEventsPersistErrorsTotal.WithLabelValues("validation_error").Inc()
 		return fmt.Errorf("audit event missing tenant_id")
 	}
 	if auditEvent.Action == "" {
+		observability.AuditEventsPersistErrorsTotal.WithLabelValues("validation_error").Inc()
 		return fmt.Errorf("audit event missing action")
 	}
 	if auditEvent.ResourceType == "" {
+		observability.AuditEventsPersistErrorsTotal.WithLabelValues("validation_error").Inc()
 		return fmt.Errorf("audit event missing resource_type")
 	}
 
 	// Persist to database (partition-aware insert)
 	if err := c.auditRepo.Create(ctx, &auditEvent); err != nil {
+		observability.AuditEventsPersistErrorsTotal.WithLabelValues("database_error").Inc()
+		observability.AuditEventsPersistedTotal.WithLabelValues(auditEvent.Action, auditEvent.ResourceType, "error").Inc()
 		return fmt.Errorf("failed to persist audit event: %w", err)
 	}
+
+	// T116: Record successful persistence metrics
+	duration := time.Since(startTime).Seconds()
+	observability.AuditEventsPersistedTotal.WithLabelValues(auditEvent.Action, auditEvent.ResourceType, "success").Inc()
+	observability.AuditEventsProcessingDuration.WithLabelValues(auditEvent.Action, auditEvent.ResourceType).Observe(duration)
+
+	// Update consumer lag metric (T117 alert trigger)
+	stats := c.reader.Stats()
+	observability.AuditKafkaConsumerLag.Set(float64(stats.Lag))
+	observability.AuditKafkaConsumerOffset.Set(float64(stats.Offset))
 
 	log.Debug().
 		Str("event_id", auditEvent.EventID.String()).
@@ -117,6 +136,7 @@ func (c *AuditConsumer) processMessage(ctx context.Context, msg kafka.Message) e
 		Str("action", auditEvent.Action).
 		Str("resource_type", auditEvent.ResourceType).
 		Str("partition", auditEvent.PartitionName()).
+		Float64("processing_duration_seconds", duration).
 		Msg("Audit event persisted")
 
 	return nil

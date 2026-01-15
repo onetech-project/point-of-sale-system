@@ -64,6 +64,7 @@ services:
     image: grafana/promtail:latest
     container_name: pos-promtail
     volumes:
+      - /tmp:/host-tmp:ro # for development logs
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./promtail/promtail.yml:/etc/promtail/config.yml

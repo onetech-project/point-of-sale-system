@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pos/user-service/src/repository"
+	"github.com/pos/user-service/src/utils"
 )
 
 // UserService handles user-related business logic
@@ -15,8 +16,8 @@ type UserService struct {
 }
 
 // NewUserService creates a new user service with a real VaultClient (production use)
-func NewUserService(db *sql.DB) (*UserService, error) {
-	userRepo, err := repository.NewUserRepositoryWithVault(db)
+func NewUserService(db *sql.DB, auditPublisher utils.AuditPublisherInterface) (*UserService, error) {
+	userRepo, err := repository.NewUserRepositoryWithVault(db, auditPublisher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user repository: %w", err)
 	}

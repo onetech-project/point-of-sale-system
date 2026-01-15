@@ -9,10 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/pos/tenant-service/src/events"
 	"github.com/pos/tenant-service/src/models"
 	"github.com/pos/tenant-service/src/queue"
 	"github.com/pos/tenant-service/src/repository"
 	"github.com/pos/tenant-service/src/utils"
+	"github.com/pos/tenant-service/src/validators"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -45,6 +48,11 @@ func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantS
 }
 
 func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest) (*models.Tenant, error) {
+	// Validate optional consent codes (required consents are implicit)
+	if err := validators.ValidateTenantConsents(req.Consents); err != nil {
+		return nil, fmt.Errorf("invalid consent codes: %w", err)
+	}
+
 	slug := req.Slug
 	if slug == "" {
 		slug = GenerateSlug(req.BusinessName)
@@ -100,6 +108,36 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 		go func() {
 			if err := s.eventPublisher.PublishUserRegistered(context.Background(), tenant.ID, ownerUserID, req.Email, name, verificationToken); err != nil {
 				fmt.Printf("Warning: failed to publish login event: %v\n", err)
+			}
+		}()
+	}
+
+	// Publish ConsentGrantedEvent to Kafka (async, after transaction committed)
+	// This ensures we have the real user_id and prevents consent recording failures from blocking registration
+	if s.eventPublisher != nil {
+		go func() {
+			consentEvent := events.ConsentGrantedEvent{
+				EventID:          uuid.New().String(),
+				EventType:        "consent.granted",
+				TenantID:         tenant.ID,
+				SubjectType:      "tenant",
+				SubjectID:        ownerUserID, // Real user_id from database
+				ConsentMethod:    "registration",
+				PolicyVersion:    "1.0.0", // TODO: Get from database
+				Consents:         req.Consents, // Only optional consents provided by user
+				RequiredConsents: validators.GetRequiredTenantConsents(), // Required consents (implicit)
+				Metadata: events.ConsentMetadata{
+					IPAddress: "", // TODO: Extract from context
+					UserAgent: "", // TODO: Extract from context
+					SessionID: nil,
+					RequestID: "", // TODO: Extract from context
+				},
+				Timestamp: time.Now(),
+			}
+
+			if err := s.eventPublisher.PublishConsentGranted(context.Background(), consentEvent); err != nil {
+				fmt.Printf("Warning: failed to publish consent event: %v\n", err)
+				// TODO: Add to retry queue or alert for manual intervention
 			}
 		}()
 	}

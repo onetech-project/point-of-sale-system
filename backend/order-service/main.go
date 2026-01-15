@@ -113,6 +113,20 @@ func main() {
 	kafkaProducer := queue.NewKafkaProducer(brokerList, config.GetEnvAsString("KAFKA_TOPIC"))
 	log.Info().Strs("brokers", brokerList).Msg("Kafka producer initialized")
 
+	// Initialize dedicated Kafka producer for consent events
+	consentTopic := config.GetEnvAsString("KAFKA_CONSENT_TOPIC")
+	consentProducer := queue.NewKafkaProducer(brokerList, consentTopic)
+	log.Info().Str("consent_topic", consentTopic).Msg("Consent producer initialized")
+
+	// Initialize AuditPublisher for audit trail (T101)
+	auditTopic := config.GetEnvAsString("KAFKA_AUDIT_TOPIC")
+	serviceName := config.GetEnvAsString("SERVICE_NAME")
+	auditPublisher, err := utils.NewAuditPublisher(serviceName, brokerList, auditTopic)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize AuditPublisher")
+	}
+	defer auditPublisher.Close()
+
 	// Initialize order service (with Kafka producer and all repos for event publishing)
 	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer)
 
@@ -125,7 +139,7 @@ func main() {
 	deliveryFeeService := services.NewDeliveryFeeService()
 
 	// Initialize guest order repository with encryption
-	guestOrderRepo, err := repository.NewGuestOrderRepositoryWithVault(config.GetDB())
+	guestOrderRepo, err := repository.NewGuestOrderRepositoryWithVault(config.GetDB(), auditPublisher)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize GuestOrderRepository")
 	}
@@ -135,7 +149,27 @@ func main() {
 	adminOrderHandler := api.NewAdminOrderHandler(orderService)
 	orderSettingsHandler := api.NewOrderSettingsHandler(orderSettingsRepo)
 	cartHandler := api.NewCartHandlerWithService(cartService)
-	checkoutHandler := api.NewCheckoutHandler(config.GetDB(), config.GetRedis(), cartService, inventoryService, paymentService, geocodingService, deliveryFeeService, addressRepo, orderSettingsRepo, guestOrderRepo, kafkaProducer)
+	checkoutHandler := api.NewCheckoutHandler(
+		config.GetDB(),
+		config.GetRedis(),
+		cartService,
+		inventoryService,
+		paymentService,
+		geocodingService,
+		deliveryFeeService,
+		addressRepo,
+		orderSettingsRepo,
+		guestOrderRepo,
+		kafkaProducer,
+		consentProducer, // Dedicated producer for consent-events topic
+	)
+
+	// Initialize guest data handler (T144-T145)
+	vaultEncryptor, err := utils.NewVaultClient()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize VaultClient for guest data handler")
+	}
+	guestDataHandler := api.NewGuestDataHandler(config.GetDB(), vaultEncryptor, auditPublisher, kafkaProducer)
 
 	// Start reservation cleanup job in background
 	cleanupJob := services.NewReservationCleanupJob(inventoryService)
@@ -157,6 +191,10 @@ func main() {
 
 	// Public order lookup route (no tenantId needed for order reference)
 	e.GET("/api/v1/public/orders/:orderReference", checkoutHandler.GetPublicOrder)
+
+	// Guest data rights routes (T147) - public but require order_reference + email/phone verification
+	e.GET("/api/v1/guest/order/:order_reference/data", guestDataHandler.GetGuestData)
+	e.POST("/api/v1/guest/order/:order_reference/delete", guestDataHandler.DeleteGuestData)
 
 	// Webhook routes (public - signature verified in service layer)
 	webhookHandler.RegisterRoutes(e)

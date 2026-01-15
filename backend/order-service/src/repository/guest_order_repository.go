@@ -12,25 +12,27 @@ import (
 // GuestOrderRepository handles guest order persistence with PII encryption
 // Implements UU PDP compliance for customer data protection
 type GuestOrderRepository struct {
-	db        *sql.DB
-	encryptor utils.Encryptor
+	db             *sql.DB
+	encryptor      utils.Encryptor
+	auditPublisher *utils.AuditPublisher
 }
 
 // NewGuestOrderRepository creates a new repository with dependency injection (for testing)
-func NewGuestOrderRepository(db *sql.DB, encryptor utils.Encryptor) *GuestOrderRepository {
+func NewGuestOrderRepository(db *sql.DB, encryptor utils.Encryptor, auditPublisher *utils.AuditPublisher) *GuestOrderRepository {
 	return &GuestOrderRepository{
-		db:        db,
-		encryptor: encryptor,
+		db:             db,
+		encryptor:      encryptor,
+		auditPublisher: auditPublisher,
 	}
 }
 
 // NewGuestOrderRepositoryWithVault creates a repository with real VaultClient (for production)
-func NewGuestOrderRepositoryWithVault(db *sql.DB) (*GuestOrderRepository, error) {
+func NewGuestOrderRepositoryWithVault(db *sql.DB, auditPublisher *utils.AuditPublisher) (*GuestOrderRepository, error) {
 	vaultEncryptor, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize VaultEncryptor: %w", err)
 	}
-	return NewGuestOrderRepository(db, vaultEncryptor), nil
+	return NewGuestOrderRepository(db, vaultEncryptor, auditPublisher), nil
 }
 
 // encryptStringPtrWithContext encrypts a pointer to string with encryption context (handles nil values)
@@ -115,7 +117,41 @@ func (r *GuestOrderRepository) Create(ctx context.Context, tx *sql.Tx, order *mo
 		encryptedUserAgent,
 	).Scan(&orderID)
 
-	return orderID, err
+	if err != nil {
+		return "", err
+	}
+
+	// T101: Publish GuestOrderCreatedEvent to audit trail
+	if r.auditPublisher != nil {
+		afterValue := map[string]interface{}{
+			"order_reference": order.OrderReference,
+			"customer_name":   encryptedName,
+			"customer_phone":  encryptedPhone,
+			"customer_email":  encryptedEmail,
+			"delivery_type":   order.DeliveryType,
+			"total_amount":    order.TotalAmount,
+		}
+
+		auditEvent := &utils.AuditEvent{
+			TenantID:     order.TenantID,
+			ActorType:    "guest",
+			Action:       "CREATE",
+			ResourceType: "guest_order",
+			ResourceID:   orderID,
+			AfterValue:   afterValue,
+			IPAddress:    order.IPAddress,
+			UserAgent:    order.UserAgent,
+			Metadata: map[string]interface{}{
+				"status": order.Status,
+			},
+		}
+
+		if err := r.auditPublisher.Publish(ctx, auditEvent); err != nil {
+			fmt.Printf("Failed to publish guest order create audit event: %v\n", err)
+		}
+	}
+
+	return orderID, nil
 }
 
 // GetByReference retrieves a guest order by order_reference with decrypted PII

@@ -8,6 +8,7 @@ export interface RegisterTenantData {
     firstName?: string;
     lastName?: string;
   };
+  consents?: string[];
 }
 
 export interface LoginCredentials {

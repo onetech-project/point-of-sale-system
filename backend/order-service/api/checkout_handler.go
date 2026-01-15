@@ -10,14 +10,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"github.com/point-of-sale-system/order-service/src/events"
 	"github.com/point-of-sale-system/order-service/src/models"
 	"github.com/point-of-sale-system/order-service/src/repository"
 	"github.com/point-of-sale-system/order-service/src/services"
 	"github.com/point-of-sale-system/order-service/src/utils"
+	"github.com/point-of-sale-system/order-service/src/validators"
 )
 
 type CheckoutHandler struct {
@@ -32,6 +35,9 @@ type CheckoutHandler struct {
 	settingsRepo       *repository.OrderSettingsRepository
 	guestOrderRepo     *repository.GuestOrderRepository
 	kafkaProducer      interface { // Interface for Kafka producer
+		Publish(ctx context.Context, key string, value interface{}) error
+	}
+	consentProducer interface {
 		Publish(ctx context.Context, key string, value interface{}) error
 	}
 }
@@ -50,6 +56,9 @@ func NewCheckoutHandler(
 	kafkaProducer interface {
 		Publish(ctx context.Context, key string, value interface{}) error
 	},
+	consentProducer interface {
+		Publish(ctx context.Context, key string, value interface{}) error
+	},
 ) *CheckoutHandler {
 	return &CheckoutHandler{
 		db:                 db,
@@ -63,17 +72,19 @@ func NewCheckoutHandler(
 		settingsRepo:       settingsRepo,
 		guestOrderRepo:     guestOrderRepo,
 		kafkaProducer:      kafkaProducer,
+		consentProducer:    consentProducer,
 	}
 }
 
 type CheckoutRequest struct {
-	DeliveryType    string  `json:"delivery_type"`
-	CustomerName    string  `json:"customer_name"`
-	CustomerPhone   string  `json:"customer_phone"`
-	CustomerEmail   *string `json:"customer_email,omitempty"`
-	DeliveryAddress *string `json:"delivery_address,omitempty"`
-	TableNumber     *string `json:"table_number,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
+	DeliveryType    string   `json:"delivery_type"`
+	CustomerName    string   `json:"customer_name"`
+	CustomerPhone   string   `json:"customer_phone"`
+	CustomerEmail   *string  `json:"customer_email,omitempty"`
+	DeliveryAddress *string  `json:"delivery_address,omitempty"`
+	TableNumber     *string  `json:"table_number,omitempty"`
+	Notes           *string  `json:"notes,omitempty"`
+	Consents        []string `json:"consents"` // Optional consents granted (required consents implicit)
 }
 
 type CheckoutResponse struct {
@@ -126,6 +137,14 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error":   "invalid_delivery_type",
 			"message": "Invalid delivery type. Must be: pickup, delivery, or dine_in",
+		})
+	}
+
+	// Validate optional consent codes (required consents are implicit)
+	if err := validators.ValidateGuestConsents(req.Consents); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error":   "invalid_consent",
+			"message": fmt.Sprintf("Invalid consent codes: %v", err),
 		})
 	}
 
@@ -363,6 +382,40 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	// Publish invoice notification event if customer provided email
 	if req.CustomerEmail != nil && *req.CustomerEmail != "" {
 		h.publishInvoiceEvent(ctx, orderID, orderReference, tenantID, order, cart.Items, req.CustomerEmail)
+	}
+
+	// Publish ConsentGrantedEvent to Kafka (async, after transaction committed)
+	// This ensures we have the real order_id and prevents consent recording failures from blocking checkout
+	// Uses dedicated consent-events topic for audit-service consumption
+	if h.consentProducer != nil {
+		go func() {
+			consentEvent := events.ConsentGrantedEvent{
+				EventID:          uuid.New().String(),
+				EventType:        "consent.granted",
+				TenantID:         tenantID,
+				SubjectType:      "guest",
+				SubjectID:        orderID, // Real order_id from database
+				ConsentMethod:    "checkout",
+				PolicyVersion:    "1.0.0", // TODO: Get from database
+				Consents:         req.Consents, // Only optional consents provided by user
+				RequiredConsents: validators.GetRequiredGuestConsents(), // Required consents (implicit)
+				Metadata: events.ConsentMetadata{
+					IPAddress: c.RealIP(),
+					UserAgent: c.Request().UserAgent(),
+					SessionID: &sessionID,
+					RequestID: c.Response().Header().Get("X-Request-ID"),
+				},
+				Timestamp: time.Now(),
+			}
+
+			if err := h.consentProducer.Publish(context.Background(), tenantID, consentEvent); err != nil {
+				log.Error().Err(err).
+					Str("order_id", orderID).
+					Str("tenant_id", tenantID).
+					Msg("Failed to publish consent event")
+				// TODO: Add to retry queue or alert for manual intervention
+			}
+		}()
 	}
 
 	return c.JSON(http.StatusCreated, CheckoutResponse{

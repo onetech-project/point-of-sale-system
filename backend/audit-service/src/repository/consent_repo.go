@@ -550,3 +550,32 @@ func (r *ConsentRepository) GetConsentHistory(ctx context.Context, tenantID, sub
 
 	return records, nil
 }
+
+// IsEventProcessed checks if a consent event has already been processed (idempotency)
+func (r *ConsentRepository) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM processed_consent_events WHERE event_id = $1)`
+	
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, eventID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check event processing status: %w", err)
+	}
+	
+	return exists, nil
+}
+
+// MarkEventProcessed marks a consent event as processed to prevent duplicate processing
+func (r *ConsentRepository) MarkEventProcessed(ctx context.Context, eventID, tenantID, subjectType string, subjectID uuid.UUID) error {
+	query := `
+		INSERT INTO processed_consent_events (event_id, processed_at, tenant_id, subject_type, subject_id)
+		VALUES ($1, NOW(), $2, $3, $4)
+		ON CONFLICT (event_id) DO NOTHING
+	`
+	
+	_, err := r.db.ExecContext(ctx, query, eventID, tenantID, subjectType, subjectID)
+	if err != nil {
+		return fmt.Errorf("failed to mark event as processed: %w", err)
+	}
+	
+	return nil
+}

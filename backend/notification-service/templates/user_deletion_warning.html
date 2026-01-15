@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Deletion Notice</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .header {
+            background-color: #ff6b6b;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        .details {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .details strong {
+            display: inline-block;
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Account Deletion Notice</h1>
+        </div>
+        <div class="content">
+            <p>Hello {{.Name}},</p>
+            
+            <div class="warning">
+                <strong>⏰ Important:</strong> Your account is scheduled for permanent deletion.
+            </div>
+
+            <p>This email is to inform you that your account was marked for deletion and will be permanently removed from our system.</p>
+
+            <div class="details">
+                <p><strong>Account Email:</strong> {{.Email}}</p>
+                <p><strong>Deletion Date:</strong> {{.DeletionDate}}</p>
+                <p><strong>Days Remaining:</strong> 30 days</p>
+            </div>
+
+            <div class="info">
+                <strong>📋 What this means:</strong>
+                <ul>
+                    <li>Your account will be permanently deleted on <strong>{{.DeletionDate}}</strong></li>
+                    <li>All personal data will be removed from our system</li>
+                    <li>This action is irreversible and cannot be undone</li>
+                    <li>Any tenant data you own will also be affected</li>
+                </ul>
+            </div>
+
+            <h3>What will be deleted?</h3>
+            <ul>
+                <li>Your user account and profile information</li>
+                <li>Login credentials and session data</li>
+                <li>Notification preferences</li>
+                <li>Audit trail entries will be anonymized</li>
+            </ul>
+
+            <h3>Need to prevent deletion?</h3>
+            <p>If you believe this deletion was made in error or you wish to restore your account, please contact your system administrator immediately.</p>
+
+            <div class="info">
+                <strong>🛡️ Data Protection Compliance</strong><br>
+                This deletion is being performed in accordance with UU PDP (Indonesian Personal Data Protection Law) Article 5 - Right to Deletion. We retain deleted accounts for 90 days before permanent removal to allow for recovery if needed.
+            </div>
+
+            <p>If you have any questions or concerns about this deletion, please contact support before the deletion date.</p>
+
+            <p>Best regards,<br>
+            {{.SystemName}} Team</p>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated notification regarding your account deletion.</p>
+        <p>You are receiving this email because your account was marked for deletion in our system.</p>
+        <p>&copy; 2026 {{.SystemName}}. All rights reserved.</p>
+    </div>
+</body>
+</html>

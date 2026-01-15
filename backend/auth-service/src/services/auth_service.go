@@ -25,6 +25,7 @@ type AuthService struct {
 	rateLimiter             *RateLimiter
 	eventPublisher          EventPublisher
 	encryptor               utils.Encryptor
+	auditPublisher          *utils.AuditPublisher
 }
 
 func NewAuthService(
@@ -33,8 +34,9 @@ func NewAuthService(
 	jwtService *JWTService,
 	rateLimiter *RateLimiter,
 	eventPublisher EventPublisher,
+	auditPublisher *utils.AuditPublisher,
 ) (*AuthService, error) {
-	sessionRepo, err := repository.NewSessionRepositoryWithVault(db)
+	sessionRepo, err := repository.NewSessionRepositoryWithVault(db, auditPublisher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session repository: %w", err)
 	}
@@ -54,6 +56,7 @@ func NewAuthService(
 		rateLimiter:             rateLimiter,
 		eventPublisher:          eventPublisher,
 		encryptor:               vaultClient,
+		auditPublisher:          auditPublisher,
 	}, nil
 }
 
@@ -105,6 +108,30 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		fmt.Printf("DEBUG: User not found\n")
 		// Increment failed attempts
 		s.rateLimiter.IncrementLoginAttempts(ctx, req.Email, tenantID)
+		
+		// T103: Publish LoginFailureEvent
+		if s.auditPublisher != nil {
+			encEmail, _ := s.encryptor.EncryptWithContext(ctx, req.Email, "user:email")
+			failureReason := "invalid_credentials"
+			auditEvent := &utils.AuditEvent{
+				TenantID:     tenantID,
+				ActorType:    "user",
+				Action:       "LOGIN_FAILURE",
+				ResourceType: "authentication",
+				ResourceID:   req.Email,
+				IPAddress:    &ipAddress,
+				UserAgent:    &userAgent,
+				Metadata: map[string]interface{}{
+					"email":          encEmail,
+					"failure_reason": failureReason,
+					"login_method":   "password",
+				},
+			}
+			if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
+				fmt.Printf("Failed to publish login failure audit event: %v\n", err)
+			}
+		}
+		
 		return nil, "", ErrInvalidCredentials
 	}
 
@@ -117,6 +144,32 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		fmt.Printf("DEBUG: Password comparison failed: %v\n", err)
 		// Increment failed attempts
 		s.rateLimiter.IncrementLoginAttempts(ctx, req.Email, tenantID)
+		
+		// T103: Publish LoginFailureEvent
+		if s.auditPublisher != nil {
+			encEmail, _ := s.encryptor.EncryptWithContext(ctx, user.Email, "user:email")
+			failureReason := "invalid_password"
+			userIDStr := user.ID
+			auditEvent := &utils.AuditEvent{
+				TenantID:     tenantID,
+				ActorType:    "user",
+				ActorID:      &userIDStr,
+				Action:       "LOGIN_FAILURE",
+				ResourceType: "authentication",
+				ResourceID:   user.ID,
+				IPAddress:    &ipAddress,
+				UserAgent:    &userAgent,
+				Metadata: map[string]interface{}{
+					"email":          encEmail,
+					"failure_reason": failureReason,
+					"login_method":   "password",
+				},
+			}
+			if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
+				fmt.Printf("Failed to publish login failure audit event: %v\n", err)
+			}
+		}
+		
 		return nil, "", ErrInvalidCredentials
 	}
 
@@ -164,6 +217,30 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 
 	// Update last login time
 	s.updateLastLogin(ctx, user.ID)
+
+	// T103: Publish LoginSuccessEvent
+	if s.auditPublisher != nil {
+		encEmail, _ := s.encryptor.EncryptWithContext(ctx, user.Email, "user:email")
+		userIDStr := user.ID
+		auditEvent := &utils.AuditEvent{
+			TenantID:     user.TenantID,
+			ActorType:    "user",
+			ActorID:      &userIDStr,
+			SessionID:    &sessionID,
+			Action:       "LOGIN_SUCCESS",
+			ResourceType: "authentication",
+			ResourceID:   user.ID,
+			IPAddress:    &ipAddress,
+			UserAgent:    &userAgent,
+			Metadata: map[string]interface{}{
+				"email":        encEmail,
+				"login_method": "password",
+			},
+		}
+		if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
+			fmt.Printf("Failed to publish login success audit event: %v\n", err)
+		}
+	}
 
 	// Publish login event for notification
 	if s.eventPublisher != nil {

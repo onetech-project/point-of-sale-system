@@ -26,12 +26,13 @@ const (
 )
 
 type CreateTenantRequest struct {
-	BusinessName string `json:"business_name" validate:"required,min=1,max=100"`
-	Slug         string `json:"slug,omitempty" validate:"omitempty,min=3,max=50"`
-	Email        string `json:"email" validate:"required,email"`
-	Password     string `json:"password" validate:"required,min=8"`
-	FirstName    string `json:"first_name,omitempty" validate:"omitempty,max=50"`
-	LastName     string `json:"last_name,omitempty" validate:"omitempty,max=50"`
+	BusinessName string   `json:"business_name" validate:"required,min=1,max=100"`
+	Slug         string   `json:"slug,omitempty" validate:"omitempty,min=3,max=50"`
+	Email        string   `json:"email" validate:"required,email"`
+	Password     string   `json:"password" validate:"required,min=8"`
+	FirstName    string   `json:"first_name,omitempty" validate:"omitempty,max=50"`
+	LastName     string   `json:"last_name,omitempty" validate:"omitempty,max=50"`
+	Consents     []string `json:"consents" validate:"dive,oneof=analytics advertising"` // Optional consents granted (required consents implicit)
 }
 
 type TenantResponse struct {

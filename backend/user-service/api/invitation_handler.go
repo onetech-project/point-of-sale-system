@@ -8,14 +8,15 @@ import (
 	"github.com/pos/user-service/src/models"
 	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/services"
+	"github.com/pos/user-service/src/utils"
 )
 
 type InvitationHandler struct {
 	invitationService *services.InvitationService
 }
 
-func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationHandler {
-	invitationService, err := services.NewInvitationService(db, eventProducer)
+func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer, auditPublisher utils.AuditPublisherInterface) *InvitationHandler {
+	invitationService, err := services.NewInvitationService(db, eventProducer, auditPublisher)
 	if err != nil {
 		panic("Failed to create invitation service: " + err.Error())
 	}

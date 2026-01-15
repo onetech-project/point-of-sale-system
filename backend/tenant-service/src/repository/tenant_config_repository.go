@@ -11,27 +11,30 @@ import (
 )
 
 type TenantConfigRepository struct {
-	db        *sql.DB
-	encryptor utils.Encryptor
+	db             *sql.DB
+	encryptor      utils.Encryptor
+	auditPublisher *utils.AuditPublisher
 }
 
 // NewTenantConfigRepository creates a repository with custom encryptor (for testing)
-func NewTenantConfigRepository(db *sql.DB, encryptor utils.Encryptor) *TenantConfigRepository {
+func NewTenantConfigRepository(db *sql.DB, encryptor utils.Encryptor, auditPublisher *utils.AuditPublisher) *TenantConfigRepository {
 	return &TenantConfigRepository{
-		db:        db,
-		encryptor: encryptor,
+		db:             db,
+		encryptor:      encryptor,
+		auditPublisher: auditPublisher,
 	}
 }
 
 // NewTenantConfigRepositoryWithVault creates a repository with Vault encryption (production)
-func NewTenantConfigRepositoryWithVault(db *sql.DB) (*TenantConfigRepository, error) {
+func NewTenantConfigRepositoryWithVault(db *sql.DB, auditPublisher *utils.AuditPublisher) (*TenantConfigRepository, error) {
 	vaultClient, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Vault client: %w", err)
 	}
 	return &TenantConfigRepository{
-		db:        db,
-		encryptor: vaultClient,
+		db:             db,
+		encryptor:      vaultClient,
+		auditPublisher: auditPublisher,
 	}, nil
 }
 
@@ -261,6 +264,32 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("tenant config not found")
+	}
+
+	// T102: Publish ConfigUpdatedEvent when payment credentials changed
+	if r.auditPublisher != nil && (config.MidtransServerKey != "" || config.MidtransClientKey != "") {
+		afterValue := map[string]interface{}{
+			"midtrans_server_key": encryptedServerKey,
+			"midtrans_client_key": encryptedClientKey,
+			"midtrans_merchant_id": config.MidtransMerchantID,
+			"midtrans_environment": config.MidtransEnvironment,
+		}
+
+		auditEvent := &utils.AuditEvent{
+			TenantID:     config.TenantID,
+			ActorType:    "system",
+			Action:       "UPDATE",
+			ResourceType: "tenant_config",
+			ResourceID:   config.TenantID,
+			AfterValue:   afterValue,
+			Metadata: map[string]interface{}{
+				"config_type": "payment_credentials",
+			},
+		}
+
+		if err := r.auditPublisher.Publish(ctx, auditEvent); err != nil {
+			fmt.Printf("Failed to publish tenant config update audit event: %v\n", err)
+		}
 	}
 
 	return nil

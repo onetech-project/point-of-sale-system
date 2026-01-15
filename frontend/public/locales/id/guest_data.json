@@ -1,0 +1,83 @@
+{
+  "lookup": {
+    "title": "Akses Data Pribadi Anda",
+    "subtitle": "Masukkan referensi pesanan dan informasi verifikasi untuk mengakses data pribadi Anda",
+    "order_reference": "Referensi Pesanan",
+    "verification_label": "Verifikasi Identitas (Pilih Salah Satu)",
+    "email": "Email",
+    "phone": "Nomor Telepon",
+    "submit": "Lihat Data Saya",
+    "info_message": "Berikan email ATAU nomor telepon yang Anda gunakan saat memesan untuk memverifikasi identitas Anda.",
+    "privacy_note": "Data Anda dilindungi sesuai UU PDP (Undang-Undang Perlindungan Data Pribadi)"
+  },
+  "data_page": {
+    "title": "Data Pribadi Anda",
+    "subtitle": "Pesanan: {{order_reference}}"
+  },
+  "sections": {
+    "customer_info": "Informasi Pelanggan",
+    "order_details": "Detail Pesanan",
+    "order_items": "Item Pesanan",
+    "delivery_address": "Alamat Pengiriman"
+  },
+  "fields": {
+    "name": "Nama",
+    "email": "Email",
+    "phone": "Nomor Telepon",
+    "order_reference": "Referensi Pesanan",
+    "status": "Status",
+    "order_date": "Tanggal Pesanan",
+    "order_type": "Tipe Pesanan",
+    "payment_method": "Metode Pembayaran",
+    "total_amount": "Total Pembayaran",
+    "address": "Alamat Lengkap",
+    "coordinates": "Koordinat"
+  },
+  "actions": {
+    "title": "Kelola Data Anda",
+    "deletion_info": "Anda memiliki hak untuk menghapus data pribadi Anda sesuai UU PDP Pasal 5. Data pesanan akan tetap disimpan untuk keperluan bisnis merchant.",
+    "delete_data": "Hapus Data Pribadi Saya",
+    "confirm_delete": "Ya, Hapus Data Saya",
+    "back_to_lookup": "Kembali ke Pencarian"
+  },
+  "deletion": {
+    "confirm_title": "Konfirmasi Penghapusan Data",
+    "confirm_message": "Apakah Anda yakin ingin menghapus data pribadi Anda? Tindakan ini tidak dapat dibatalkan.",
+    "will_be_deleted": "Yang Akan Dihapus:",
+    "deleted_items": {
+      "name": "Nama Anda",
+      "email": "Alamat Email",
+      "phone": "Nomor Telepon",
+      "address": "Alamat Pengiriman",
+      "ip_address": "Alamat IP"
+    },
+    "will_be_preserved": "Yang Tetap Disimpan (Untuk Keperluan Bisnis):",
+    "preserved_items": {
+      "order_reference": "Referensi Pesanan",
+      "order_items": "Daftar Produk yang Dipesan",
+      "amounts": "Total Pembayaran",
+      "status": "Status Pesanan"
+    },
+    "irreversible_warning": "Tindakan ini tidak dapat dibatalkan. Setelah dihapus, Anda tidak akan dapat mengakses data pribadi ini lagi.",
+    "success_title": "Data Berhasil Dihapus",
+    "success_message": "Data pribadi Anda telah berhasil dihapus dari sistem kami. Email konfirmasi telah dikirim ke alamat email Anda."
+  },
+  "privacy": {
+    "title": "Privasi Data Anda",
+    "message": "Sesuai UU PDP Pasal 4 & 5, Anda memiliki hak untuk mengakses dan menghapus data pribadi Anda. Data yang Anda lihat di sini adalah semua informasi pribadi yang kami simpan terkait pesanan ini."
+  },
+  "errors": {
+    "order_reference_required": "Referensi pesanan wajib diisi",
+    "verification_required": "Email atau nomor telepon diperlukan untuk verifikasi",
+    "invalid_email": "Format email tidak valid",
+    "invalid_phone": "Format nomor telepon tidak valid",
+    "missing_credentials": "Kredensial verifikasi hilang",
+    "verification_failed": "Verifikasi gagal - email atau nomor telepon tidak cocok dengan pesanan",
+    "order_not_found": "Pesanan tidak ditemukan",
+    "already_deleted": "Data sudah dihapus sebelumnya",
+    "lookup_failed": "Pencarian gagal, silakan coba lagi",
+    "fetch_failed": "Gagal mengambil data, silakan coba lagi",
+    "deletion_failed": "Gagal menghapus data, silakan coba lagi",
+    "title": "Terjadi Kesalahan"
+  }
+}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { tenant } from '../../services/tenant';
-import consentService from '../../services/consent';
 import DeliveryTypeSelector from './DeliveryTypeSelector';
 import AddressInput from './AddressInput';
 import ConsentPurposeList from '../consent/ConsentPurposeList';
@@ -127,6 +126,16 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       return;
     }
 
+    // Get granted optional consents only (required consents are implicit on backend)
+    const grantedOptionalConsents = Object.entries(consents)
+      .filter(([key, granted]) => {
+        // Only include optional consents that were granted
+        // Required consents (order_processing, payment_processing_midtrans) are NOT sent (backend enforces)
+        const isOptional = !['order_processing', 'payment_processing_midtrans'].includes(key);
+        return isOptional && granted;
+      })
+      .map(([purpose_code]) => purpose_code); // Array of consent codes only
+
     // Clean up data based on delivery type
     const submitData: CheckoutData = {
       delivery_type: formData.delivery_type,
@@ -134,7 +143,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       customer_phone: formData.customer_phone.replace(/[\s-]/g, ''),
       customer_email: formData.customer_email?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
-      consents: consents, // Include consents in submission
+      consents: grantedOptionalConsents, // Simplified payload - only optional consent codes
     };
 
     if (formData.delivery_type === 'delivery') {

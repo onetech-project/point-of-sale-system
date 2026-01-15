@@ -91,7 +91,16 @@ func main() {
 	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
 	defer eventPublisher.Close()
 
-	authService, err := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
+	// Initialize AuditPublisher for audit trail (T103, T104)
+	auditTopic := utils.GetEnv("KAFKA_AUDIT_TOPIC")
+	serviceName := utils.GetEnv("SERVICE_NAME")
+	auditPublisher, err := utils.NewAuditPublisher(serviceName, kafkaBrokers, auditTopic)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuditPublisher: %v", err)
+	}
+	defer auditPublisher.Close()
+
+	authService, err := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher, auditPublisher)
 	if err != nil {
 		log.Fatalf("Failed to initialize AuthService: %v", err)
 	}

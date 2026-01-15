@@ -39,6 +39,7 @@ func main() {
 	dbPassword := utils.GetEnv("DB_PASSWORD")
 	kafkaBrokers := utils.GetEnv("KAFKA_BROKERS")
 	kafkaAuditTopic := utils.GetEnv("KAFKA_AUDIT_TOPIC")
+	kafkaConsentTopic := utils.GetEnv("KAFKA_CONSENT_TOPIC")
 	vaultAddr := utils.GetEnv("VAULT_ADDR")
 	vaultToken := utils.GetEnv("VAULT_TOKEN")
 
@@ -89,6 +90,17 @@ func main() {
 	auditConsumer := queue.NewAuditConsumer(consumerConfig, auditRepo)
 	go auditConsumer.Start(ctx)
 
+	// Initialize Kafka consumer for consent events
+	consentConsumerConfig := queue.KafkaConsumerConfig{
+		Brokers:     kafkaBrokers,
+		Topic:       kafkaConsentTopic,
+		GroupID:     serviceName + "-consent-consumer",
+		StartOffset: -1, // Latest
+	}
+	consentConsumer := queue.NewConsentConsumer(consentConsumerConfig, consentRepo, encryptor)
+	go consentConsumer.Start(ctx)
+	log.Info().Str("consent_topic", kafkaConsentTopic).Msg("Consent consumer started")
+
 	// Initialize Echo HTTP server
 	e := echo.New()
 	e.HideBanner = true
@@ -112,11 +124,14 @@ func main() {
 	})
 
 	// Audit query API handlers
+	// Note: Authentication and RBAC are handled by API Gateway
+	// This service should only be accessed through the gateway
 	auditHandler := audit.NewQueryHandler(auditRepo, consentRepo)
 	api := e.Group("/api/v1")
 	api.GET("/audit-events", auditHandler.ListAuditEvents)
 	api.GET("/audit-events/:event_id", auditHandler.GetAuditEvent)
 	api.GET("/consent-records", auditHandler.ListConsentRecords)
+	api.GET("/audit/tenant", auditHandler.ListTenantAuditEvents)
 
 	// Consent management API handlers
 	consentHandler := consent.NewHandler(consentService, consentRepo)

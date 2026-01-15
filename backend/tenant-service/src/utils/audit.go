@@ -13,6 +13,14 @@ import (
 	"github.com/pos/tenant-service/src/queue"
 )
 
+// AuditPublisherInterface defines the contract for audit event publishing
+// This interface enables dependency injection and testing with mocks
+type AuditPublisherInterface interface {
+	Publish(ctx context.Context, event *AuditEvent) error
+	PublishBatch(ctx context.Context, events []*AuditEvent) error
+	Close() error
+}
+
 // AuditPublisher publishes audit events to Kafka with idempotency
 // Implements FR-027: Immutable audit trail for all data access
 type AuditPublisher struct {

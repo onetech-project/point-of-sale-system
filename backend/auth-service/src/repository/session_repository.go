@@ -12,25 +12,27 @@ import (
 )
 
 type SessionRepository struct {
-	db        *sql.DB
-	encryptor utils.Encryptor
+	db             *sql.DB
+	encryptor      utils.Encryptor
+	auditPublisher *utils.AuditPublisher
 }
 
 // NewSessionRepository creates a new repository with dependency injection (for testing)
-func NewSessionRepository(db *sql.DB, encryptor utils.Encryptor) *SessionRepository {
+func NewSessionRepository(db *sql.DB, encryptor utils.Encryptor, auditPublisher *utils.AuditPublisher) *SessionRepository {
 	return &SessionRepository{
-		db:        db,
-		encryptor: encryptor,
+		db:             db,
+		encryptor:      encryptor,
+		auditPublisher: auditPublisher,
 	}
 }
 
 // NewSessionRepositoryWithVault creates a repository with real VaultClient (for production)
-func NewSessionRepositoryWithVault(db *sql.DB) (*SessionRepository, error) {
+func NewSessionRepositoryWithVault(db *sql.DB, auditPublisher *utils.AuditPublisher) (*SessionRepository, error) {
 	vaultClient, err := utils.NewVaultClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize VaultClient: %w", err)
 	}
-	return NewSessionRepository(db, vaultClient), nil
+	return NewSessionRepository(db, vaultClient, auditPublisher), nil
 }
 
 // encryptStringPtrWithContext encrypts a pointer to string with context (handles nil values)
@@ -115,6 +117,35 @@ func (r *SessionRepository) Create(ctx context.Context, session *models.Session)
 
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// T104: Publish SessionCreatedEvent to audit trail
+	if r.auditPublisher != nil {
+		afterValue := map[string]interface{}{
+			"session_id": encryptedSessionID,
+			"tenant_id":  session.TenantID,
+			"user_id":    session.UserID,
+			"ip_address": encryptedIPAddress,
+			"expires_at": session.ExpiresAt.Format(time.RFC3339),
+		}
+
+		userIDPtr := &session.UserID
+		auditEvent := &utils.AuditEvent{
+			TenantID:     session.TenantID,
+			ActorType:    "user",
+			ActorID:      userIDPtr,
+			SessionID:    &session.SessionID,
+			Action:       "CREATE",
+			ResourceType: "session",
+			ResourceID:   session.ID,
+			AfterValue:   afterValue,
+			IPAddress:    &session.IPAddress,
+			UserAgent:    &session.UserAgent,
+		}
+
+		if err := r.auditPublisher.Publish(ctx, auditEvent); err != nil {
+			fmt.Printf("Failed to publish session create audit event: %v\n", err)
+		}
 	}
 
 	return nil
@@ -210,6 +241,34 @@ func (r *SessionRepository) Delete(ctx context.Context, sessionID string) error 
 
 	if rows == 0 {
 		return fmt.Errorf("session not found or already terminated")
+	}
+
+	// T104: Publish SessionExpiredEvent to audit trail
+	if r.auditPublisher != nil {
+		// Try to get session info for audit (best effort)
+		session, _ := r.FindByID(ctx, sessionID)
+		var tenantID, userID string
+		if session != nil {
+			tenantID = session.TenantID
+			userID = session.UserID
+		}
+
+		userIDPtr := &userID
+		auditEvent := &utils.AuditEvent{
+			TenantID:     tenantID,
+			ActorType:    "user",
+			ActorID:      userIDPtr,
+			Action:       "DELETE",
+			ResourceType: "session",
+			ResourceID:   sessionID,
+			Metadata: map[string]interface{}{
+				"termination_type": "manual",
+			},
+		}
+
+		if err := r.auditPublisher.Publish(ctx, auditEvent); err != nil {
+			fmt.Printf("Failed to publish session delete audit event: %v\n", err)
+		}
 	}
 
 	return nil

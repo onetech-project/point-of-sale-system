@@ -20,9 +20,9 @@ func NewPartitionService(db *sql.DB) *PartitionService {
 }
 
 // StartMonitor starts monitoring and creating monthly partitions
-// Runs every 24 hours and ensures next 2 months of partitions exist
+// Runs daily and creates next month's partition 7 days before month end (T115)
 func (s *PartitionService) StartMonitor(ctx context.Context) {
-	log.Info().Msg("Partition manager started")
+	log.Info().Msg("Partition manager started - checks daily, creates partitions 7 days before month end")
 
 	// Create initial partitions on startup
 	if err := s.EnsurePartitions(ctx); err != nil {
@@ -45,14 +45,27 @@ func (s *PartitionService) StartMonitor(ctx context.Context) {
 	}
 }
 
-// EnsurePartitions creates partitions for current, next, and next+1 months if they don't exist
+// EnsurePartitions creates partitions proactively (T115: 7 days before month end)
+// Creates partitions for current month, next month, and month after
+// This ensures partitions exist well before they're needed
 func (s *PartitionService) EnsurePartitions(ctx context.Context) error {
 	now := time.Now().UTC()
 
+	// T115: Check if we're within 7 days of month end to create next month's partition
+	daysInMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	daysUntilMonthEnd := daysInMonth - now.Day()
+
+	if daysUntilMonthEnd <= 7 {
+		log.Info().
+			Int("days_until_month_end", daysUntilMonthEnd).
+			Msg("Within 7 days of month end - ensuring next month partition exists")
+	}
+
 	// Create partitions for current month, next month, and month after
+	// This ensures we're always prepared 2 months ahead
 	for i := 0; i < 3; i++ {
 		targetMonth := now.AddDate(0, i, 0)
-		partitionName := fmt.Sprintf("audit_events_%s", targetMonth.Format("200601"))
+		partitionName := fmt.Sprintf("audit_events_%s", targetMonth.Format("2006_01"))
 
 		exists, err := s.PartitionExists(ctx, partitionName)
 		if err != nil {
@@ -100,7 +113,7 @@ func (s *PartitionService) CreatePartition(ctx context.Context, month time.Time)
 	startOfMonth := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
 	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
 
-	partitionName := fmt.Sprintf("audit_events_%s", month.Format("200601"))
+	partitionName := fmt.Sprintf("audit_events_%s", month.Format("2006_01"))
 
 	// Create partition table for this month's range
 	query := fmt.Sprintf(`
@@ -130,11 +143,11 @@ func (s *PartitionService) CreatePartition(ctx context.Context, month time.Time)
 	return nil
 }
 
-// DropOldPartitions removes partitions older than retention period (e.g., 2 years per UU PDP)
+// DropOldPartitions removes partitions older than retention period (e.g., 7 years per UU PDP Article 56)
 // This should be called periodically (e.g., monthly) as part of data retention policy
 func (s *PartitionService) DropOldPartitions(ctx context.Context, retentionMonths int) error {
 	cutoffDate := time.Now().UTC().AddDate(0, -retentionMonths, 0)
-	cutoffPartition := fmt.Sprintf("audit_events_%s", cutoffDate.Format("200601"))
+	cutoffPartition := fmt.Sprintf("audit_events_%s", cutoffDate.Format("2006_01"))
 
 	// Find all audit_events partitions older than cutoff
 	query := `
