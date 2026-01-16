@@ -3,21 +3,27 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/pos/audit-service/src/events"
 	"github.com/pos/audit-service/src/models"
+	"github.com/pos/audit-service/src/queue"
 	"github.com/pos/audit-service/src/repository"
+	"github.com/rs/zerolog/log"
 )
 
 // ConsentService handles business logic for consent management
 type ConsentService struct {
 	consentRepo *repository.ConsentRepository
+	producer    *queue.KafkaProducer
 }
 
 // NewConsentService creates a new consent service
-func NewConsentService(consentRepo *repository.ConsentRepository) *ConsentService {
+func NewConsentService(consentRepo *repository.ConsentRepository, producer *queue.KafkaProducer) *ConsentService {
 	return &ConsentService{
 		consentRepo: consentRepo,
+		producer:    producer,
 	}
 }
 
@@ -125,6 +131,8 @@ type RevokeConsentRequest struct {
 	SubjectType string
 	SubjectID   string
 	PurposeCode string
+	IPAddress   string
+	UserAgent   string
 }
 
 // RevokeConsent revokes consent for a specific purpose
@@ -160,6 +168,31 @@ func (s *ConsentService) RevokeConsent(ctx context.Context, req RevokeConsentReq
 	// Revoke the consent
 	if err := s.consentRepo.RevokeConsent(ctx, targetRecord.RecordID); err != nil {
 		return fmt.Errorf("failed to revoke consent: %w", err)
+	}
+
+	// Publish ConsentRevokedEvent to audit topic for compliance trail
+	event := events.ConsentRevokedEvent{
+		EventID:       uuid.New().String(),
+		EventType:     "consent.revoked",
+		TenantID:      req.TenantID,
+		SubjectType:   req.SubjectType,
+		SubjectID:     req.SubjectID,
+		PurposeCode:   req.PurposeCode,
+		PurposeName:   purpose.DisplayNameEN, // Use English name for event
+		RevokedAt:     time.Now(),
+		IPAddress:     req.IPAddress,
+		UserAgent:     req.UserAgent,
+		Timestamp:     time.Now(),
+		ComplianceTag: "UU_PDP_Article_21", // Right to revoke consent
+	}
+
+	if err := s.producer.Publish(ctx, req.TenantID, event); err != nil {
+		// Log error but don't fail the operation - event publishing is async
+		log.Error().
+			Err(err).
+			Str("tenant_id", req.TenantID).
+			Str("purpose_code", req.PurposeCode).
+			Msg("Failed to publish ConsentRevokedEvent")
 	}
 
 	return nil
@@ -199,3 +232,19 @@ func (s *ConsentService) HasActiveConsent(ctx context.Context, tenantID, subject
 	}
 	return status[purposeCode], nil
 }
+
+// CheckConsentForPurpose checks if subject has active consent, returns error if not
+// This is a convenience method for enforcement in services that require consent
+func (s *ConsentService) CheckConsentForPurpose(ctx context.Context, tenantID, subjectType, subjectID, purposeCode string) error {
+	hasConsent, err := s.HasActiveConsent(ctx, tenantID, subjectType, subjectID, purposeCode)
+	if err != nil {
+		return fmt.Errorf("failed to check consent: %w", err)
+	}
+	
+	if !hasConsent {
+		return fmt.Errorf("user does not have active consent for purpose: %s", purposeCode)
+	}
+	
+	return nil
+}
+

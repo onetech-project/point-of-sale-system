@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/provider';
 import PublicLayout from '@/components/layout/PublicLayout';
 import GuestDataSection from '@/components/guest/GuestDataSection';
 import DeleteGuestDataButton from '@/components/guest/DeleteGuestDataButton';
+import GuestPrivacySettings from '@/components/guest/GuestPrivacySettings';
 
 interface CustomerInfo {
   name: string;
@@ -222,6 +223,9 @@ export default function GuestDataPage() {
 
           {/* Data Sections */}
           <GuestDataSection data={data} />
+
+          {/* Privacy Settings */}
+          <GuestPrivacySettings orderReference={orderReference} />
 
           {/* Actions */}
           <div className="bg-white rounded-2xl shadow-xl p-8 mt-6">

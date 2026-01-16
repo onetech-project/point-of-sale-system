@@ -91,11 +91,15 @@ class ConsentService {
    * Get consent status for a subject
    */
   async getConsentStatus(
-    subjectType: 'tenant' | 'guest',
-    subjectId: string
-  ): Promise<ConsentStatus> {
-    const response = await apiClient.get<{ data: ConsentStatus }>(
-      `/api/v1/consent/status?subject_type=${subjectType}&subject_id=${subjectId}`
+    subjectType?: 'tenant' | 'guest',
+    subjectId?: string
+  ): Promise<Record<string, boolean>> {
+    const params = new URLSearchParams();
+    if (subjectType) params.append('subject_type', subjectType);
+    if (subjectId) params.append('subject_id', subjectId);
+    
+    const response = await apiClient.get<{ data: Record<string, boolean> }>(
+      `/api/v1/consent/status?${params.toString()}`
     );
     return response.data;
   }
@@ -104,15 +108,36 @@ class ConsentService {
    * Revoke an optional consent
    */
   async revokeConsent(
-    subjectType: 'tenant' | 'guest',
-    subjectId: string,
-    purposeCode: string
+    purposeCode: string,
+    subjectType?: 'tenant' | 'guest',
+    subjectId?: string
   ): Promise<void> {
-    await apiClient.post('/api/v1/consent/revoke', {
-      subject_type: subjectType,
-      subject_id: subjectId,
+    const requestBody: any = {
       purpose_code: purposeCode,
-    });
+    };
+    
+    if (subjectType) requestBody.subject_type = subjectType;
+    if (subjectId) requestBody.subject_id = subjectId;
+    
+    await apiClient.post('/api/v1/consent/revoke', requestBody);
+  }
+
+  /**
+   * Grant consent (including re-granting previously revoked consent)
+   */
+  async grantConsent(
+    purposeCodes: string[],
+    subjectType?: 'tenant' | 'guest',
+    subjectId?: string
+  ): Promise<void> {
+    const requestBody: any = {
+      purpose_codes: purposeCodes,
+    };
+    
+    if (subjectType) requestBody.subject_type = subjectType;
+    if (subjectId) requestBody.subject_id = subjectId;
+    
+    await apiClient.post('/api/v1/consent/grant', requestBody);
   }
 
   /**

@@ -49,12 +49,18 @@ func (h *Handler) RevokeConsent(c echo.Context) error {
 		})
 	}
 
+	// Get IP address and user agent from request
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+
 	// Revoke consent
 	revokeReq := services.RevokeConsentRequest{
 		TenantID:    tenantID,
 		SubjectType: "tenant",
 		SubjectID:   userID,
 		PurposeCode: req.PurposeCode,
+		IPAddress:   ipAddress,
+		UserAgent:   userAgent,
 	}
 
 	if err := h.consentService.RevokeConsent(ctx, revokeReq); err != nil {

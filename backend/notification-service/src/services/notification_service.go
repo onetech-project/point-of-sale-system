@@ -80,6 +80,7 @@ func (s *NotificationService) loadTemplates() error {
 		"order_invoice.html",
 		"order_staff_notification.html",
 		"user_deletion_warning.html",
+		"user_deletion_warning.html", // Bilingual template for deletion warnings
 		"guest_data_deleted.html",
 	}
 
@@ -443,7 +444,6 @@ func (s *NotificationService) handleUserDeletionWarning(ctx context.Context, eve
 	email, _ := event.Data["email"].(string)
 	userID, _ := event.Data["user_id"].(string)
 	deletionDate, _ := event.Data["deletion_date"].(string)
-	locale, _ := event.Data["locale"].(string)
 
 	if email == "" {
 		return fmt.Errorf("email is required for user deletion warning")
@@ -463,25 +463,29 @@ func (s *NotificationService) handleUserDeletionWarning(ctx context.Context, eve
 		}
 	}
 
-	// Format deletion date for display
-	deletionDateFormatted := deletionDate
+	// Parse deletion date to calculate days remaining
+	var deletionDateFormatted string
+	var daysRemaining int
 	if t, err := time.Parse(time.RFC3339, deletionDate); err == nil {
 		deletionDateFormatted = t.Format("January 2, 2006")
+		// Calculate days remaining until deletion
+		daysRemaining = int(time.Until(t).Hours() / 24)
+		if daysRemaining < 0 {
+			daysRemaining = 0
+		}
+	} else {
+		// Fallback if date parsing fails
+		deletionDateFormatted = deletionDate
+		daysRemaining = 30
 	}
 
-	// Determine subject and system name based on locale
-	subject := "Account Deletion Notice - Action Required"
-	systemName := "POS System"
-	if locale == "id" {
-		subject = "Pemberitahuan Penghapusan Akun - Tindakan Diperlukan"
-	}
+	// Use bilingual template (includes both Indonesian and English)
+	subject := "Account Deletion Notice - Action Required / Pemberitahuan Penghapusan Akun"
 
 	body := s.renderTemplate("user_deletion_warning", map[string]interface{}{
-		"Name":         name,
-		"Email":        email,
-		"DeletionDate": deletionDateFormatted,
-		"SystemName":   systemName,
-		"Locale":       locale,
+		"full_name":      name,
+		"days_remaining": daysRemaining,
+		"deletion_date":  deletionDateFormatted,
 	})
 
 	// Add event_type to metadata

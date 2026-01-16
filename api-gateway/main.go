@@ -194,6 +194,7 @@ func main() {
 	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
 	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
 	auditGroup.GET("/audit/tenant", proxyHandler(auditServiceURL, "/api/v1/audit/tenant")) // Tenant audit trail (T110)
+	auditGroup.GET("/admin/compliance/report", proxyHandler(auditServiceURL, "/api/v1/admin/compliance/report")) // Compliance report (T201)
 
 	// Tenant data rights routes (owner only - UU PDP compliance)
 	tenantDataGroup := protected.Group("/api/v1/tenant")

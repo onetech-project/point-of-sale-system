@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Deletion Notice</title>
+    <title>Account Deletion Notice / Pemberitahuan Penghapusan Akun</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -52,85 +52,121 @@
             color: white;
             text-decoration: none;
             border-radius: 4px;
-            margin: 20px 0;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #45a049;
         }
         .footer {
             text-align: center;
-            color: #666;
-            font-size: 12px;
-            margin-top: 30px;
+            margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
         }
-        .details {
-            background-color: #f5f5f5;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 15px 0;
+        .lang-divider {
+            border-top: 2px dashed #ccc;
+            margin: 30px 0;
         }
-        .details strong {
-            display: inline-block;
-            width: 150px;
+        .countdown {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-align: center;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚠️ Account Deletion Notice</h1>
+            <h1>⏰ Account Deletion Notice</h1>
         </div>
         <div class="content">
-            <p>Hello {{.Name}},</p>
+            <p>Dear <strong>{{.full_name}}</strong>,</p>
             
             <div class="warning">
-                <strong>⏰ Important:</strong> Your account is scheduled for permanent deletion.
+                <strong>⚠️ URGENT:</strong> Your account is scheduled for permanent deletion.
             </div>
 
-            <p>This email is to inform you that your account was marked for deletion and will be permanently removed from our system.</p>
-
-            <div class="details">
-                <p><strong>Account Email:</strong> {{.Email}}</p>
-                <p><strong>Deletion Date:</strong> {{.DeletionDate}}</p>
-                <p><strong>Days Remaining:</strong> 30 days</p>
+            <div class="countdown">
+                {{.days_remaining}} days remaining
             </div>
+
+            <p>Your account was deleted on your request, and our system has entered a <strong>90-day grace period</strong> as required by Indonesian Personal Data Protection Law (UU PDP).</p>
 
             <div class="info">
-                <strong>📋 What this means:</strong>
-                <ul>
-                    <li>Your account will be permanently deleted on <strong>{{.DeletionDate}}</strong></li>
-                    <li>All personal data will be removed from our system</li>
-                    <li>This action is irreversible and cannot be undone</li>
-                    <li>Any tenant data you own will also be affected</li>
-                </ul>
+                <strong>📅 Deletion Date:</strong> {{.deletion_date}}<br>
+                <strong>⏳ Days Remaining:</strong> {{.days_remaining}} days<br>
+                <strong>📋 Compliance:</strong> UU PDP Article 5 (Data Minimization)
             </div>
 
-            <h3>What will be deleted?</h3>
+            <h3>What happens next?</h3>
             <ul>
-                <li>Your user account and profile information</li>
-                <li>Login credentials and session data</li>
-                <li>Notification preferences</li>
-                <li>Audit trail entries will be anonymized</li>
+                <li>In <strong>{{.days_remaining}} days</strong>, your personal data will be permanently deleted or anonymized</li>
+                <li>Your email, phone number, and personally identifiable information will be removed</li>
+                <li>This action is <strong>irreversible</strong> and cannot be undone</li>
             </ul>
 
-            <h3>Need to prevent deletion?</h3>
-            <p>If you believe this deletion was made in error or you wish to restore your account, please contact your system administrator immediately.</p>
+            <h3>Want to cancel the deletion?</h3>
+            <p>If you did not request this deletion or have changed your mind, you can restore your account by logging in:</p>
 
-            <div class="info">
-                <strong>🛡️ Data Protection Compliance</strong><br>
-                This deletion is being performed in accordance with UU PDP (Indonesian Personal Data Protection Law) Article 5 - Right to Deletion. We retain deleted accounts for 90 days before permanent removal to allow for recovery if needed.
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://pos.yourdomain.com/login" class="button">🔓 Login to Restore Account</a>
             </div>
 
-            <p>If you have any questions or concerns about this deletion, please contact support before the deletion date.</p>
+            <p><strong>Note:</strong> Logging in will automatically cancel the deletion process and restore full access to your account.</p>
 
-            <p>Best regards,<br>
-            {{.SystemName}} Team</p>
+            <div class="lang-divider"></div>
+
+            <!-- Indonesian Version -->
+            <h1 style="color: #ff6b6b; text-align: center;">⏰ Pemberitahuan Penghapusan Akun</h1>
+            
+            <p>Kepada Yth. <strong>{{.full_name}}</strong>,</p>
+            
+            <div class="warning">
+                <strong>⚠️ MENDESAK:</strong> Akun Anda dijadwalkan untuk dihapus secara permanen.
+            </div>
+
+            <div class="countdown">
+                {{.days_remaining}} hari tersisa
+            </div>
+
+            <p>Akun Anda telah dihapus atas permintaan Anda, dan sistem kami telah memasuki <strong>masa tenggang 90 hari</strong> sebagaimana diwajibkan oleh Undang-Undang Pelindungan Data Pribadi Indonesia (UU PDP).</p>
+
+            <div class="info">
+                <strong>📅 Tanggal Penghapusan:</strong> {{.deletion_date}}<br>
+                <strong>⏳ Hari Tersisa:</strong> {{.days_remaining}} hari<br>
+                <strong>📋 Kepatuhan:</strong> UU PDP Pasal 5 (Minimisasi Data)
+            </div>
+
+            <h3>Apa yang akan terjadi selanjutnya?</h3>
+            <ul>
+                <li>Dalam <strong>{{.days_remaining}} hari</strong>, data pribadi Anda akan dihapus atau dianonimkan secara permanen</li>
+                <li>Email, nomor telepon, dan informasi identitas pribadi Anda akan dihapus</li>
+                <li>Tindakan ini <strong>tidak dapat dibatalkan</strong> dan tidak dapat dikembalikan</li>
+            </ul>
+
+            <h3>Ingin membatalkan penghapusan?</h3>
+            <p>Jika Anda tidak meminta penghapusan ini atau telah berubah pikiran, Anda dapat memulihkan akun Anda dengan masuk:</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://pos.yourdomain.com/login" class="button">🔓 Masuk untuk Memulihkan Akun</a>
+            </div>
+
+            <p><strong>Catatan:</strong> Masuk akan secara otomatis membatalkan proses penghapusan dan memulihkan akses penuh ke akun Anda.</p>
+
+            <div class="warning">
+                <strong>⚠️ Penting:</strong> Jika Anda tidak mengambil tindakan dalam {{.days_remaining}} hari, akun Anda akan dihapus secara permanen dan tidak dapat dipulihkan.
+            </div>
+
+            <div class="footer">
+                <p>Email ini dikirim untuk kepatuhan terhadap UU PDP Pasal 5<br>
+                   This email is sent for compliance with UU PDP Article 5</p>
+                <p style="color: #999; font-size: 11px;">Jika Anda mengalami masalah saat masuk, hubungi tim dukungan kami / If you have trouble logging in, contact our support team</p>
+            </div>
         </div>
-    </div>
-    
-    <div class="footer">
-        <p>This is an automated notification regarding your account deletion.</p>
-        <p>You are receiving this email because your account was marked for deletion in our system.</p>
-        <p>&copy; 2026 {{.SystemName}}. All rights reserved.</p>
     </div>
 </body>
 </html>

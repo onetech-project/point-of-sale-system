@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
 	"github.com/pos/audit-service/src/config"
+	"github.com/pos/audit-service/src/handlers/admin"
 	"github.com/pos/audit-service/src/handlers/audit"
 	"github.com/pos/audit-service/src/handlers/consent"
 	"github.com/pos/audit-service/src/queue"
@@ -69,8 +70,12 @@ func main() {
 	auditRepo := repository.NewAuditRepository(db)
 	consentRepo := repository.NewConsentRepository(db, encryptor)
 
+	// Initialize Kafka producer for audit events (used by ConsentService)
+	auditProducer := queue.NewKafkaProducer([]string{kafkaBrokers}, kafkaAuditTopic)
+	defer auditProducer.Close()
+
 	// Initialize services
-	consentService := services.NewConsentService(consentRepo)
+	consentService := services.NewConsentService(consentRepo, auditProducer)
 
 	// Initialize partition manager service
 	partitionService := services.NewPartitionService(db)
@@ -142,6 +147,10 @@ func main() {
 	api.POST("/consent/revoke", consentHandler.RevokeConsent)
 	api.GET("/consent/history", consentHandler.GetConsentHistory)
 	api.GET("/privacy-policy", consentHandler.GetPrivacyPolicy)
+
+	// Admin compliance reporting API (OWNER role only - enforced by API Gateway)
+	complianceHandler := admin.NewComplianceReportHandler(db)
+	api.GET("/admin/compliance/report", complianceHandler.GetComplianceReport)
 
 	// Start HTTP server
 	go func() {

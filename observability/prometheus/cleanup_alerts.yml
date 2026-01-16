@@ -1,0 +1,72 @@
+# Prometheus Alert Rules for Data Cleanup (T184)
+# Purpose: Monitor automated cleanup jobs for retention policy compliance
+# Feature: 006-uu-pdp-compliance - User Story 8
+
+groups:
+  - name: cleanup_alerts
+    interval: 1h
+    rules:
+      # Alert when cleanup job errors exceed threshold
+      - alert: CleanupErrorsHigh
+        expr: sum(increase(cleanup_errors_total[24h])) by (table) > 5
+        for: 1h
+        labels:
+          severity: critical
+          component: user-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'High error rate in cleanup jobs'
+          description: 'Cleanup job for table "{{ $labels.table }}" has {{ $value }} errors in the last 24 hours. Data retention policies may not be enforced. Check cleanup logs for details.'
+          runbook_url: 'https://wiki.company.com/runbooks/cleanup-errors'
+
+      # Alert when cleanup duration exceeds 2 hours
+      - alert: CleanupDurationHigh
+        expr: max(cleanup_duration_seconds{status="success"}) by (table) > 7200
+        for: 30m
+        labels:
+          severity: warning
+          component: user-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'Cleanup job duration exceeds threshold'
+          description: 'Cleanup job for table "{{ $labels.table }}" took {{ $value | humanizeDuration }} to complete. Consider optimizing batch size or investigating performance issues.'
+          runbook_url: 'https://wiki.company.com/runbooks/cleanup-slow'
+
+      # Alert when cleanup jobs haven't run in 48 hours
+      - alert: CleanupJobsStalled
+        expr: time() - max(cleanup_last_run_timestamp) by (table) > 172800
+        for: 1h
+        labels:
+          severity: critical
+          component: user-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'Cleanup job has not run recently'
+          description: 'Cleanup job for table "{{ $labels.table }}" has not run successfully in {{ $value | humanizeDuration }}. Retention policies are not being enforced. Check scheduler logs.'
+          runbook_url: 'https://wiki.company.com/runbooks/cleanup-stalled'
+
+      # Alert when cleanup processes zero records for 7 days (possible misconfiguration)
+      - alert: CleanupNoRecordsProcessed
+        expr: sum(increase(cleanup_records_processed_total[7d])) by (table) == 0
+        for: 12h
+        labels:
+          severity: info
+          component: user-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'Cleanup job processed zero records for 7 days'
+          description: 'Cleanup job for table "{{ $labels.table }}" has processed 0 records in the last 7 days. Verify retention policy configuration or confirm no expired data exists.'
+          runbook_url: 'https://wiki.company.com/runbooks/cleanup-no-data'
+
+      # Alert when Redis distributed lock is held too long (deadlock)
+      - alert: CleanupLockHeldTooLong
+        expr: time() - cleanup_lock_acquired_timestamp > 10800
+        for: 30m
+        labels:
+          severity: warning
+          component: user-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'Cleanup distributed lock held for too long'
+          description: 'Distributed lock for table "{{ $labels.table }}" has been held for {{ $value | humanizeDuration }}. Possible deadlock or cleanup job hanging. Consider manually releasing lock.'
+          runbook_url: 'https://wiki.company.com/runbooks/cleanup-lock-deadlock'
