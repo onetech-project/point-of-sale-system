@@ -173,13 +173,13 @@ export const AuditLog: React.FC = () => {
           onClick={handleSearch}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {t('common.search') || 'Search'}
+          {t('common.search', { ns: 'common' }) || 'Search'}
         </button>
         <button
           onClick={handleReset}
           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
         >
-          {t('common.reset') || 'Reset'}
+          {t('common.reset', { ns: 'common' }) || 'Reset'}
         </button>
       </div>
 
@@ -187,7 +187,7 @@ export const AuditLog: React.FC = () => {
       {loading && (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">{t('common.loading') || 'Loading...'}</p>
+          <p className="mt-2 text-gray-600">{t('common.loading', { ns: 'common' }) || 'Loading...'}</p>
         </div>
       )}
 
@@ -226,7 +226,7 @@ export const AuditLog: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {events.length === 0 ? (
+                {!events?.length ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                       {t('audit.no_events') || 'No audit events found'}
@@ -331,12 +331,12 @@ export const AuditLog: React.FC = () => {
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                {t('common.showing') || 'Showing'}{' '}
+                {t('common.showing', { ns: 'common' }) || 'Showing'}{' '}
                 <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> -{' '}
                 <span className="font-medium">
                   {Math.min(currentPage * pageSize, totalEvents)}
                 </span>{' '}
-                {t('common.of') || 'of'}{' '}
+                {t('common.of', { ns: 'common' }) || 'of'}{' '}
                 <span className="font-medium">{totalEvents}</span>{' '}
                 {t('audit.events') || 'events'}
               </div>
@@ -346,14 +346,14 @@ export const AuditLog: React.FC = () => {
                   disabled={currentPage === 1}
                   className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t('common.previous') || 'Previous'}
+                  {t('common.previous', { ns: 'common' }) || 'Previous'}
                 </button>
                 <button
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t('common.next') || 'Next'}
+                  {t('common.next', { ns: 'common' }) || 'Next'}
                 </button>
               </div>
             </div>

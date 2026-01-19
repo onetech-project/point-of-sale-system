@@ -13,6 +13,7 @@
 #   ./stop-all.sh notification        # Stop only Notification Service
 #   ./stop-all.sh frontend            # Stop only Frontend
 #   ./stop-all.sh auth user tenant    # Stop multiple services
+#   ./stop-all.sh all                 # Stop all services and docker containers
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -20,6 +21,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse arguments
 TARGET_SERVICES=()
 STOP_ALL=false
+STOP_DOCKER_CONTAINERS=false
 
 if [ $# -eq 0 ]; then
     STOP_ALL=true
@@ -55,6 +57,7 @@ else
                 ;;
             all)
                 STOP_ALL=true
+                STOP_DOCKER_CONTAINERS=true
                 ;;
             *)
                 echo "❌ Unknown service: $arg"
@@ -69,7 +72,7 @@ else
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
                 echo "  frontend         - Frontend (Next.js)"
-                echo "  all              - All services (default)"
+                echo "  all              - All services and docker containers"
                 echo ""
                 exit 1
                 ;;
@@ -244,6 +247,28 @@ if [ "$log_files_exist" = true ]; then
     fi
 else
     echo "ℹ️  No log files found"
+fi
+
+# Stop Docker containers (PostgreSQL, Redis, Vault, Observability) if requested
+if [ "$STOP_DOCKER_CONTAINERS" = true ]; then 
+    echo ""
+    
+    echo "🛑 Stopping Docker containers (PostgreSQL, Redis)..."
+    cd "$PROJECT_ROOT"
+    docker compose down
+    sleep 1
+
+    echo "🛑 Stopping Vault..."
+    cd "$PROJECT_ROOT/vault"
+    docker compose down
+    sleep 1
+
+    echo "🛑 Stopping Observability..."
+    cd "$PROJECT_ROOT/observability"
+    docker compose down
+    sleep 1
+    
+    echo "✅ Docker containers stopped"
 fi
 
 echo ""

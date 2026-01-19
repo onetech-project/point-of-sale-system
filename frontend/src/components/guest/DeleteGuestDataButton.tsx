@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from '@/i18n/provider';
+import guestService from '@/services/guest';
 
 interface DeleteGuestDataButtonProps {
   orderReference: string;
@@ -24,33 +25,23 @@ export default function DeleteGuestDataButton({
     setError('');
 
     try {
-      const response = await fetch(`/api/guest/order/${orderReference}/delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email || null,
-          phone: phone || null,
-        }),
+      await guestService.deleteGuestOrderData(orderReference, {
+        email: email || null,
+        phone: phone || null,
       });
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error(t('guest_data:errors.verification_failed'));
-        } else if (response.status === 404) {
-          throw new Error(t('guest_data:errors.order_not_found'));
-        } else if (response.status === 409) {
-          throw new Error(t('guest_data:errors.already_deleted'));
-        } else {
-          throw new Error(t('guest_data:errors.deletion_failed'));
-        }
-      }
 
       // Success - notify parent
       onSuccess();
     } catch (err: any) {
-      setError(err.message);
+      if (err.response?.status === 403) {
+        setError(t('guest_data:errors.verification_failed'));
+      } else if (err.response?.status === 404) {
+        setError(t('guest_data:errors.order_not_found'));
+      } else if (err.response?.status === 409) {
+        setError(t('guest_data:errors.already_deleted'));
+      } else {
+        setError(err.message || t('guest_data:errors.deletion_failed'));
+      }
     } finally {
       setIsDeleting(false);
     }

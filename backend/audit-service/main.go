@@ -116,6 +116,25 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
 
+	// Extract authentication context from API Gateway headers
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Extract tenant_id from X-Tenant-ID header (set by API Gateway)
+			if tenantID := c.Request().Header.Get("X-Tenant-ID"); tenantID != "" {
+				c.Set("tenant_id", tenantID)
+			}
+			// Extract user_id from X-User-ID header
+			if userID := c.Request().Header.Get("X-User-ID"); userID != "" {
+				c.Set("user_id", userID)
+			}
+			// Extract role from X-User-Role header
+			if role := c.Request().Header.Get("X-User-Role"); role != "" {
+				c.Set("role", role)
+			}
+			return next(c)
+		}
+	})
+
 	// OpenTelemetry tracing
 	e.Use(otelecho.Middleware(serviceName))
 

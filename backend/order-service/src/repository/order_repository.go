@@ -84,7 +84,7 @@ WHERE order_reference = $1
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // Order not found
+		return nil, sql.ErrNoRows // Return error instead of (nil, nil)
 	}
 
 	if err != nil {
@@ -163,7 +163,7 @@ WHERE id = $1
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // Order not found
+		return nil, sql.ErrNoRows // Return error instead of (nil, nil)
 	}
 
 	if err != nil {

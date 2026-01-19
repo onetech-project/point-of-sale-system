@@ -167,7 +167,11 @@ func (h *InvitationHandler) AcceptInvitation(c echo.Context) error {
 		})
 	}
 
-	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password)
+	// Extract IP address and user agent for consent recording
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+
+	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password, req.Consents, ipAddress, userAgent)
 	if err != nil {
 		if err == services.ErrInvitationNotFound {
 			return c.JSON(http.StatusNotFound, map[string]string{

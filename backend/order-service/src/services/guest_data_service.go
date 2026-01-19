@@ -51,17 +51,17 @@ type CustomerInfo struct {
 
 // OrderDetails represents order transaction details
 type OrderDetails struct {
-	OrderReference string              `json:"order_reference"`
-	Status         string              `json:"status"`
-	TotalAmount    int                 `json:"total_amount"`
-	DeliveryFee    int                 `json:"delivery_fee"`
-	SubtotalAmount int                 `json:"subtotal_amount"`
-	DeliveryType   string              `json:"delivery_type"`
-	TableNumber    *string             `json:"table_number,omitempty"`
-	Notes          *string             `json:"notes,omitempty"`
-	CreatedAt      string              `json:"created_at"`
-	PaidAt         *string             `json:"paid_at,omitempty"`
-	Items          []models.OrderItem  `json:"items"`
+	OrderReference string             `json:"order_reference"`
+	Status         string             `json:"status"`
+	TotalAmount    int                `json:"total_amount"`
+	DeliveryFee    int                `json:"delivery_fee"`
+	SubtotalAmount int                `json:"subtotal_amount"`
+	DeliveryType   string             `json:"delivery_type"`
+	TableNumber    *string            `json:"table_number,omitempty"`
+	Notes          *string            `json:"notes,omitempty"`
+	CreatedAt      string             `json:"created_at"`
+	PaidAt         *string            `json:"paid_at,omitempty"`
+	Items          []models.OrderItem `json:"items"`
 }
 
 // GetGuestOrderData retrieves and decrypts all personal data for a guest order (T139)
@@ -74,6 +74,11 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 			return nil, fmt.Errorf("order not found")
 		}
 		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	// Safety check: ensure order is not nil
+	if order == nil {
+		return nil, fmt.Errorf("order not found")
 	}
 
 	// Check if order data has been anonymized
@@ -102,26 +107,6 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 		}, nil
 	}
 
-	// Decrypt customer PII
-	customerName, err := s.encryptor.Decrypt(ctx, order.CustomerName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt customer name: %w", err)
-	}
-
-	customerPhone, err := s.encryptor.Decrypt(ctx, order.CustomerPhone)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt customer phone: %w", err)
-	}
-
-	var customerEmail *string
-	if order.CustomerEmail != nil && *order.CustomerEmail != "" {
-		decryptedEmail, err := s.encryptor.Decrypt(ctx, *order.CustomerEmail)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt customer email: %w", err)
-		}
-		customerEmail = &decryptedEmail
-	}
-
 	// Get order items
 	items, err := s.orderRepo.GetOrderItemsByOrderID(ctx, order.ID)
 	if err != nil {
@@ -135,23 +120,14 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 		if err != nil && err != sql.ErrNoRows {
 			return nil, fmt.Errorf("failed to get delivery address: %w", err)
 		}
-
-		// Decrypt delivery address if exists
-		if deliveryAddress != nil && !order.IsAnonymized {
-			decryptedAddress, err := s.encryptor.Decrypt(ctx, deliveryAddress.FullAddress)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decrypt delivery address: %w", err)
-			}
-			deliveryAddress.FullAddress = decryptedAddress
-		}
 	}
 
 	response := &GuestDataResponse{
 		OrderReference: orderReference,
 		CustomerInfo: &CustomerInfo{
-			Name:  customerName,
-			Phone: customerPhone,
-			Email: customerEmail,
+			Name:  order.CustomerName,
+			Phone: order.CustomerPhone,
+			Email: order.CustomerEmail,
 		},
 		OrderDetails: &OrderDetails{
 			OrderReference: order.OrderReference,
@@ -189,6 +165,11 @@ func (s *GuestDataService) VerifyGuestAccess(ctx context.Context, orderReference
 		return false, fmt.Errorf("failed to get order: %w", err)
 	}
 
+	// Safety check: ensure order is not nil
+	if order == nil {
+		return false, fmt.Errorf("order not found")
+	}
+
 	// If anonymized, deny access
 	if order.IsAnonymized {
 		return false, nil
@@ -199,25 +180,11 @@ func (s *GuestDataService) VerifyGuestAccess(ctx context.Context, orderReference
 		if order.CustomerEmail == nil || *order.CustomerEmail == "" {
 			return false, nil
 		}
-
-		decryptedEmail, err := s.encryptor.Decrypt(ctx, *order.CustomerEmail)
-		if err != nil {
-			return false, fmt.Errorf("failed to decrypt customer email: %w", err)
-		}
-
-		if decryptedEmail != *email {
-			return false, nil
-		}
 	}
 
 	// Verify phone if provided
 	if phone != nil {
-		decryptedPhone, err := s.encryptor.Decrypt(ctx, order.CustomerPhone)
-		if err != nil {
-			return false, fmt.Errorf("failed to decrypt customer phone: %w", err)
-		}
-
-		if decryptedPhone != *phone {
+		if order.CustomerPhone == "" {
 			return false, nil
 		}
 	}

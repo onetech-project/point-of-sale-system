@@ -22,7 +22,13 @@ func NewTenantDataHandler(db *sql.DB, auditPublisher *utils.AuditPublisher) (*Te
 		return nil, fmt.Errorf("failed to create tenant config repository: %w", err)
 	}
 
-	tenantDataService := services.NewTenantDataService(tenantRepo, tenantConfigRepo, db)
+	// Create Vault encryptor for PII decryption
+	encryptor, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault encryptor: %w", err)
+	}
+
+	tenantDataService := services.NewTenantDataService(tenantRepo, tenantConfigRepo, db, encryptor)
 
 	return &TenantDataHandler{
 		tenantDataService: tenantDataService,

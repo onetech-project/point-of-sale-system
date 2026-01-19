@@ -324,7 +324,7 @@ func createGuestOrder(t *testing.T, ctx context.Context, db *sql.DB, tenantID, e
 
 func getGuestOrder(t *testing.T, ctx context.Context, db *sql.DB, orderRef string) GuestOrder {
 	query := `
-		SELECT id, order_reference, customer_email_encrypted, customer_name_encrypted, customer_phone_encrypted, is_anonymized, anonymized_at
+		SELECT id, order_reference, customer_email, customer_name, customer_phone, is_anonymized, anonymized_at
 		FROM guest_orders
 		WHERE order_reference = $1
 	`
@@ -340,9 +340,9 @@ func getGuestOrder(t *testing.T, ctx context.Context, db *sql.DB, orderRef strin
 func anonymizeGuestOrder(t *testing.T, ctx context.Context, db *sql.DB, orderRef string) error {
 	query := `
 		UPDATE guest_orders
-		SET customer_email_encrypted = NULL,
-		    customer_name_encrypted = 'Deleted User',
-		    customer_phone_encrypted = NULL,
+		SET customer_email = NULL,
+		    customer_name = 'Deleted User',
+		    customer_phone = NULL,
 		    is_anonymized = TRUE,
 		    anonymized_at = NOW()
 		WHERE order_reference = $1

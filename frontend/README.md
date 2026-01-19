@@ -215,7 +215,7 @@ Located in: `app/(guest)/data-lookup/page.tsx`
 
 ```tsx
 <form onSubmit={handleLookup}>
-  <Input name="order_reference" placeholder="ORD-2026-001" required />
+  <Input name="order_reference" placeholder="GO-XXXXXXX" required />
   <Input name="email" placeholder="customer@example.com" type="email" />
   <Input name="phone" placeholder="+628123456789" type="tel" />
   <Button type="submit">{t('lookup.submit')}</Button>
@@ -643,7 +643,7 @@ test('guest can grant consent during checkout', async ({ page }) => {
   await page.click('button[type="submit"]');
 
   // Verify order created with consents
-  await expect(page).toHaveURL(/\/order\/ORD-\d+-\d+/);
+  await expect(page).toHaveURL(/\/order\/GO-\d+-\d+/);
 });
 ```
 

@@ -165,7 +165,7 @@ export default function GuestOrderLookupPage() {
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
                     errors.order_reference ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
-                  placeholder="ORD-XXXX-XXXX"
+                  placeholder="GO-XXXXXX"
                 />
                 {errors.order_reference && (
                   <p className="mt-2 text-sm text-red-600">{errors.order_reference}</p>
@@ -219,7 +219,7 @@ export default function GuestOrderLookupPage() {
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
                     errors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
-                  placeholder="+62 812 3456 7890"
+                  placeholder="08XXXXXXXXXX"
                 />
                 {errors.phone && (
                   <p className="mt-2 text-sm text-red-600">{errors.phone}</p>

@@ -9,6 +9,7 @@
 ## 📁 File Naming Conventions
 
 ### Services (`/src/services/`)
+
 ```
 ✅ Correct:   auth.ts, user.ts, product.ts
 ❌ Incorrect: auth.service.ts, user-service.ts, UserService.ts
@@ -17,6 +18,7 @@
 **Pattern:** `<feature-name>.ts` (lowercase, no suffixes)
 
 **Structure:**
+
 ```typescript
 // user.ts
 import apiClient from './api';
@@ -32,6 +34,7 @@ export default new UserService();
 ---
 
 ### Types (`/src/types/`)
+
 ```
 ✅ Correct:   product.ts, auth.ts, user.ts
 ❌ Incorrect: product.types.ts, IProduct.ts, ProductTypes.ts
@@ -40,21 +43,22 @@ export default new UserService();
 **Pattern:** `<feature-name>.ts` (lowercase, no suffixes)
 
 **Structure:**
+
 ```typescript
 // product.ts
 export interface Product {
-  id: string;
-  name: string;
+  id: string
+  name: string
   // ...
 }
 
 export interface CreateProductRequest {
-  name: string;
+  name: string
   // ...
 }
 
 export interface UpdateProductRequest {
-  name?: string;
+  name?: string
   // ...
 }
 ```
@@ -62,6 +66,7 @@ export interface UpdateProductRequest {
 ---
 
 ### Components (`/src/components/<feature>/`)
+
 ```
 ✅ Correct:   ProductForm.tsx, ProductList.tsx, CategorySelect.tsx
 ❌ Incorrect: product-form.tsx, productList.tsx, product_form.tsx
@@ -70,6 +75,7 @@ export interface UpdateProductRequest {
 **Pattern:** `PascalCase.tsx`
 
 **Structure:**
+
 ```typescript
 // ProductForm.tsx
 'use client';
@@ -83,13 +89,13 @@ interface ProductFormProps {
   onCancel: () => void;
 }
 
-const ProductForm: React.FC<ProductFormProps> = ({ 
-  initialData, 
-  onSubmit, 
-  onCancel 
+const ProductForm: React.FC<ProductFormProps> = ({
+  initialData,
+  onSubmit,
+  onCancel
 }) => {
   const { t } = useTranslation(['products', 'common']);
-  
+
   return (
     <form>
       {/* Component JSX */}
@@ -103,6 +109,7 @@ export default ProductForm;
 ---
 
 ### Pages (`/app/<feature>/`)
+
 ```
 app/
 ├── products/
@@ -122,6 +129,7 @@ app/
 ## 🌍 i18n (Internationalization)
 
 ### Locale Files (`/src/i18n/locales/<lang>/`)
+
 ```
 locales/
 ├── en/
@@ -139,6 +147,7 @@ locales/
 **Pattern:** `<feature>.json` (lowercase, singular or plural based on context)
 
 ### JSON Structure
+
 ```json
 {
   "<namespace>": {
@@ -155,23 +164,24 @@ locales/
 ```
 
 **Example - products.json:**
+
 ```json
 {
   "products": {
     "title": "Products",
     "subtitle": "Manage your product catalog",
     "addProduct": "Add Product",
-    
+
     "form": {
       "name": "Product Name",
       "namePlaceholder": "Enter product name"
     },
-    
+
     "messages": {
       "createSuccess": "Product created successfully",
       "createError": "Failed to create product"
     },
-    
+
     "validation": {
       "nameRequired": "Product name is required",
       "nameTooLong": "Product name is too long"
@@ -185,25 +195,27 @@ locales/
 ### Using i18n in Components
 
 #### 1. Import the hook
+
 ```typescript
-import { useTranslation } from '@/i18n/provider';
+import { useTranslation } from '@/i18n/provider'
 ```
 
 #### 2. Use in component
+
 ```typescript
 const ProductsPage = () => {
   // Load multiple namespaces
   const { t } = useTranslation(['products', 'common']);
-  
+
   return (
     <div>
       <h1>{t('products.title')}</h1>
       <p>{t('products.subtitle')}</p>
       <button>{t('common.save')}</button>
-      
+
       {/* Nested keys */}
       <label>{t('products.form.name')}</label>
-      
+
       {/* With fallback */}
       <span>{t('products.optional', 'Default Value')}</span>
     </div>
@@ -212,17 +224,16 @@ const ProductsPage = () => {
 ```
 
 #### 3. Dynamic translations
+
 ```typescript
 // Error messages
-const errorMsg = t(`products.validation.${errorKey}`);
+const errorMsg = t(`products.validation.${errorKey}`)
 
 // Success messages
-const successMsg = t('products.messages.createSuccess');
+const successMsg = t('products.messages.createSuccess')
 
 // Conditional translations
-const statusText = archived 
-  ? t('products.list.archived') 
-  : t('products.list.inStock');
+const statusText = archived ? t('products.list.archived') : t('products.list.inStock')
 ```
 
 ---
@@ -232,18 +243,21 @@ const statusText = archived
 When adding a new feature (e.g., "Orders"), follow these steps:
 
 ### 1. Types
+
 ```bash
 ✅ Create: /src/types/order.ts
 ✅ Export: Order, CreateOrderRequest, UpdateOrderRequest, etc.
 ```
 
 ### 2. Service
+
 ```bash
 ✅ Create: /src/services/order.ts
 ✅ Export: default new OrderService()
 ```
 
 ### 3. i18n Locale Files
+
 ```bash
 ✅ Create: /src/i18n/locales/en/orders.json
 ✅ Create: /src/i18n/locales/id/orders.json
@@ -251,6 +265,7 @@ When adding a new feature (e.g., "Orders"), follow these steps:
 ```
 
 ### 4. Components
+
 ```bash
 ✅ Create: /src/components/orders/OrderForm.tsx
 ✅ Create: /src/components/orders/OrderList.tsx
@@ -259,6 +274,7 @@ When adding a new feature (e.g., "Orders"), follow these steps:
 ```
 
 ### 5. Pages
+
 ```bash
 ✅ Create: /app/orders/page.tsx
 ✅ Create: /app/orders/new/page.tsx
@@ -268,6 +284,7 @@ When adding a new feature (e.g., "Orders"), follow these steps:
 ```
 
 ### 6. RBAC (if needed)
+
 ```typescript
 <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
   <DashboardLayout>
@@ -277,6 +294,7 @@ When adding a new feature (e.g., "Orders"), follow these steps:
 ```
 
 ### 7. Update Sidebar
+
 ```typescript
 // /src/components/layout/Sidebar.tsx
 {
@@ -292,33 +310,35 @@ When adding a new feature (e.g., "Orders"), follow these steps:
 ## 🎨 Code Style Conventions
 
 ### Import Order
+
 ```typescript
 // 1. React and Next.js
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 // 2. Third-party libraries
-import axios from 'axios';
+import axios from 'axios'
 
 // 3. Project imports (absolute paths with @/)
-import { useAuth } from '@/store/auth';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import ProductForm from '@/components/products/ProductForm';
+import { useAuth } from '@/store/auth'
+import DashboardLayout from '@/components/layout/DashboardLayout'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import ProductForm from '@/components/products/ProductForm'
 
 // 4. Services and types
-import productService from '@/services/product';
-import { Product, CreateProductRequest } from '@/types/product';
+import productService from '@/services/product'
+import { Product, CreateProductRequest } from '@/types/product'
 
 // 5. Constants and utilities
-import { ROLES } from '@/constants/roles';
-import { useTranslation } from '@/i18n/provider';
+import { ROLES } from '@/constants/roles'
+import { useTranslation } from '@/i18n/provider'
 
 // 6. Styles (if any)
-import styles from './styles.module.css';
+import styles from './styles.module.css'
 ```
 
 ### Component Structure
+
 ```typescript
 'use client'; // If using hooks or client-side features
 
@@ -329,33 +349,33 @@ interface ComponentProps {
   // Props definition
 }
 
-const ComponentName: React.FC<ComponentProps> = ({ 
-  prop1, 
-  prop2 
+const ComponentName: React.FC<ComponentProps> = ({
+  prop1,
+  prop2
 }) => {
   // 1. Hooks
   const { t } = useTranslation(['feature', 'common']);
   const [state, setState] = useState();
-  
+
   // 2. Effects
   useEffect(() => {
     // Effect logic
   }, []);
-  
+
   // 3. Handlers
   const handleAction = () => {
     // Handler logic
   };
-  
+
   // 4. Render helpers (if needed)
   const renderItem = () => {
     // Render logic
   };
-  
+
   // 5. Early returns
   if (loading) return <Loading />;
   if (error) return <Error />;
-  
+
   // 6. Main render
   return (
     <div>
@@ -372,6 +392,7 @@ export default ComponentName;
 ## 🔐 Authentication & RBAC
 
 ### Protected Routes
+
 ```typescript
 <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
   <DashboardLayout>
@@ -381,6 +402,7 @@ export default ComponentName;
 ```
 
 ### Sidebar Menu Filtering
+
 ```typescript
 const navigationItems = [
   {
@@ -400,39 +422,37 @@ const navigationItems = [
 class FeatureService {
   // GET list with pagination
   async getItems(params?: ListParams): Promise<PaginatedResponse<Item>> {
-    const queryParams = new URLSearchParams();
-    if (params?.page) queryParams.append('page', params.page.toString());
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    
-    const url = queryParams.toString() 
-      ? `${BASE_URL}?${queryParams}` 
-      : BASE_URL;
-    
-    return apiClient.get<PaginatedResponse<Item>>(url);
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const url = queryParams.toString() ? `${BASE_URL}?${queryParams}` : BASE_URL
+
+    return apiClient.get<PaginatedResponse<Item>>(url)
   }
-  
+
   // GET single item
   async getItem(id: string): Promise<Item> {
-    return apiClient.get<Item>(`${BASE_URL}/${id}`);
+    return apiClient.get<Item>(`${BASE_URL}/${id}`)
   }
-  
+
   // POST create
   async createItem(data: CreateItemRequest): Promise<Item> {
-    return apiClient.post<Item>(BASE_URL, data);
+    return apiClient.post<Item>(BASE_URL, data)
   }
-  
+
   // PUT update
   async updateItem(id: string, data: UpdateItemRequest): Promise<Item> {
-    return apiClient.put<Item>(`${BASE_URL}/${id}`, data);
+    return apiClient.put<Item>(`${BASE_URL}/${id}`, data)
   }
-  
+
   // DELETE
   async deleteItem(id: string): Promise<void> {
-    return apiClient.delete(`${BASE_URL}/${id}`);
+    return apiClient.delete(`${BASE_URL}/${id}`)
   }
 }
 
-export default new FeatureService();
+export default new FeatureService()
 ```
 
 ---
@@ -440,6 +460,7 @@ export default new FeatureService();
 ## 📸 Photo URL Handling
 
 ### Backend vs Frontend
+
 - **Backend** returns `photo_path` (relative path like `/uploads/products/123.jpg`)
 - **Frontend** must construct full URL to display images
 
@@ -461,9 +482,10 @@ class ProductService {
 ```
 
 ### Error Handling for Images
+
 ```typescript
-<img 
-  src={productService.getPhotoUrl(productId)} 
+<img
+  src={productService.getPhotoUrl(productId)}
   alt={product.name}
   onError={(e) => {
     const img = e.target as HTMLImageElement;
@@ -479,6 +501,7 @@ class ProductService {
 ### Utility Functions (`/src/utils/format.ts`)
 
 **Available formatters:**
+
 ```typescript
 // Format with thousand separators (no currency symbol)
 formatNumber(value: number, decimals?: number): string
@@ -496,6 +519,7 @@ parseFormattedNumber(value: string): number
 ### Display Formatting (Read-only)
 
 **For prices and monetary values:**
+
 ```typescript
 import { formatNumber } from '@/utils/format';
 
@@ -509,6 +533,7 @@ import { formatNumber } from '@/utils/format';
 ```
 
 **For large inventory values (responsive):**
+
 ```typescript
 import { formatNumber, formatCompactNumber } from '@/utils/format';
 
@@ -524,6 +549,7 @@ import { formatNumber, formatCompactNumber } from '@/utils/format';
 ### Input Field Formatting (Editable)
 
 **For form inputs with live formatting:**
+
 ```typescript
 import { formatNumber, parseFormattedNumber } from '@/utils/format';
 
@@ -602,15 +628,15 @@ When implementing a new feature:
 
 ## 🔍 Quick Reference
 
-| Item | Pattern | Example |
-|------|---------|---------|
-| Service file | `<feature>.ts` | `product.ts` |
-| Type file | `<feature>.ts` | `product.ts` |
-| Component | `PascalCase.tsx` | `ProductForm.tsx` |
-| Locale file | `<feature>.json` | `products.json` |
-| Translation key | `feature.section.key` | `products.form.name` |
-| Import path | `@/<path>` | `@/services/product` |
-| Export service | `export default new Service()` | `export default new ProductService()` |
+| Item            | Pattern                        | Example                               |
+| --------------- | ------------------------------ | ------------------------------------- |
+| Service file    | `<feature>.ts`                 | `product.ts`                          |
+| Type file       | `<feature>.ts`                 | `product.ts`                          |
+| Component       | `PascalCase.tsx`               | `ProductForm.tsx`                     |
+| Locale file     | `<feature>.json`               | `products.json`                       |
+| Translation key | `feature.section.key`          | `products.form.name`                  |
+| Import path     | `@/<path>`                     | `@/services/product`                  |
+| Export service  | `export default new Service()` | `export default new ProductService()` |
 
 ---
 
@@ -623,58 +649,61 @@ When implementing a new feature:
 ```typescript
 // /src/types/notification.ts
 export interface NotificationHistoryItem {
-  id: number;
-  tenant_id: string;
-  user_id: string;
-  type: 'staff' | 'customer';
-  status: 'sent' | 'pending' | 'failed' | 'cancelled';
-  subject: string;
-  recipient: string;
-  sent_at?: string;
-  failed_at?: string;
-  error_msg?: string;
-  retry_count: number;
+  id: number
+  tenant_id: string
+  user_id: string
+  type: 'staff' | 'customer'
+  status: 'sent' | 'pending' | 'failed' | 'cancelled'
+  subject: string
+  recipient: string
+  sent_at?: string
+  failed_at?: string
+  error_msg?: string
+  retry_count: number
   metadata: {
-    order_reference?: string;
-    transaction_id?: string;
-    event_type?: string;
-  };
-  created_at: string;
+    order_reference?: string
+    transaction_id?: string
+    event_type?: string
+  }
+  created_at: string
 }
 
 export interface NotificationHistoryFilters {
-  page?: number;
-  page_size?: number;
-  order_reference?: string;
-  status?: string;
-  type?: string;
-  start_date?: string;
-  end_date?: string;
+  page?: number
+  page_size?: number
+  order_reference?: string
+  status?: string
+  type?: string
+  start_date?: string
+  end_date?: string
 }
 
 export interface NotificationHistoryResponse {
-  notifications: NotificationHistoryItem[];
+  notifications: NotificationHistoryItem[]
   pagination: {
-    current_page: number;
-    page_size: number;
-    total_items: number;
-    total_pages: number;
-  };
+    current_page: number
+    page_size: number
+    total_items: number
+    total_pages: number
+  }
 }
 ```
 
 ```typescript
 // /src/services/notification.ts
-import { NotificationHistoryFilters, NotificationHistoryResponse } from '@/types/notification';
+import { NotificationHistoryFilters, NotificationHistoryResponse } from '@/types/notification'
 
 class NotificationService {
-  async getNotificationHistory(filters: NotificationHistoryFilters): Promise<NotificationHistoryResponse> {
+  async getNotificationHistory(
+    filters: NotificationHistoryFilters
+  ): Promise<NotificationHistoryResponse> {
     // Implementation
   }
 }
 ```
 
 **Key Points:**
+
 - Define types in separate files under `/src/types/`
 - Import types in service files (don't define inline)
 - Use union types for constrained strings (`'sent' | 'pending'`)
@@ -686,92 +715,93 @@ class NotificationService {
 
 ```typescript
 const NotificationHistory: React.FC = () => {
-  const { t } = useTranslation(['notifications', 'common']);
-  
+  const { t } = useTranslation(['notifications', 'common'])
+
   // Data state
-  const [notifications, setNotifications] = useState<NotificationHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
+  const [notifications, setNotifications] = useState<NotificationHistoryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
   // Filter state
-  const [orderReference, setOrderReference] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  
+  const [orderReference, setOrderReference] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   // Action state
-  const [resendingId, setResendingId] = useState<number | null>(null);
-  const [resendSuccess, setResendSuccess] = useState<string | null>(null);
-  const [resendError, setResendError] = useState<string | null>(null);
-  const [expandedError, setExpandedError] = useState<number | null>(null);
-  
+  const [resendingId, setResendingId] = useState<number | null>(null)
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null)
+  const [resendError, setResendError] = useState<string | null>(null)
+  const [expandedError, setExpandedError] = useState<number | null>(null)
+
   // Fetch data
   useEffect(() => {
-    fetchNotifications();
-  }, [currentPage]);
-  
+    fetchNotifications()
+  }, [currentPage])
+
   const fetchNotifications = async () => {
-    setLoading(true);
-    setError(null);
-    
+    setLoading(true)
+    setError(null)
+
     try {
       const filters: NotificationHistoryFilters = {
         page: currentPage,
         page_size: 20,
-      };
-      
-      if (orderReference) filters.order_reference = orderReference;
-      if (statusFilter) filters.status = statusFilter;
-      if (typeFilter) filters.type = typeFilter;
-      if (startDate) filters.start_date = startDate;
-      if (endDate) filters.end_date = endDate;
-      
-      const response = await notificationService.getNotificationHistory(filters);
-      setNotifications(response.notifications);
-      setTotalPages(response.pagination.total_pages);
-      setTotalItems(response.pagination.total_items);
+      }
+
+      if (orderReference) filters.order_reference = orderReference
+      if (statusFilter) filters.status = statusFilter
+      if (typeFilter) filters.type = typeFilter
+      if (startDate) filters.start_date = startDate
+      if (endDate) filters.end_date = endDate
+
+      const response = await notificationService.getNotificationHistory(filters)
+      setNotifications(response.notifications)
+      setTotalPages(response.pagination.total_pages)
+      setTotalItems(response.pagination.total_items)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notifications');
+      setError(err instanceof Error ? err.message : 'Failed to load notifications')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-  
+  }
+
   const handleResend = async (notificationId: number) => {
-    setResendingId(notificationId);
-    setResendSuccess(null);
-    setResendError(null);
-    
+    setResendingId(notificationId)
+    setResendSuccess(null)
+    setResendError(null)
+
     try {
-      await notificationService.resendNotification(notificationId);
-      setResendSuccess(t('notifications.history.resend_success'));
-      fetchNotifications(); // Refresh list
+      await notificationService.resendNotification(notificationId)
+      setResendSuccess(t('notifications.history.resend_success'))
+      fetchNotifications() // Refresh list
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('429')) {
-          setResendError(t('notifications.history.resend_rate_limit'));
+          setResendError(t('notifications.history.resend_rate_limit'))
         } else if (err.message.includes('409')) {
-          setResendError(t('notifications.history.resend_conflict'));
+          setResendError(t('notifications.history.resend_conflict'))
         } else {
-          setResendError(err.message);
+          setResendError(err.message)
         }
       }
     } finally {
-      setResendingId(null);
+      setResendingId(null)
     }
-  };
-  
+  }
+
   // ... render JSX
-};
+}
 ```
 
 **Key Points:**
+
 - Separate concerns: data, pagination, filters, actions
 - Use descriptive state variable names
 - Handle loading and error states
@@ -805,6 +835,7 @@ const getStatusBadgeColor = (status: string) => {
 ```
 
 **Color Standards:**
+
 - **Green**: Success, sent, active
 - **Red**: Error, failed, rejected
 - **Yellow**: Warning, pending, in-progress
@@ -827,10 +858,10 @@ const getStatusBadgeColor = (status: string) => {
         value={orderReference}
         onChange={(e) => setOrderReference(e.target.value)}
         className="w-full px-3 py-2 border rounded-md"
-        placeholder="ORD-2024-001"
+        placeholder="GO-2024-001"
       />
     </div>
-    
+
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {t('notifications.history.filter_status')}
@@ -846,7 +877,7 @@ const getStatusBadgeColor = (status: string) => {
         <option value="pending">{t('notifications.status.pending')}</option>
       </select>
     </div>
-    
+
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {t('notifications.history.filter_type')}
@@ -862,7 +893,7 @@ const getStatusBadgeColor = (status: string) => {
       </select>
     </div>
   </div>
-  
+
   <div className="mt-4 flex justify-end">
     <button
       onClick={() => {
@@ -878,6 +909,7 @@ const getStatusBadgeColor = (status: string) => {
 ```
 
 **Key Points:**
+
 - Group related filters
 - Use responsive grid layout (mobile-first)
 - Provide "All" option for dropdowns
@@ -893,7 +925,7 @@ const getStatusBadgeColor = (status: string) => {
   <div className="text-sm text-gray-600">
     {t('common.showing')} {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, totalItems)} {t('common.of')} {totalItems}
   </div>
-  
+
   <div className="flex gap-2">
     <button
       onClick={() => setCurrentPage(currentPage - 1)}
@@ -902,11 +934,11 @@ const getStatusBadgeColor = (status: string) => {
     >
       {t('common.previous')}
     </button>
-    
+
     <span className="px-4 py-2 border rounded-md bg-gray-50">
       {t('common.page')} {currentPage} {t('common.of')} {totalPages}
     </span>
-    
+
     <button
       onClick={() => setCurrentPage(currentPage + 1)}
       disabled={currentPage >= totalPages}
@@ -919,6 +951,7 @@ const getStatusBadgeColor = (status: string) => {
 ```
 
 **Key Points:**
+
 - Show result count with range
 - Disable buttons at boundaries
 - Display current page / total pages
@@ -957,6 +990,7 @@ expect(await statusBadge.textContent()).toBe('sent');
 ```
 
 **Key Points:**
+
 - Use descriptive `data-testid` attributes
 - Include IDs for dynamic elements (`notification-item-${id}`)
 - Test by test ID, not by class names or text content
@@ -965,4 +999,3 @@ expect(await statusBadge.textContent()).toBe('sent');
 ---
 
 **Follow these conventions for consistent, maintainable code across the project!** 🚀
-

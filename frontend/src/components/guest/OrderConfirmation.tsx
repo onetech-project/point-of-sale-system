@@ -203,6 +203,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             </p>
             <div className="flex justify-center">
               <img
+                data-testid="payment-qris-qr-code"
                 src={paymentInfo?.qr_code_url || paymentQrUrl || ''}
                 alt="QRIS Payment QR Code"
                 className="w-64 h-64 border-4 border-gray-200 rounded-lg"
@@ -253,7 +254,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             {orderStatus}
           </span>
         </div>
-        <p className="text-2xl font-mono font-bold text-gray-900">
+        <p data-testid="order-reference" className="text-2xl font-mono font-bold text-gray-900">
           {orderReference}
         </p>
         <p className="text-sm text-gray-500 mt-1">{formatDate(createdAt)}</p>

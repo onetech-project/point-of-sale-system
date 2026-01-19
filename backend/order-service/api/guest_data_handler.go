@@ -9,6 +9,7 @@ import (
 	"github.com/point-of-sale-system/order-service/src/queue"
 	"github.com/point-of-sale-system/order-service/src/services"
 	"github.com/point-of-sale-system/order-service/src/utils"
+	"github.com/rs/zerolog/log"
 )
 
 // GuestDataHandler handles guest customer data access and deletion requests (T144-T145)
@@ -36,7 +37,7 @@ func NewGuestDataHandler(
 	}
 }
 
-// GetGuestData handles GET /api/v1/guest/order/:order_reference/data (T144)
+// GetGuestData handles GET /api/v1/public/orders/:order_reference/data (T144)
 // Requires order_reference + email OR phone for verification
 func (h *GuestDataHandler) GetGuestData(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -69,6 +70,8 @@ func (h *GuestDataHandler) GetGuestData(c echo.Context) error {
 
 	verified, err := h.guestDataService.VerifyGuestAccess(ctx, orderReference, emailPtr, phonePtr)
 	if err != nil {
+		// log the error internally but return a generic message
+		log.Error().Err(err).Str("order_reference", orderReference).Msg("Failed to verify guest access")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to verify access",
 		})
@@ -83,7 +86,8 @@ func (h *GuestDataHandler) GetGuestData(c echo.Context) error {
 	// Get guest data
 	data, err := h.guestDataService.GetGuestOrderData(ctx, orderReference)
 	if err != nil {
-		if err.Error() == "order not found" {
+		log.Error().Err(err).Str("order_reference", orderReference).Msg("Failed to get guest order data")
+		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusNotFound, map[string]interface{}{
 				"error": "Order not found",
 			})
@@ -96,7 +100,7 @@ func (h *GuestDataHandler) GetGuestData(c echo.Context) error {
 	return c.JSON(http.StatusOK, data)
 }
 
-// DeleteGuestData handles POST /api/v1/guest/order/:order_reference/delete (T145)
+// DeleteGuestData handles POST /api/v1/public/orders/:order_reference/delete (T145)
 // Anonymizes guest personal data while preserving order record
 func (h *GuestDataHandler) DeleteGuestData(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -169,6 +173,7 @@ func (h *GuestDataHandler) DeleteGuestData(c echo.Context) error {
 
 	// Anonymize guest data
 	if err := h.guestDeletionService.AnonymizeGuestData(ctx, orderReference); err != nil {
+		log.Error().Err(err).Str("order_reference", orderReference).Msg("Failed to anonymize guest data")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to anonymize guest data",
 		})

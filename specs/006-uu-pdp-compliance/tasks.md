@@ -354,7 +354,7 @@
 
 - [x] T139 [US3] Create GuestDataService in backend/order-service/services/guest_data_service.go with GetGuestOrderData method (decrypt PII, return customer info + order details)
 - [x] T140 [US3] Create GuestDeletionService in backend/order-service/services/guest_deletion_service.go with AnonymizeGuestData method
-- [x] T141 [US3] Update GuestDeletionService AnonymizeGuestData to set is_anonymized=TRUE, anonymized_at=NOW(), replace PII with generic values: customer_name_encrypted='Deleted User', customer_phone_encrypted=null, customer_email_encrypted=null, ip_address_encrypted=null (anonymization preserves order record, removes PII)
+- [x] T141 [US3] Update GuestDeletionService AnonymizeGuestData to set is_anonymized=TRUE, anonymized_at=NOW(), replace PII with generic values: customer_name='Deleted User', customer_phone=null, customer_email=null, ip_address=null (anonymization preserves order record, removes PII)
 - [x] T142 [US3] Update GuestDeletionService to anonymize delivery_addresses linked to order (address="Address Deleted", latitude/longitude=null)
 - [x] T143 [US3] Update GuestDeletionService to publish GuestDataAnonymizedEvent to audit topic with order_reference
 
@@ -372,8 +372,8 @@
 - [x] T150 [US3] Create GuestDataSection component in frontend/src/components/guest/GuestDataSection.tsx showing name, phone, email, delivery address in readable format
 - [x] T151 [US3] Create DeleteGuestDataButton component in frontend/src/components/guest/DeleteGuestDataButton.tsx with explanation modal (what will be deleted vs retained)
 - [x] T152 [US3] Implement POST /guest/order/:order_reference/delete API call on confirmation, show success message with deletion timestamp
-- [x] T153 [P] [US3] Create i18n translations for guest data management in frontend/public/locales/id/guest_data.json
-- [x] T154 [P] [US3] Create i18n translations for guest data management in frontend/public/locales/en/guest_data.json
+- [x] T153 [P] [US3] Create i18n translations for guest data management in frontend/src/i18n/locales/id/guest_data.json
+- [x] T154 [P] [US3] Create i18n translations for guest data management in frontend/src/i18n/locales/en/guest_data.json
 
 ### Guest Data Deletion Notification for User Story 3
 

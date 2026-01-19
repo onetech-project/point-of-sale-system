@@ -1,43 +1,6 @@
 import React from 'react';
 import { useTranslation } from '@/i18n/provider';
-
-interface CustomerInfo {
-  name: string;
-  phone?: string;
-  email?: string;
-}
-
-interface OrderItem {
-  id: string;
-  name: string;
-  quantity: number;
-  price: number;
-  subtotal: number;
-}
-
-interface OrderDetails {
-  order_id: string;
-  order_reference: string;
-  total_amount: number;
-  payment_method: string;
-  order_type: string;
-  status: string;
-  created_at: string;
-  items: OrderItem[];
-}
-
-interface DeliveryAddress {
-  full_address: string;
-  latitude?: number;
-  longitude?: number;
-}
-
-interface GuestDataResponse {
-  order_reference: string;
-  customer_info: CustomerInfo;
-  order_details: OrderDetails;
-  delivery_address?: DeliveryAddress;
-}
+import { GuestDataResponse } from '@/services/guest';
 
 interface GuestDataSectionProps {
   data: GuestDataResponse;
@@ -170,12 +133,12 @@ export default function GuestDataSection({ data }: GuestDataSectionProps) {
               {data.order_details.items.map((item) => (
                 <div key={item.id} className="flex justify-between items-center py-3 border-b last:border-b-0">
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{item.name}</p>
+                    <p className="font-medium text-gray-900">{item.product_name}</p>
                     <p className="text-sm text-gray-500">
-                      {item.quantity} x {formatCurrency(item.price)}
+                      {item.quantity} x {formatCurrency(item.unit_price)}
                     </p>
                   </div>
-                  <p className="font-semibold text-gray-900">{formatCurrency(item.subtotal)}</p>
+                  <p className="font-semibold text-gray-900">{formatCurrency(item.total_price)}</p>
                 </div>
               ))}
             </div>

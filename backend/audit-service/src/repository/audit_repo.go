@@ -32,16 +32,13 @@ func (r *AuditRepository) Create(ctx context.Context, event *models.AuditEvent) 
 		event.Timestamp = time.Now().UTC()
 	}
 
-	// Set created_at
-	event.CreatedAt = time.Now().UTC()
-
 	// Insert into partitioned table (PostgreSQL routing handles partition selection)
 	query := `
 		INSERT INTO audit_events (
 			event_id, tenant_id, timestamp, actor_type, actor_id, actor_email,
 			session_id, action, resource_type, resource_id, ip_address,
 			user_agent, request_id, purpose, before_value, after_value,
-			metadata, created_at
+			metadata
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
 		)
@@ -65,7 +62,6 @@ func (r *AuditRepository) Create(ctx context.Context, event *models.AuditEvent) 
 		event.BeforeValue,
 		event.AfterValue,
 		event.Metadata,
-		event.CreatedAt,
 	)
 
 	if err != nil {
@@ -81,7 +77,7 @@ func (r *AuditRepository) GetByID(ctx context.Context, eventID uuid.UUID) (*mode
 		SELECT event_id, tenant_id, timestamp, actor_type, actor_id, actor_email,
 		       session_id, action, resource_type, resource_id, ip_address,
 		       user_agent, request_id, purpose, before_value, after_value,
-		       metadata, created_at
+		       metadata
 		FROM audit_events
 		WHERE event_id = $1
 	`
@@ -105,7 +101,6 @@ func (r *AuditRepository) GetByID(ctx context.Context, eventID uuid.UUID) (*mode
 		&event.BeforeValue,
 		&event.AfterValue,
 		&event.Metadata,
-		&event.CreatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -138,7 +133,7 @@ func (r *AuditRepository) List(ctx context.Context, filter AuditQueryFilter) ([]
 		SELECT event_id, tenant_id, timestamp, actor_type, actor_id, actor_email,
 		       session_id, action, resource_type, resource_id, ip_address,
 		       user_agent, request_id, purpose, before_value, after_value,
-		       metadata, created_at
+		       metadata
 		FROM audit_events
 		WHERE tenant_id = $1
 	`
@@ -221,7 +216,6 @@ func (r *AuditRepository) List(ctx context.Context, filter AuditQueryFilter) ([]
 			&event.BeforeValue,
 			&event.AfterValue,
 			&event.Metadata,
-			&event.CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan audit event: %w", err)

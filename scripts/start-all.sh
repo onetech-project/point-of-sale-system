@@ -13,6 +13,9 @@
 #   ./start-all.sh notification        # Start only Notification Service
 #   ./start-all.sh frontend            # Start only Frontend
 #   ./start-all.sh auth user tenant    # Start multiple services
+#   ./start-all.sh all with-vault          # Start all services with Vault
+#   ./start-all.sh all with-observability  # Start all services with Observability
+#   ./start-all.sh all with-vault with-observability # Start all services with Vault and Observability
 
 set -e
 
@@ -22,6 +25,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse arguments
 TARGET_SERVICES=()
 START_ALL=false
+WITH_VAULT=false
+WITH_OBSERVABILITY=false
 
 if [ $# -eq 0 ]; then
     START_ALL=true
@@ -57,6 +62,12 @@ else
                 ;;
             all)
                 START_ALL=true
+                ;;
+            with-vault)
+                WITH_VAULT=true
+                ;;
+            with-observability)
+                WITH_OBSERVABILITY=true
                 ;;
             *)
                 echo "❌ Unknown service: $arg"
@@ -102,6 +113,22 @@ else
     echo "🎯 Target: ${TARGET_SERVICES[*]}"
 fi
 echo ""
+
+if [ "$WITH_VAULT" = true ]; then
+    echo "🔐 Vault integration: Enabled"
+else
+    echo "🔐 Vault integration: Disabled"
+fi
+echo ""
+
+if [ "$WITH_OBSERVABILITY" = true ]; then
+    echo "📊 Observability stack: Enabled"
+else
+    echo "📊 Observability stack: Disabled"
+fi
+echo ""
+
+sleep 1
 
 # Load environment variables from root .env if it exists
 if [ -f "$PROJECT_ROOT/.env" ]; then
@@ -172,11 +199,19 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
 
     # Start vault from directory /vault if available
-    if [ -d "$PROJECT_ROOT/vault" ]; then
+    if [ "$WITH_VAULT" = true ] && [ -d "$PROJECT_ROOT/vault" ]; then
         echo "🔐 Starting Vault server..."
         cd "$PROJECT_ROOT/vault"
         docker compose up -d &
         echo "✅ Vault server started"
+        echo ""
+    fi
+
+    if [ "$WITH_OBSERVABILITY" = true ] && [ -d "$PROJECT_ROOT/observability" ]; then
+        echo "📊 Starting Observability stack (Prometheus & Grafana)..."
+        cd "$PROJECT_ROOT/observability"
+        docker compose up -d &
+        echo "✅ Observability stack started"
         echo ""
     fi
 

@@ -40,8 +40,8 @@ func (h *RegisterHandler) Register(c echo.Context) error {
 	masker := NewLogMasker()
 
 	// Debug: Log what we received
-	c.Logger().Infof("Tenant registration attempt for BusinessName='%s', Email='%s', FirstName='%s', LastName='%s'",
-		req.BusinessName, masker.MaskEmail(req.Email), masker.MaskName(req.FirstName), masker.MaskName(req.LastName))
+	c.Logger().Infof("Tenant registration attempt for BusinessName='%s', Email='%s', FirstName='%s', LastName='%s', Consents=%v",
+		req.BusinessName, masker.MaskEmail(req.Email), masker.MaskName(req.FirstName), masker.MaskName(req.LastName), req.Consents)
 
 	if !services.IsValidBusinessName(req.BusinessName) {
 		c.Logger().Warnf("Invalid business name: %s (length=%d)", req.BusinessName, len(req.BusinessName))
@@ -66,7 +66,11 @@ func (h *RegisterHandler) Register(c echo.Context) error {
 		})
 	}
 
-	tenant, err := h.tenantService.RegisterTenant(c.Request().Context(), &req)
+	// Extract IP address and user agent for consent recording
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+
+	tenant, err := h.tenantService.RegisterTenant(c.Request().Context(), &req, ipAddress, userAgent)
 	if err != nil {
 		if err == services.ErrTenantExists {
 			c.Logger().Warnf("Business name already exists: %s", req.BusinessName)

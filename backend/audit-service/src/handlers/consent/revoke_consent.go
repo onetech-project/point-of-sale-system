@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/pos/audit-service/src/services"
+	"github.com/rs/zerolog/log"
 )
 
 // RevokeConsentRequest represents the request body for revoking consent
@@ -74,6 +75,7 @@ func (h *Handler) RevokeConsent(c echo.Context) error {
 			})
 		}
 
+		log.Error().Err(err).Msg("Failed to revoke consent")
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]string{
 				"code":    "INTERNAL_ERROR",

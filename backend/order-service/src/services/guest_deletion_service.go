@@ -61,7 +61,7 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 	defer tx.Rollback()
 
 	// Encrypt generic "Deleted User" value
-	deletedUserEncrypted, err := s.encryptor.Encrypt(ctx, "Deleted User")
+	deletedUserEncrypted, err := s.encryptor.EncryptWithContext(ctx, "Deleted User", "guest_order:customer_name")
 	if err != nil {
 		return fmt.Errorf("failed to encrypt deleted user placeholder: %w", err)
 	}
@@ -71,13 +71,12 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 	// T141: Anonymize order PII - replace with generic values
 	anonymizeOrderQuery := `
 		UPDATE guest_orders
-		SET customer_name_encrypted = $1,
-		    customer_phone_encrypted = NULL,
-		    customer_email_encrypted = NULL,
-		    ip_address_encrypted = NULL,
+		SET customer_name = $1,
+		    customer_phone = $1,
+		    customer_email = NULL,
+		    ip_address = $1,
 		    is_anonymized = TRUE,
-		    anonymized_at = $2,
-		    updated_at = $2
+		    anonymized_at = $2
 		WHERE order_reference = $3
 	`
 
@@ -88,21 +87,20 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 
 	// T142: Anonymize delivery address if exists
 	if order.DeliveryType == models.DeliveryTypeDelivery {
-		deletedAddressEncrypted, err := s.encryptor.Encrypt(ctx, "Address Deleted")
+		deletedAddressEncrypted, err := s.encryptor.EncryptWithContext(ctx, "Address Deleted", "delivery_address:full_address")
 		if err != nil {
 			return fmt.Errorf("failed to encrypt deleted address placeholder: %w", err)
 		}
 
 		anonymizeAddressQuery := `
 			UPDATE delivery_addresses
-			SET full_address_encrypted = $1,
+			SET address_text = $1,
 			    latitude = NULL,
-			    longitude = NULL,
-			    updated_at = $2
-			WHERE order_id = $3
+			    longitude = NULL
+			WHERE order_id = $2
 		`
 
-		_, err = tx.ExecContext(ctx, anonymizeAddressQuery, deletedAddressEncrypted, now, order.ID)
+		_, err = tx.ExecContext(ctx, anonymizeAddressQuery, deletedAddressEncrypted, order.ID)
 		if err != nil {
 			// Non-critical if address doesn't exist
 			if err != sql.ErrNoRows {
@@ -120,7 +118,7 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 	auditEvent := &utils.AuditEvent{
 		EventID:      uuid.New().String(),
 		TenantID:     order.TenantID,
-		Action:       "GUEST_DATA_ANONYMIZED",
+		Action:       "ANONYMIZE",
 		ActorType:    "guest",
 		ActorID:      nil, // Guest user, no actor ID
 		ActorEmail:   nil,

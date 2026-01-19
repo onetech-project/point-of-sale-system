@@ -193,15 +193,15 @@ func main() {
 	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
 	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
-	auditGroup.GET("/audit/tenant", proxyHandler(auditServiceURL, "/api/v1/audit/tenant")) // Tenant audit trail (T110)
-	auditGroup.GET("/admin/compliance/report", proxyHandler(auditServiceURL, "/api/v1/admin/compliance/report")) // Compliance report (T201)
+	auditGroup.Any("/audit/tenant*", proxyWildcard(auditServiceURL))                       // Tenant audit trail (T110)
+	auditGroup.Any("/admin/compliance/report*", proxyWildcard(auditServiceURL)) // Compliance report (T201)
 
 	// Tenant data rights routes (owner only - UU PDP compliance)
 	tenantDataGroup := protected.Group("/api/v1/tenant")
 	tenantDataGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	tenantDataGroup.GET("/data", proxyHandler(tenantServiceURL, "/api/v1/tenant/data"))
 	tenantDataGroup.POST("/data/export", proxyHandler(tenantServiceURL, "/api/v1/tenant/data/export"))
-	
+
 	// User deletion routes (owner only - UU PDP compliance)
 	userDeletionGroup := protected.Group("/api/v1/tenant/users")
 	userDeletionGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
@@ -219,12 +219,12 @@ func main() {
 	public.GET("/api/v1/consent/purposes", proxyHandler(auditServiceURL, "/api/v1/consent/purposes"))
 	public.GET("/api/v1/privacy-policy", proxyHandler(auditServiceURL, "/api/v1/privacy-policy"))
 	public.POST("/api/v1/consent/grant", proxyHandler(auditServiceURL, "/api/v1/consent/grant")) // Used during registration/checkout
-	
+
 	// Guest data rights routes (T144-T147) - public but require order verification
 	// No authentication required, access controlled by order_reference + email/phone verification
-	public.GET("/api/v1/guest/order/:order_reference/data", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/data"))
-	public.POST("/api/v1/guest/order/:order_reference/delete", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/delete"))
-	
+	// public.GET("/api/v1/guest/order/:order_reference/data", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/data"))
+	// public.POST("/api/v1/guest/order/:order_reference/delete", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/delete"))
+
 	// Protected consent routes (require authentication)
 	protected.GET("/api/v1/consent/status", proxyHandler(auditServiceURL, "/api/v1/consent/status"))
 	protected.POST("/api/v1/consent/revoke", proxyHandler(auditServiceURL, "/api/v1/consent/revoke"))

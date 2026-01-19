@@ -163,7 +163,7 @@ export const NotificationHistory: React.FC = () => {
                 type="text"
                 value={orderReference}
                 onChange={(e) => setOrderReference(e.target.value)}
-                placeholder="ORD-001"
+                placeholder="GO-XXXX"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

@@ -30,25 +30,17 @@ export default function ConsentSettingsSection() {
     try {
       setLoading(true);
       const [purposesData, statusResponse] = await Promise.all([
-        consentService.getConsentPurposes('tenant'),
+        consentService.getConsentPurposes(localStorage.getItem('locale') || 'en', 'tenant'),
         consentService.getConsentStatus(),
       ]);
+
       setPurposes(purposesData);
       
-      // Convert array of consents to status map
-      const statusMap: ConsentStatus = {};
-      if (Array.isArray(statusResponse)) {
-        statusResponse.forEach((consent: any) => {
-          if (consent.purpose_code) {
-            statusMap[consent.purpose_code] = true;
-          }
-        });
-      } else if (typeof statusResponse === 'object') {
-        // Handle both formats (array or object)
-        Object.assign(statusMap, statusResponse);
-      }
-      
-      setConsentStatus(statusMap);
+      const status: ConsentStatus = {};
+      statusResponse.consents.forEach((consent) => {
+        status[consent.purpose_code] = consent.granted;
+      });
+      setConsentStatus(status);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load consent data');
     } finally {
@@ -141,25 +133,41 @@ export default function ConsentSettingsSection() {
                   </div>
 
                   <div className="ml-4 flex-shrink-0">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isGranted}
-                        disabled={purpose.is_required || isProcessing}
-                        onChange={() => handleToggleConsent(purpose.purpose_code, isGranted)}
-                        className="sr-only peer"
+                    <button
+                      type="button"
+                      disabled={purpose.is_required || isProcessing}
+                      onClick={() => !purpose.is_required && !isProcessing && handleToggleConsent(purpose.purpose_code, isGranted)}
+                      className={`
+                        relative
+                        inline-flex
+                        h-6 w-11
+                        flex-shrink-0
+                        cursor-pointer
+                        rounded-full
+                        border-2
+                        border-transparent
+                        transition-colors
+                        duration-200
+                        ease-in-out
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-blue-500
+                        focus:ring-offset-2
+                        ${isGranted ? 'bg-blue-600' : 'bg-gray-200'}
+                        ${purpose.is_required || isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                      `}
+                    >
+                      <span
+                        className={`
+                          pointer-events-none
+                          inline-block h-5 w-5
+                          transform rounded-full
+                          bg-white shadow ring-0
+                          transition duration-200
+                          ease-in-out ${isGranted ? 'translate-x-5' : 'translate-x-0'}
+                        `}
                       />
-                      <div className={`
-                        w-11 h-6 rounded-full peer
-                        ${purpose.is_required ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-200'}
-                        peer-focus:ring-4 peer-focus:ring-blue-300
-                        peer-checked:after:translate-x-full
-                        after:content-[''] after:absolute after:top-0.5 after:left-[2px]
-                        after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
-                        ${isGranted && !purpose.is_required ? 'peer-checked:bg-blue-600' : ''}
-                        ${isProcessing ? 'opacity-50 cursor-wait' : ''}
-                      `}></div>
-                    </label>
+                    </button>
                   </div>
                 </div>
 

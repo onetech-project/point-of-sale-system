@@ -107,6 +107,9 @@ services:
     volumes:
       - ./otel/otel-collector.yml:/etc/otel-collector.yml
     command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     networks:
       - pos-network
     restart: on-failure:5

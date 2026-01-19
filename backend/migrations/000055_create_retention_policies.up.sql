@@ -1,128 +1,65 @@
--- Create retention_policies table for automated data retention management
+-- Extend retention_policies table with additional columns for enhanced data retention management
 -- UU PDP compliance: data minimization principle (Article 11)
+-- This migration adds columns to the existing table created in migration 000032
 
-CREATE TABLE IF NOT EXISTS retention_policies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    table_name VARCHAR(50) NOT NULL,
-    record_type VARCHAR(50), -- Optional subtype (e.g., 'verification_token', 'completed_order')
-    retention_period_days INTEGER NOT NULL CHECK (retention_period_days > 0),
-    retention_field VARCHAR(50) NOT NULL, -- Timestamp field to check ('created_at', 'expired_at', 'deleted_at')
-    grace_period_days INTEGER, -- Soft delete grace period before hard delete
-    legal_minimum_days INTEGER, -- Minimum retention by law (5 years = 1825, 7 years = 2555)
-    cleanup_method VARCHAR(20) NOT NULL CHECK (cleanup_method IN ('soft_delete', 'hard_delete', 'anonymize')),
-    notification_days_before INTEGER, -- Send notification N days before deletion
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+-- Add new columns if they don't exist
+DO $$ 
+BEGIN
+    -- Add grace_period_days column
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'retention_policies' AND column_name = 'grace_period_days') THEN
+        ALTER TABLE retention_policies ADD COLUMN grace_period_days INTEGER;
+    END IF;
 
--- Ensure retention period meets legal minimum
-CONSTRAINT check_legal_minimum CHECK (
-    legal_minimum_days IS NULL
-    OR retention_period_days >= legal_minimum_days
-),
+    -- Add cleanup_method column (default to 'hard_delete' to match existing cleanup_enabled behavior)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'retention_policies' AND column_name = 'cleanup_method') THEN
+        ALTER TABLE retention_policies ADD COLUMN cleanup_method VARCHAR(20) DEFAULT 'hard_delete' 
+            CHECK (cleanup_method IN ('soft_delete', 'hard_delete', 'anonymize'));
+    END IF;
 
--- One policy per table/type combination
-CONSTRAINT unique_table_record_type UNIQUE (table_name, record_type)
-);
+    -- Add notification_days_before column
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'retention_policies' AND column_name = 'notification_days_before') THEN
+        ALTER TABLE retention_policies ADD COLUMN notification_days_before INTEGER;
+    END IF;
+
+    -- Add is_active column (maps to existing cleanup_enabled)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'retention_policies' AND column_name = 'is_active') THEN
+        ALTER TABLE retention_policies ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
+        -- Copy values from cleanup_enabled to is_active
+        UPDATE retention_policies SET is_active = cleanup_enabled;
+    END IF;
+END $$;
 
 -- Indexes for efficient policy queries
-CREATE INDEX idx_retention_policies_active ON retention_policies (table_name, is_active)
+CREATE INDEX IF NOT EXISTS idx_retention_policies_active ON retention_policies (table_name, is_active)
 WHERE
     is_active = TRUE;
 
-CREATE INDEX idx_retention_policies_period ON retention_policies (retention_period_days);
+-- Update existing retention policies with new column values
+UPDATE retention_policies
+SET
+    cleanup_method = 'hard_delete',
+    is_active = cleanup_enabled
+WHERE
+    cleanup_method IS NULL;
 
--- Insert default retention policies
-INSERT INTO
-    retention_policies (
-        table_name,
-        record_type,
-        retention_period_days,
-        retention_field,
-        grace_period_days,
-        legal_minimum_days,
-        cleanup_method,
-        notification_days_before
-    )
-VALUES
-    -- Verification tokens: 48 hours after expiration
-    (
-        'email_verification_tokens',
-        NULL,
-        2,
-        'expired_at',
-        NULL,
-        NULL,
-        'hard_delete',
-        NULL
-    ),
-
--- Password reset tokens: 24 hours after consumption
-(
-    'password_reset_tokens',
-    'consumed',
-    1,
-    'consumed_at',
-    NULL,
-    NULL,
-    'hard_delete',
-    NULL
-),
-
--- Expired invitations: 30 days after expiration
-(
-    'user_invitations',
-    'expired',
-    30,
-    'expired_at',
-    NULL,
-    NULL,
-    'hard_delete',
-    NULL
-),
-
--- Expired sessions: 7 days after expiration
-(
-    'user_sessions',
-    NULL,
-    7,
-    'expired_at',
-    NULL,
-    NULL,
-    'hard_delete',
-    NULL
-),
-
--- Deleted users: 90 days grace period after soft delete
-( 'users', 'deleted', 90, 'deleted_at', 90, NULL, 'hard_delete', 30 ),
-
--- Guest orders: 5 years (Indonesian tax law) after completion
-(
-    'guest_orders',
-    'completed',
-    1825,
-    'created_at',
-    NULL,
-    1825,
-    'hard_delete',
-    NULL
-),
-
--- Audit events: 7 years (Indonesian record retention law)
-(
-    'audit_events',
-    NULL,
-    2555,
-    'timestamp',
-    NULL,
-    2555,
-    'hard_delete',
-    NULL
-);
+-- Update specific policies with grace periods and notification settings
+UPDATE retention_policies
+SET
+    grace_period_days = 90,
+    notification_days_before = 30
+WHERE
+    table_name = 'users'
+    AND record_type = 'deleted_user';
 
 -- Comments for documentation
-COMMENT ON TABLE retention_policies IS 'Automated data retention rules per UU PDP Article 11 (data minimization)';
-
-COMMENT ON COLUMN retention_policies.legal_minimum_days IS 'Minimum retention by law: 1825 days (5 years) for tax, 2555 days (7 years) for audit';
+COMMENT ON COLUMN retention_policies.grace_period_days IS 'Soft delete grace period before hard delete (e.g., 90 days for deleted users)';
 
 COMMENT ON COLUMN retention_policies.cleanup_method IS 'soft_delete: mark as deleted | hard_delete: permanent removal | anonymize: remove PII only';
+
+COMMENT ON COLUMN retention_policies.notification_days_before IS 'Send notification N days before deletion (e.g., 30 days notice for user data deletion)';
+
+COMMENT ON COLUMN retention_policies.is_active IS 'Whether this retention policy is currently active and should be enforced';

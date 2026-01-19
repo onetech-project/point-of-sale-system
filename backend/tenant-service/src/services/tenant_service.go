@@ -47,7 +47,7 @@ func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantS
 	}
 }
 
-func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest) (*models.Tenant, error) {
+func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest, ipAddress, userAgent string) (*models.Tenant, error) {
 	// Validate optional consent codes (required consents are implicit)
 	if err := validators.ValidateTenantConsents(req.Consents); err != nil {
 		return nil, fmt.Errorf("invalid consent codes: %w", err)
@@ -123,21 +123,26 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 				SubjectType:      "tenant",
 				SubjectID:        ownerUserID, // Real user_id from database
 				ConsentMethod:    "registration",
-				PolicyVersion:    "1.0.0", // TODO: Get from database
-				Consents:         req.Consents, // Only optional consents provided by user
+				PolicyVersion:    "1.0.0",                                // TODO: Get from database
+				Consents:         req.Consents,                           // Only optional consents provided by user
 				RequiredConsents: validators.GetRequiredTenantConsents(), // Required consents (implicit)
 				Metadata: events.ConsentMetadata{
-					IPAddress: "", // TODO: Extract from context
-					UserAgent: "", // TODO: Extract from context
+					IPAddress: ipAddress, // Captured from request for consent proof (UU PDP Article 20(3))
+					UserAgent: userAgent, // Browser/device info for audit trail
 					SessionID: nil,
 					RequestID: "", // TODO: Extract from context
 				},
 				Timestamp: time.Now(),
 			}
 
+			fmt.Printf("Publishing consent event: TenantID=%s, SubjectID=%s, OptionalConsents=%v, RequiredConsents=%v, IP=%s, UserAgent=%s\n",
+				consentEvent.TenantID, consentEvent.SubjectID, consentEvent.Consents, consentEvent.RequiredConsents, consentEvent.Metadata.IPAddress, consentEvent.Metadata.UserAgent)
+
 			if err := s.eventPublisher.PublishConsentGranted(context.Background(), consentEvent); err != nil {
 				fmt.Printf("Warning: failed to publish consent event: %v\n", err)
 				// TODO: Add to retry queue or alert for manual intervention
+			} else {
+				fmt.Printf("Consent event published successfully: EventID=%s\n", consentEvent.EventID)
 			}
 		}()
 	}

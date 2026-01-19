@@ -191,6 +191,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.yourName')} <span className="text-red-500">*</span>
             </label>
             <input
+              data-testid="customer-name-input"
               type="text"
               value={formData.customer_name}
               onChange={(e) => {
@@ -212,6 +213,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.phoneNumber')} <span className="text-red-500">*</span>
             </label>
             <input
+              data-testid="customer-phone-input"
               type="tel"
               value={formData.customer_phone}
               onChange={(e) => {
@@ -233,6 +235,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.email')} <span className="text-gray-500 text-xs">(optional for invoice)</span>
             </label>
             <input
+              data-testid="customer-email-input"
               type="email"
               value={formData.customer_email || ''}
               onChange={(e) => {
@@ -276,6 +279,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.tableNumber')}
             </label>
             <input
+              data-testid="table-number-input"
               type="text"
               value={formData.table_number || ''}
               onChange={(e) => setFormData({ ...formData, table_number: e.target.value })}
@@ -293,6 +297,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold mb-4">{t('common.checkout.form.additionalNotes')}</h2>
         <textarea
+          data-testid="additional-notes-input"
           value={formData.notes || ''}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           rows={3}
@@ -379,6 +384,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
       {/* Submit Button */}
       <button
+        data-testid="proceed-to-payment-button"
         type="submit"
         disabled={loading}
         className={`w-full py-4 rounded-lg font-semibold text-white transition-colors ${loading

@@ -8,6 +8,7 @@ import (
 
 	"github.com/pos/tenant-service/src/models"
 	"github.com/pos/tenant-service/src/repository"
+	"github.com/pos/tenant-service/src/utils"
 )
 
 // TenantDataService handles aggregation of all tenant data for UU PDP compliance (data access rights)
@@ -15,36 +16,39 @@ type TenantDataService struct {
 	tenantRepo       *repository.TenantRepository
 	tenantConfigRepo *repository.TenantConfigRepository
 	db               *sql.DB
+	encryptor        utils.Encryptor
 }
 
 func NewTenantDataService(
 	tenantRepo *repository.TenantRepository,
 	tenantConfigRepo *repository.TenantConfigRepository,
 	db *sql.DB,
+	encryptor utils.Encryptor,
 ) *TenantDataService {
 	return &TenantDataService{
 		tenantRepo:       tenantRepo,
 		tenantConfigRepo: tenantConfigRepo,
 		db:               db,
+		encryptor:        encryptor,
 	}
 }
 
 // TenantDataResponse aggregates all tenant data for UU PDP Article 3 (data access rights)
 type TenantDataResponse struct {
-	Tenant       *models.TenantResponse       `json:"tenant"`
-	TeamMembers  []TeamMemberData             `json:"team_members"`
-	Configuration *TenantConfigurationData    `json:"configuration"`
+	Tenant        *models.TenantResponse   `json:"tenant"`
+	TeamMembers   []TeamMemberData         `json:"team_members"`
+	Configuration *TenantConfigurationData `json:"configuration"`
 }
 
 type TeamMemberData struct {
-	ID          string  `json:"id"`
-	Email       string  `json:"email"`
-	Role        string  `json:"role"`
-	Status      string  `json:"status"`
-	FirstName   *string `json:"first_name,omitempty"`
-	LastName    *string `json:"last_name,omitempty"`
-	Locale      string  `json:"locale"`
-	CreatedAt   string  `json:"created_at"`
+	ID        string  `json:"id"`
+	Email     string  `json:"email"`
+	Role      string  `json:"role"`
+	Status    string  `json:"status"`
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	Locale    string  `json:"locale"`
+	CreatedAt string  `json:"created_at"`
 }
 
 type TenantConfigurationData struct {
@@ -81,8 +85,8 @@ func (s *TenantDataService) GetAllTenantData(ctx context.Context, tenantID strin
 	}
 
 	return &TenantDataResponse{
-		Tenant:       tenant.ToResponse(),
-		TeamMembers:  teamMembers,
+		Tenant:        tenant.ToResponse(),
+		TeamMembers:   teamMembers,
 		Configuration: config,
 	}, nil
 }
@@ -108,10 +112,11 @@ func (s *TenantDataService) getTeamMembers(ctx context.Context, tenantID string)
 	for rows.Next() {
 		var member TeamMemberData
 		var firstName, lastName sql.NullString
+		var encryptedEmail string
 
 		err := rows.Scan(
 			&member.ID,
-			&member.Email,
+			&encryptedEmail,
 			&member.Role,
 			&member.Status,
 			&firstName,
@@ -123,11 +128,29 @@ func (s *TenantDataService) getTeamMembers(ctx context.Context, tenantID string)
 			return nil, err
 		}
 
-		if firstName.Valid {
-			member.FirstName = &firstName.String
+		// Decrypt email
+		if encryptedEmail != "" {
+			decryptedEmail, err := s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt email: %w", err)
+			}
+			member.Email = decryptedEmail
 		}
-		if lastName.Valid {
-			member.LastName = &lastName.String
+
+		// Decrypt PII fields with context
+		if firstName.Valid && firstName.String != "" {
+			decryptedFirstName, err := s.encryptor.DecryptWithContext(ctx, firstName.String, "user:first_name")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt first_name: %w", err)
+			}
+			member.FirstName = &decryptedFirstName
+		}
+		if lastName.Valid && lastName.String != "" {
+			decryptedLastName, err := s.encryptor.DecryptWithContext(ctx, lastName.String, "user:last_name")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt last_name: %w", err)
+			}
+			member.LastName = &decryptedLastName
 		}
 
 		members = append(members, member)

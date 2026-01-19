@@ -6,45 +6,8 @@ import { useTranslation } from '@/i18n/provider';
 import PublicLayout from '@/components/layout/PublicLayout';
 import GuestDataSection from '@/components/guest/GuestDataSection';
 import DeleteGuestDataButton from '@/components/guest/DeleteGuestDataButton';
-import GuestPrivacySettings from '@/components/guest/GuestPrivacySettings';
-
-interface CustomerInfo {
-  name: string;
-  phone?: string;
-  email?: string;
-}
-
-interface OrderItem {
-  id: string;
-  name: string;
-  quantity: number;
-  price: number;
-  subtotal: number;
-}
-
-interface OrderDetails {
-  order_id: string;
-  order_reference: string;
-  total_amount: number;
-  payment_method: string;
-  order_type: string;
-  status: string;
-  created_at: string;
-  items: OrderItem[];
-}
-
-interface DeliveryAddress {
-  full_address: string;
-  latitude?: number;
-  longitude?: number;
-}
-
-interface GuestDataResponse {
-  order_reference: string;
-  customer_info: CustomerInfo;
-  order_details: OrderDetails;
-  delivery_address?: DeliveryAddress;
-}
+import guestService, { GuestDataResponse } from '@/services/guest';
+import GuestPrivacySettings from '../../../../src/components/guest/GuestPrivacySettings';
 
 export default function GuestDataPage() {
   const { t } = useTranslation(['guest_data', 'common']);
@@ -70,34 +33,20 @@ export default function GuestDataPage() {
       }
 
       try {
-        const params = new URLSearchParams();
-        if (email) params.set('email', email);
-        if (phone) params.set('phone', phone);
+        const result = await guestService.getGuestOrderData(orderReference, {
+          email: email || undefined,
+          phone: phone || undefined,
+        });
 
-        const response = await fetch(
-          `/api/guest/order/${orderReference}/data?${params.toString()}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            throw new Error(t('guest_data:errors.verification_failed'));
-          } else if (response.status === 404) {
-            throw new Error(t('guest_data:errors.order_not_found'));
-          } else {
-            throw new Error(t('guest_data:errors.fetch_failed'));
-          }
-        }
-
-        const result = await response.json();
         setData(result);
       } catch (err: any) {
-        setError(err.message);
+        if (err.response?.status === 403) {
+          setError(t('guest_data:errors.verification_failed'));
+        } else if (err.response?.status === 404) {
+          setError(t('guest_data:errors.order_not_found'));
+        } else {
+          setError(err.message || t('guest_data:errors.fetch_failed'));
+        }
       } finally {
         setIsLoading(false);
       }
@@ -224,7 +173,6 @@ export default function GuestDataPage() {
           {/* Data Sections */}
           <GuestDataSection data={data} />
 
-          {/* Privacy Settings */}
           <GuestPrivacySettings orderReference={orderReference} />
 
           {/* Actions */}

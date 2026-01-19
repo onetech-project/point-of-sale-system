@@ -30,7 +30,7 @@ export default function GuestPrivacySettings({ orderReference }: GuestPrivacySet
     try {
       setLoading(true);
       const [purposesData, statusResponse] = await Promise.all([
-        consentService.getConsentPurposes('guest'),
+        consentService.getConsentPurposes(localStorage.getItem('locale') || 'en', 'guest'),
         consentService.getConsentStatus('guest', orderReference),
       ]);
       
@@ -38,17 +38,10 @@ export default function GuestPrivacySettings({ orderReference }: GuestPrivacySet
       const optionalPurposes = purposesData.filter((p: ConsentPurpose) => !p.is_required);
       setPurposes(optionalPurposes);
       
-      // Convert status response
       const statusMap: Record<string, boolean> = {};
-      if (Array.isArray(statusResponse)) {
-        statusResponse.forEach((consent: any) => {
-          if (consent.purpose_code) {
-            statusMap[consent.purpose_code] = true;
-          }
-        });
-      } else if (typeof statusResponse === 'object') {
-        Object.assign(statusMap, statusResponse);
-      }
+      statusResponse.forEach((consent: { purpose_code: string; granted: boolean }) => {
+        statusMap[consent.purpose_code] = consent.granted;
+      });
       
       setConsentStatus(statusMap);
     } catch (err) {
@@ -113,24 +106,41 @@ export default function GuestPrivacySettings({ orderReference }: GuestPrivacySet
                 </div>
 
                 <div className="ml-4 flex-shrink-0">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isGranted}
-                      disabled={isProcessing}
-                      onChange={() => handleToggleConsent(purpose.purpose_code, isGranted)}
-                      className="sr-only peer"
+                  <button
+                    type="button"
+                    disabled={purpose.is_required || isProcessing}
+                    onClick={() => !purpose.is_required && !isProcessing && handleToggleConsent(purpose.purpose_code, isGranted)}
+                    className={`
+                      relative
+                      inline-flex
+                      h-6 w-11
+                      flex-shrink-0
+                      cursor-pointer
+                      rounded-full
+                      border-2
+                      border-transparent
+                      transition-colors
+                      duration-200
+                      ease-in-out
+                      focus:outline-none
+                      focus:ring-2
+                      focus:ring-blue-500
+                      focus:ring-offset-2
+                      ${isGranted ? 'bg-blue-600' : 'bg-gray-200'}
+                      ${purpose.is_required || isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                    `}
+                  >
+                    <span
+                      className={`
+                        pointer-events-none
+                        inline-block h-5 w-5
+                        transform rounded-full
+                        bg-white shadow ring-0
+                        transition duration-200
+                        ease-in-out ${isGranted ? 'translate-x-5' : 'translate-x-0'}
+                      `}
                     />
-                    <div className={`
-                      w-11 h-6 bg-gray-200 rounded-full peer
-                      peer-focus:ring-4 peer-focus:ring-blue-300
-                      peer-checked:after:translate-x-full
-                      after:content-[''] after:absolute after:top-0.5 after:left-[2px]
-                      after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
-                      ${isGranted ? 'peer-checked:bg-blue-600' : ''}
-                      ${isProcessing ? 'opacity-50 cursor-wait' : ''}
-                    `}></div>
-                  </label>
+                  </button>
                 </div>
               </div>
 

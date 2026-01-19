@@ -161,7 +161,7 @@ export const GuestCart: React.FC<GuestCartProps> = ({
       {/* Cart Summary */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between text-lg font-semibold border-t pt-4">
-          <span>{t('common.cart.total')}:</span>
+          <span data-testid="cart-total">{t('common.cart.total')}:</span>
           <span className="text-blue-600">
             {formatPrice(cart.items.reduce((sum, item) => sum + item.total_price, 0))}
           </span>
@@ -170,6 +170,7 @@ export const GuestCart: React.FC<GuestCartProps> = ({
 
       {/* Checkout Button */}
       <button
+        data-testid="proceed-to-checkout-button"
         onClick={onCheckout}
         className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
       >

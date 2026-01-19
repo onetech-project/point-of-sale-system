@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog/log"
 
 	"github.com/pos/audit-service/src/repository"
 )
@@ -308,6 +309,7 @@ func (h *QueryHandler) ListTenantAuditEvents(c echo.Context) error {
 	// Retrieve audit events for tenant
 	events, err := h.auditRepo.List(ctx, filter)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to retrieve tenant audit events")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "failed to retrieve audit events",
 		})
@@ -316,6 +318,7 @@ func (h *QueryHandler) ListTenantAuditEvents(c echo.Context) error {
 	// Get total count for pagination
 	total, err := h.auditRepo.Count(ctx, filter)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to count tenant audit events")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "failed to count audit events",
 		})

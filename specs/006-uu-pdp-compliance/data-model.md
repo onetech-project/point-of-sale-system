@@ -532,13 +532,13 @@ LIMIT 100;
 SELECT 
     id,
     order_reference,
-    pgp_sym_decrypt(customer_name_encrypted, :encryption_key) AS customer_name,
-    pgp_sym_decrypt(customer_email_encrypted, :encryption_key) AS customer_email,
-    pgp_sym_decrypt(customer_phone_encrypted, :encryption_key) AS customer_phone,
+    pgp_sym_decrypt(customer_name, :encryption_key) AS customer_name,
+    pgp_sym_decrypt(customer_email, :encryption_key) AS customer_email,
+    pgp_sym_decrypt(customer_phone, :encryption_key) AS customer_phone,
     is_anonymized
 FROM guest_orders
 WHERE order_reference = :order_ref
-  AND pgp_sym_decrypt(customer_email_encrypted, :encryption_key) = :email;
+  AND pgp_sym_decrypt(customer_email, :encryption_key) = :email;
 ```
 
 **Note**: In application-layer encryption (not pgcrypto), decryption happens in Go code, not SQL

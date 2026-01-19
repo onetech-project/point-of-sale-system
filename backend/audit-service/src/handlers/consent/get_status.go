@@ -31,8 +31,8 @@ func (h *Handler) GetConsentStatus(c echo.Context) error {
 		subjectType = "guest"
 		subjectID = guestOrderID
 	} else {
-		// Tenant user consent query
-		userID := c.Request().Header.Get("X-User-ID")
+		// Tenant consent query
+		userID := c.Request().Header.Get("X-Tenant-ID")
 		if userID == "" {
 			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 				"error": map[string]string{

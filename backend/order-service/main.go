@@ -193,8 +193,8 @@ func main() {
 	e.GET("/api/v1/public/orders/:orderReference", checkoutHandler.GetPublicOrder)
 
 	// Guest data rights routes (T147) - public but require order_reference + email/phone verification
-	e.GET("/api/v1/guest/order/:order_reference/data", guestDataHandler.GetGuestData)
-	e.POST("/api/v1/guest/order/:order_reference/delete", guestDataHandler.DeleteGuestData)
+	e.GET("/api/v1/public/orders/:order_reference/data", guestDataHandler.GetGuestData)
+	e.POST("/api/v1/public/orders/:order_reference/delete", guestDataHandler.DeleteGuestData)
 
 	// Webhook routes (public - signature verified in service layer)
 	webhookHandler.RegisterRoutes(e)

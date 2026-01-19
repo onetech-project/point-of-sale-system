@@ -135,6 +135,17 @@ func (c *ConsentConsumer) processMessage(ctx context.Context, msg kafka.Message)
 		return nil // Don't retry unmarshaling errors
 	}
 
+	log.Info().
+		Str("event_id", event.EventID).
+		Str("tenant_id", event.TenantID).
+		Str("subject_id", event.SubjectID).
+		Str("subject_type", event.SubjectType).
+		Interface("optional_consents", event.Consents).
+		Interface("required_consents", event.RequiredConsents).
+		Str("ip_address", event.Metadata.IPAddress).
+		Str("user_agent", event.Metadata.UserAgent).
+		Msg("Processing consent event")
+
 	// Validate required fields
 	if event.TenantID == "" || event.SubjectID == "" || event.SubjectType == "" {
 		err := fmt.Errorf("missing required fields: tenant_id=%s, subject_id=%s, subject_type=%s",
@@ -176,6 +187,12 @@ func (c *ConsentConsumer) processMessage(ctx context.Context, msg kafka.Message)
 	// Combine required and optional consents for recording
 	allConsents := append(event.RequiredConsents, event.Consents...)
 
+	log.Info().
+		Str("event_id", event.EventID).
+		Int("total_consents", len(allConsents)).
+		Interface("all_consents", allConsents).
+		Msg("Combined consents for recording")
+
 	// Insert consent records for all granted consents
 	for _, purposeCode := range allConsents {
 		subjectIDStr := subjectUUID.String()
@@ -192,9 +209,24 @@ func (c *ConsentConsumer) processMessage(ctx context.Context, msg kafka.Message)
 			UserAgent:     &event.Metadata.UserAgent,
 		}
 
+		log.Info().
+			Str("event_id", event.EventID).
+			Str("purpose_code", purposeCode).
+			Str("tenant_id", event.TenantID).
+			Msg("Creating consent record")
+
 		if err := c.consentRepo.CreateConsentRecord(ctx, record); err != nil {
+			log.Error().
+				Err(err).
+				Str("purpose_code", purposeCode).
+				Msg("Failed to create consent record")
 			return fmt.Errorf("failed to create consent record for purpose %s: %w", purposeCode, err)
 		}
+
+		log.Info().
+			Str("event_id", event.EventID).
+			Str("purpose_code", purposeCode).
+			Msg("Consent record created successfully")
 	}
 
 	// Mark event as processed (idempotency)

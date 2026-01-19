@@ -13,6 +13,12 @@ import consentEn from './locales/en/consent.json';
 import consentId from './locales/id/consent.json';
 import privacyEn from './locales/en/privacy.json';
 import privacyId from './locales/id/privacy.json';
+import guestDataEn from './locales/en/guest_data.json';
+import guestDataId from './locales/id/guest_data.json';
+import privacySettingsEn from './locales/en/privacy_settings.json';
+import privacySettingsId from './locales/id/privacy_settings.json';
+import AuditEn from './locales/en/audit.json';
+import AuditId from './locales/id/audit.json';
 
 const resources = {
   en: {
@@ -22,6 +28,9 @@ const resources = {
     notifications: notificationsEn,
     consent: consentEn,
     privacy: privacyEn,
+    guest_data: guestDataEn,
+    privacy_settings: privacySettingsEn,
+    audit: AuditEn,
   },
   id: {
     common: commonId,
@@ -30,6 +39,9 @@ const resources = {
     notifications: notificationsId,
     consent: consentId,
     privacy: privacyId,
+    guest_data: guestDataId,
+    privacy_settings: privacySettingsId,
+    audit: AuditId,
   },
 };
 
