@@ -39,7 +39,7 @@ export default function GuestPrivacySettings({ orderReference }: GuestPrivacySet
       setPurposes(optionalPurposes);
       
       const statusMap: Record<string, boolean> = {};
-      statusResponse.forEach((consent: { purpose_code: string; granted: boolean }) => {
+      statusResponse.consents.forEach((consent: { purpose_code: string; granted: boolean }) => {
         statusMap[consent.purpose_code] = consent.granted;
       });
       
