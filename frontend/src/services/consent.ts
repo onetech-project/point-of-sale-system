@@ -36,11 +36,13 @@ export interface GrantConsentRequest {
   };
 }
 
+export interface Consent {
+  purpose_code: string;
+  granted: boolean;
+}
+
 export interface ConsentStatus {
-  subject_type: string;
-  subject_id: string;
-  active_consents: string[];
-  revoked_consents: string[];
+  consents: Consent[];
 }
 
 class ConsentService {
@@ -93,12 +95,12 @@ class ConsentService {
   async getConsentStatus(
     subjectType?: 'tenant' | 'guest',
     subjectId?: string
-  ): Promise<Record<string, boolean>> {
+  ): Promise<ConsentStatus> {
     const params = new URLSearchParams();
     if (subjectType) params.append('subject_type', subjectType);
     if (subjectId) params.append('subject_id', subjectId);
     
-    const response = await apiClient.get<{ data: Record<string, boolean> }>(
+    const response = await apiClient.get<{ data: ConsentStatus }>(
       `/api/v1/consent/status?${params.toString()}`
     );
     return response.data;
