@@ -201,6 +201,7 @@ export default function OrderStatusPage() {
             deliveryType={orderData.order.delivery_type}
             customerName={orderData.order.customer_name}
             customerPhone={orderData.order.customer_phone}
+            customerEmail={orderData.order.customer_email}
             deliveryAddress={orderData.order.delivery_address}
             tableNumber={orderData.order.table_number}
             subtotal={orderData.order.subtotal_amount}

@@ -86,9 +86,17 @@ func (p *KafkaProducer) Publish(ctx context.Context, key string, value interface
 
 // PublishWithHeaders publishes a message with custom headers
 func (p *KafkaProducer) PublishWithHeaders(ctx context.Context, key string, value interface{}, headers []kafka.Header) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
+	var data []byte
+	var err error
+
+	// Check if value is already marshaled ([]byte)
+	if b, ok := value.([]byte); ok {
+		data = b
+	} else {
+		data, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 	}
 
 	msg := kafka.Message{

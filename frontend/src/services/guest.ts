@@ -21,7 +21,7 @@ export interface OrderDetails {
   order_reference: string;
   total_amount: number;
   payment_method: string;
-  order_type: string;
+  delivery_type: string;
   status: string;
   created_at: string;
   items: OrderItem[];
@@ -38,6 +38,7 @@ export interface GuestDataResponse {
   customer_info: CustomerInfo;
   order_details: OrderDetails;
   delivery_address?: DeliveryAddress;
+  is_anonymized: boolean;
 }
 
 export interface DeleteGuestDataRequest {

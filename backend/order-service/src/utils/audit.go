@@ -31,7 +31,7 @@ type AuditPublisher struct {
 
 // AuditEvent represents a single audit log entry
 type AuditEvent struct {
-	EventID      string                 `json:"event_id"`      // Idempotency key
+	EventID      uuid.UUID              `json:"event_id"`      // Idempotency key
 	TenantID     string                 `json:"tenant_id"`     // Tenant isolation
 	Timestamp    time.Time              `json:"timestamp"`     // Event timestamp
 	ActorType    string                 `json:"actor_type"`    // user, system, guest, admin
@@ -90,8 +90,8 @@ func (ap *AuditPublisher) Publish(ctx context.Context, event *AuditEvent) error 
 	}
 
 	// Generate event ID if not provided (idempotency key)
-	if event.EventID == "" {
-		event.EventID = uuid.New().String()
+	if event.EventID == uuid.Nil {
+		event.EventID = uuid.New()
 	}
 
 	// Set timestamp if not provided
@@ -124,7 +124,7 @@ func (ap *AuditPublisher) Publish(ctx context.Context, event *AuditEvent) error 
 	defer ap.mu.Unlock()
 
 	// Use queue.KafkaProducer's PublishWithHeaders
-	err = ap.producer.PublishWithHeaders(ctx, event.EventID, eventJSON, headers)
+	err = ap.producer.PublishWithHeaders(ctx, event.EventID.String(), eventJSON, headers)
 	if err != nil {
 		return fmt.Errorf("failed to publish audit event to Kafka: %w", err)
 	}
@@ -146,8 +146,8 @@ func (ap *AuditPublisher) PublishBatch(ctx context.Context, events []*AuditEvent
 		}
 
 		// Generate event ID if not provided
-		if event.EventID == "" {
-			event.EventID = uuid.New().String()
+		if event.EventID == uuid.Nil {
+			event.EventID = uuid.New()
 		}
 
 		// Set timestamp if not provided
@@ -170,7 +170,7 @@ func (ap *AuditPublisher) PublishBatch(ctx context.Context, events []*AuditEvent
 		}
 
 		messages[i] = kafka.Message{
-			Key:   []byte(event.EventID),
+			Key:   []byte(event.EventID.String()),
 			Value: eventJSON,
 			Time:  event.Timestamp,
 			Headers: []kafka.Header{
@@ -247,7 +247,7 @@ func (ap *AuditPublisher) Close() error {
 // NewUserEvent creates an audit event for user-related actions
 func NewUserEvent(tenantID, userID, action, resourceID string) *AuditEvent {
 	return &AuditEvent{
-		EventID:      uuid.New().String(),
+		EventID:      uuid.New(),
 		TenantID:     tenantID,
 		Timestamp:    time.Now().UTC(),
 		ActorType:    "user",
@@ -261,7 +261,7 @@ func NewUserEvent(tenantID, userID, action, resourceID string) *AuditEvent {
 // NewSystemEvent creates an audit event for system-initiated actions
 func NewSystemEvent(tenantID, action, resourceType, resourceID string) *AuditEvent {
 	return &AuditEvent{
-		EventID:      uuid.New().String(),
+		EventID:      uuid.New(),
 		TenantID:     tenantID,
 		Timestamp:    time.Now().UTC(),
 		ActorType:    "system",
@@ -274,7 +274,7 @@ func NewSystemEvent(tenantID, action, resourceType, resourceID string) *AuditEve
 // NewGuestEvent creates an audit event for guest order actions
 func NewGuestEvent(tenantID, action, resourceID string) *AuditEvent {
 	return &AuditEvent{
-		EventID:      uuid.New().String(),
+		EventID:      uuid.New(),
 		TenantID:     tenantID,
 		Timestamp:    time.Now().UTC(),
 		ActorType:    "guest",

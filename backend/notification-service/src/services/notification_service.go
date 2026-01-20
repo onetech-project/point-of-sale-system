@@ -80,7 +80,6 @@ func (s *NotificationService) loadTemplates() error {
 		"order_invoice.html",
 		"order_staff_notification.html",
 		"user_deletion_warning.html",
-		"user_deletion_warning.html", // Bilingual template for deletion warnings
 		"guest_data_deleted.html",
 	}
 
@@ -578,6 +577,7 @@ func (s *NotificationService) handleGuestDataDeleted(ctx context.Context, event 
 	// Create notification record
 	notification := &models.Notification{
 		TenantID:  event.TenantID,
+		UserID:    nil,
 		Type:      models.NotificationTypeEmail,
 		Status:    models.NotificationStatusPending,
 		Subject:   subject,

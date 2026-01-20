@@ -96,6 +96,10 @@ func (c *AuditConsumer) processMessage(ctx context.Context, msg kafka.Message) e
 	// Deserialize JSON message
 	if err := json.Unmarshal(msg.Value, &auditEvent); err != nil {
 		observability.AuditEventsPersistErrorsTotal.WithLabelValues("unmarshal_error").Inc()
+		log.Error().
+			Err(err).
+			Str("raw_message", string(msg.Value)).
+			Msg("Failed to unmarshal audit event")
 		return fmt.Errorf("failed to unmarshal audit event: %w", err)
 	}
 

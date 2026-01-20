@@ -35,6 +35,7 @@ func NewGuestDataService(db *sql.DB, encryptor utils.Encryptor) *GuestDataServic
 // GuestDataResponse represents all personal data associated with a guest order
 type GuestDataResponse struct {
 	OrderReference  string                  `json:"order_reference"`
+	TenantID        string                  `json:"tenant_id"`          // Added for notification purposes
 	CustomerInfo    *CustomerInfo           `json:"customer_info"`
 	OrderDetails    *OrderDetails           `json:"order_details"`
 	DeliveryAddress *models.DeliveryAddress `json:"delivery_address,omitempty"`
@@ -62,6 +63,7 @@ type OrderDetails struct {
 	CreatedAt      string             `json:"created_at"`
 	PaidAt         *string            `json:"paid_at,omitempty"`
 	Items          []models.OrderItem `json:"items"`
+	PaymentMethod  string             `json:"payment_method,omitempty"`
 }
 
 // GetGuestOrderData retrieves and decrypts all personal data for a guest order (T139)
@@ -81,32 +83,6 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 		return nil, fmt.Errorf("order not found")
 	}
 
-	// Check if order data has been anonymized
-	if order.IsAnonymized {
-		return &GuestDataResponse{
-			OrderReference: orderReference,
-			IsAnonymized:   true,
-			AnonymizedAt:   formatTime(order.AnonymizedAt),
-			CustomerInfo: &CustomerInfo{
-				Name:  "Deleted User",
-				Phone: "***",
-				Email: nil,
-			},
-			OrderDetails: &OrderDetails{
-				OrderReference: order.OrderReference,
-				Status:         string(order.Status),
-				TotalAmount:    order.TotalAmount,
-				DeliveryFee:    order.DeliveryFee,
-				SubtotalAmount: order.SubtotalAmount,
-				DeliveryType:   string(order.DeliveryType),
-				TableNumber:    order.TableNumber,
-				Notes:          order.Notes,
-				CreatedAt:      order.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-				PaidAt:         formatTime(order.PaidAt),
-			},
-		}, nil
-	}
-
 	// Get order items
 	items, err := s.orderRepo.GetOrderItemsByOrderID(ctx, order.ID)
 	if err != nil {
@@ -124,6 +100,7 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 
 	response := &GuestDataResponse{
 		OrderReference: orderReference,
+		TenantID:       order.TenantID, // Include tenant_id for notification
 		CustomerInfo: &CustomerInfo{
 			Name:  order.CustomerName,
 			Phone: order.CustomerPhone,
@@ -141,9 +118,11 @@ func (s *GuestDataService) GetGuestOrderData(ctx context.Context, orderReference
 			CreatedAt:      order.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			PaidAt:         formatTime(order.PaidAt),
 			Items:          items,
+			PaymentMethod:  "QRIS", // Hardcoded for guest orders
 		},
 		DeliveryAddress: deliveryAddress,
 		IsAnonymized:    order.IsAnonymized,
+		AnonymizedAt:    formatTime(order.AnonymizedAt),
 	}
 
 	return response, nil

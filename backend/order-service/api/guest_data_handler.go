@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -152,6 +153,11 @@ func (h *GuestDataHandler) DeleteGuestData(c echo.Context) error {
 				"error": "Order not found",
 			})
 		}
+		if err.Error() == "order not completed or cancelled" {
+			return c.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": "Only completed or cancelled orders can be anonymized",
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to check order status",
 		})
@@ -182,15 +188,22 @@ func (h *GuestDataHandler) DeleteGuestData(c echo.Context) error {
 	// Send confirmation notification (T155) - non-blocking
 	go func() {
 		if req.Email != nil && *req.Email != "" {
+			// Use background context with timeout - don't let request cancellation affect notification
+			notifCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
 			event := map[string]interface{}{
-				"event_type":      "guest_data_deleted",
-				"order_reference": orderReference,
-				"email":           *req.Email,
-				"customer_name":   guestData.CustomerInfo.Name,
-				"anonymized_at":   time.Now().Format(time.RFC3339),
-				"language":        "id", // Default to Indonesian, can be enhanced with language detection
+				"event_type": "guest_data_deleted",
+				"tenant_id":  guestData.TenantID, // Include tenant_id for notification record
+				"data": map[string]interface{}{
+					"email":           *req.Email,
+					"order_reference": orderReference,
+					"customer_name":   guestData.CustomerInfo.Name,
+					"anonymized_at":   time.Now().Format(time.RFC3339),
+					"language":        "id", // Default to Indonesian, can be enhanced with language detection
+				},
 			}
-			_ = h.notificationProducer.Publish(ctx, orderReference, event)
+			_ = h.notificationProducer.Publish(notifCtx, orderReference, event)
 		}
 	}()
 

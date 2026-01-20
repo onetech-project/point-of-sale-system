@@ -31,7 +31,10 @@
     "payment_method": "Payment Method",
     "total_amount": "Total Amount",
     "address": "Full Address",
-    "coordinates": "Coordinates"
+    "coordinates": "Coordinates",
+    "delivery": "Delivery",
+    "pickup": "Pickup",
+    "dine_in": "Dine-In"
   },
   "actions": {
     "title": "Manage Your Data",
@@ -78,6 +81,7 @@
     "lookup_failed": "Lookup failed, please try again",
     "fetch_failed": "Failed to fetch data, please try again",
     "deletion_failed": "Failed to delete data, please try again",
-    "title": "An Error Occurred"
+    "title": "An Error Occurred",
+    "not_completed_or_cancelled": "Data deletion can only be performed on completed or cancelled orders"
   }
 }

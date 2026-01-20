@@ -91,6 +91,7 @@ export interface Order {
   order_reference: string;
   customer_name: string;
   customer_phone: string;
+  customer_email?: string;
   delivery_type: 'DINE_IN' | 'DELIVERY' | 'TAKEAWAY';
   delivery_address?: string;
   table_number?: string;

@@ -9,6 +9,7 @@ interface OrderConfirmationProps {
   deliveryType: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   deliveryAddress?: string;
   tableNumber?: string;
   subtotal: number;
@@ -28,6 +29,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   deliveryType,
   customerName,
   customerPhone,
+  customerEmail,
   deliveryAddress,
   tableNumber,
   subtotal,
@@ -274,6 +276,12 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             <span className="text-gray-600">{t('checkout.phone', 'Phone')}</span>
             <span className="font-medium text-gray-900">{customerPhone}</span>
           </div>
+          {customerEmail && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">{t('checkout.email', 'Email')}</span>
+              <span className="font-medium text-gray-900">{customerEmail}</span>
+            </div>
+          )}
         </div>
       </div>
 

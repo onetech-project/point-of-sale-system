@@ -33,14 +33,22 @@ export default function DeleteGuestDataButton({
       // Success - notify parent
       onSuccess();
     } catch (err: any) {
-      if (err.response?.status === 403) {
-        setError(t('guest_data:errors.verification_failed'));
-      } else if (err.response?.status === 404) {
-        setError(t('guest_data:errors.order_not_found'));
-      } else if (err.response?.status === 409) {
-        setError(t('guest_data:errors.already_deleted'));
-      } else {
-        setError(err.message || t('guest_data:errors.deletion_failed'));
+      switch (err.response?.status) {
+        case 400:
+          setError(t('guest_data:errors.not_completed_or_cancelled'));
+          break;
+        case 403:
+          setError(t('guest_data:errors.verification_failed'));
+          break;
+        case 404:
+          setError(t('guest_data:errors.order_not_found'));
+          break;
+        case 409:
+          setError(t('guest_data:errors.already_deleted'));
+          break;
+        default:
+          setError(err.response?.data?.error || t('guest_data:errors.deletion_failed'));
+          break;
       }
     } finally {
       setIsDeleting(false);

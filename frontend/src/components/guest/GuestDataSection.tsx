@@ -18,7 +18,8 @@ export default function GuestDataSection({ data }: GuestDataSectionProps) {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
+    const locale = localStorage.getItem('locale') === 'id' ? 'id-ID' : 'en-US';
+    return new Date(dateString).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -37,6 +38,15 @@ export default function GuestDataSection({ data }: GuestDataSectionProps) {
       'cancelled': 'bg-red-100 text-red-800',
     };
     return statusColors[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getDeliveryTypeLabel = (type: string) => {
+    const typeLabels: { [key: string]: string } = {
+      'delivery': t('guest_data:fields.delivery'),
+      'pickup': t('guest_data:fields.pickup'),
+      'dine_in': t('guest_data:fields.dine_in'),
+    };
+    return typeLabels[type.toLowerCase()] || type;
   };
 
   return (
@@ -109,7 +119,7 @@ export default function GuestDataSection({ data }: GuestDataSectionProps) {
 
           <div>
             <p className="text-sm text-gray-500 mb-1">{t('guest_data:fields.order_type')}</p>
-            <p className="text-lg font-semibold text-gray-900">{data.order_details.order_type}</p>
+            <p className="text-lg font-semibold text-gray-900">{getDeliveryTypeLabel(data.order_details.delivery_type)}</p>
           </div>
 
           <div>

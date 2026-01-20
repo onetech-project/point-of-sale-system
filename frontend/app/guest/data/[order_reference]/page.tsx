@@ -173,7 +173,7 @@ export default function GuestDataPage() {
           {/* Data Sections */}
           <GuestDataSection data={data} />
 
-          <GuestPrivacySettings orderReference={orderReference} />
+          {/* <GuestPrivacySettings orderReference={orderReference} /> */}
 
           {/* Actions */}
           <div className="bg-white rounded-2xl shadow-xl p-8 mt-6">

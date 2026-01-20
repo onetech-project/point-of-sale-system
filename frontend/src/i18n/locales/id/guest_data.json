@@ -31,7 +31,10 @@
     "payment_method": "Metode Pembayaran",
     "total_amount": "Total Pembayaran",
     "address": "Alamat Lengkap",
-    "coordinates": "Koordinat"
+    "coordinates": "Koordinat",
+    "delivery": "Delivery",
+    "pickup": "Pickup",
+    "dine_in": "Dine-In"
   },
   "actions": {
     "title": "Kelola Data Anda",
@@ -78,6 +81,7 @@
     "lookup_failed": "Pencarian gagal, silakan coba lagi",
     "fetch_failed": "Gagal mengambil data, silakan coba lagi",
     "deletion_failed": "Gagal menghapus data, silakan coba lagi",
-    "title": "Terjadi Kesalahan"
+    "title": "Terjadi Kesalahan",
+    "not_completed_or_cancelled": "Penghapusan data hanya dapat dilakukan pada pesanan yang telah selesai atau dibatalkan"
   }
 }

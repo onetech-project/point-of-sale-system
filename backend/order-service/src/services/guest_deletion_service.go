@@ -66,21 +66,26 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 		return fmt.Errorf("failed to encrypt deleted user placeholder: %w", err)
 	}
 
+	deletedPhoneEncrypted, err := s.encryptor.EncryptWithContext(ctx, "08XXXXXXXXXX", "guest_order:customer_phone")
+	if err != nil {
+		return fmt.Errorf("failed to encrypt deleted phone placeholder: %w", err)
+	}
+
 	now := time.Now()
 
 	// T141: Anonymize order PII - replace with generic values
 	anonymizeOrderQuery := `
 		UPDATE guest_orders
 		SET customer_name = $1,
-		    customer_phone = $1,
+		    customer_phone = $2,
 		    customer_email = NULL,
-		    ip_address = $1,
+		    ip_address = NULL,
 		    is_anonymized = TRUE,
-		    anonymized_at = $2
-		WHERE order_reference = $3
+		    anonymized_at = $3
+		WHERE order_reference = $4
 	`
 
-	_, err = tx.ExecContext(ctx, anonymizeOrderQuery, deletedUserEncrypted, now, orderReference)
+	_, err = tx.ExecContext(ctx, anonymizeOrderQuery, deletedUserEncrypted, deletedPhoneEncrypted, now, orderReference)
 	if err != nil {
 		return fmt.Errorf("failed to anonymize order: %w", err)
 	}
@@ -116,7 +121,7 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 
 	// T143: Publish GuestDataAnonymizedEvent to audit topic
 	auditEvent := &utils.AuditEvent{
-		EventID:      uuid.New().String(),
+		EventID:      uuid.New(),
 		TenantID:     order.TenantID,
 		Action:       "ANONYMIZE",
 		ActorType:    "guest",
@@ -139,7 +144,11 @@ func (s *GuestDeletionService) AnonymizeGuestData(ctx context.Context, orderRefe
 		},
 	}
 
-	if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
+	// Use background context with timeout for audit event - don't let request cancellation affect audit
+	auditCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.auditPublisher.Publish(auditCtx, auditEvent); err != nil {
 		// Log error but don't fail the operation
 		fmt.Printf("Failed to publish guest data anonymized event: %v\n", err)
 	}
@@ -155,6 +164,11 @@ func (s *GuestDeletionService) CanAnonymizeOrder(ctx context.Context, orderRefer
 			return false, fmt.Errorf("order not found")
 		}
 		return false, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	// Only completed or cancelled orders can be anonymized
+	if order.Status != models.OrderStatusComplete && order.Status != models.OrderStatusCancelled {
+		return false, fmt.Errorf("order not completed or cancelled")
 	}
 
 	return !order.IsAnonymized, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/point-of-sale-system/order-service/src/models"
 	"github.com/point-of-sale-system/order-service/src/utils"
@@ -146,7 +147,11 @@ func (r *GuestOrderRepository) Create(ctx context.Context, tx *sql.Tx, order *mo
 			},
 		}
 
-		if err := r.auditPublisher.Publish(ctx, auditEvent); err != nil {
+		// Use background context with timeout for audit event
+		auditCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := r.auditPublisher.Publish(auditCtx, auditEvent); err != nil {
 			fmt.Printf("Failed to publish guest order create audit event: %v\n", err)
 		}
 	}
