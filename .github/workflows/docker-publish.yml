@@ -55,6 +55,10 @@ jobs:
             context: backend/product-service
             dockerfile: backend/product-service/Dockerfile
 
+          - name: audit-service
+            context: backend/audit-service
+            dockerfile: backend/audit-service/Dockerfile
+
           - name: frontend
             context: frontend
             dockerfile: frontend/Dockerfile

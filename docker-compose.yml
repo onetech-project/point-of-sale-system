@@ -365,7 +365,7 @@ services:
     env_file:
       - ./backend/audit-service/.env
     ports:
-      - "8088:8085"
+      - "8088:8080"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/health"]
       interval: 30s
@@ -383,7 +383,7 @@ services:
           memory: 128M
     labels:
       prometheus.scrape: "true"
-      prometheus.port: "8085"
+      prometheus.port: "8080"
       service: "audit-service"
       env: "development"
   
@@ -439,7 +439,7 @@ services:
           memory: 128M
     labels:
       prometheus.scrape: "true"
-      prometheus.port: "8080"
+      prometheus.port: "3000"
       service: "frontend"
       env: "development"
 
