@@ -9,9 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/pos/tenant-service/src/events"
 	"github.com/pos/tenant-service/src/models"
 	"github.com/pos/tenant-service/src/queue"
 	"github.com/pos/tenant-service/src/repository"
+	"github.com/pos/tenant-service/src/utils"
+	"github.com/pos/tenant-service/src/validators"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,17 +30,29 @@ type TenantService struct {
 	tenantRepo     *repository.TenantRepository
 	db             *sql.DB
 	eventPublisher *queue.EventPublisher
+	encryptor      utils.Encryptor
 }
 
 func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantService {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize Vault client: %v", err))
+	}
+
 	return &TenantService{
 		tenantRepo:     repository.NewTenantRepository(db),
 		db:             db,
 		eventPublisher: eventPublisher,
+		encryptor:      vaultClient,
 	}
 }
 
-func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest) (*models.Tenant, error) {
+func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest, ipAddress, userAgent string) (*models.Tenant, error) {
+	// Validate optional consent codes (required consents are implicit)
+	if err := validators.ValidateTenantConsents(req.Consents); err != nil {
+		return nil, fmt.Errorf("invalid consent codes: %w", err)
+	}
+
 	slug := req.Slug
 	if slug == "" {
 		slug = GenerateSlug(req.BusinessName)
@@ -96,6 +112,41 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 		}()
 	}
 
+	// Publish ConsentGrantedEvent to Kafka (async, after transaction committed)
+	// This ensures we have the real user_id and prevents consent recording failures from blocking registration
+	if s.eventPublisher != nil {
+		go func() {
+			consentEvent := events.ConsentGrantedEvent{
+				EventID:          uuid.New().String(),
+				EventType:        "consent.granted",
+				TenantID:         tenant.ID,
+				SubjectType:      "tenant",
+				SubjectID:        ownerUserID, // Real user_id from database
+				ConsentMethod:    "registration",
+				PolicyVersion:    "1.0.0",                                // TODO: Get from database
+				Consents:         req.Consents,                           // Only optional consents provided by user
+				RequiredConsents: validators.GetRequiredTenantConsents(), // Required consents (implicit)
+				Metadata: events.ConsentMetadata{
+					IPAddress: ipAddress, // Captured from request for consent proof (UU PDP Article 20(3))
+					UserAgent: userAgent, // Browser/device info for audit trail
+					SessionID: nil,
+					RequestID: "", // TODO: Extract from context
+				},
+				Timestamp: time.Now(),
+			}
+
+			fmt.Printf("Publishing consent event: TenantID=%s, SubjectID=%s, OptionalConsents=%v, RequiredConsents=%v, IP=%s, UserAgent=%s\n",
+				consentEvent.TenantID, consentEvent.SubjectID, consentEvent.Consents, consentEvent.RequiredConsents, consentEvent.Metadata.IPAddress, consentEvent.Metadata.UserAgent)
+
+			if err := s.eventPublisher.PublishConsentGranted(context.Background(), consentEvent); err != nil {
+				fmt.Printf("Warning: failed to publish consent event: %v\n", err)
+				// TODO: Add to retry queue or alert for manual intervention
+			} else {
+				fmt.Printf("Consent event published successfully: EventID=%s\n", consentEvent.EventID)
+			}
+		}()
+	}
+
 	return tenant, nil
 }
 
@@ -108,9 +159,31 @@ func (s *TenantService) createOwnerUser(ctx context.Context, tx *sql.Tx, tenantI
 		return "", "", fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
+	// Encrypt PII fields with context before storing (FR-009: Field-level encryption)
+	encryptedEmail, err := s.encryptor.EncryptWithContext(ctx, email, "user:email")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt email: %w", err)
+	}
+
+	encryptedFirstName, err := s.encryptor.EncryptWithContext(ctx, firstName, "user:first_name")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt first_name: %w", err)
+	}
+
+	encryptedLastName, err := s.encryptor.EncryptWithContext(ctx, lastName, "user:last_name")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt last_name: %w", err)
+	}
+
 	// Generate verification token (valid for 24 hours)
 	verificationToken := generateVerificationToken()
 	expiresAt := time.Now().Add(24 * time.Hour)
+
+	// Encrypt verification token with context before storing
+	encryptedToken, err := s.encryptor.EncryptWithContext(ctx, verificationToken, "verification_token:token")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encrypt verification token: %w", err)
+	}
 
 	query := `
 		INSERT INTO users (
@@ -123,7 +196,7 @@ func (s *TenantService) createOwnerUser(ctx context.Context, tx *sql.Tx, tenantI
 	`
 
 	var userID string
-	err = tx.QueryRowContext(ctx, query, tenantID, email, hashedPassword, firstName, lastName, verificationToken, expiresAt).Scan(&userID)
+	err = tx.QueryRowContext(ctx, query, tenantID, encryptedEmail, hashedPassword, encryptedFirstName, encryptedLastName, encryptedToken, expiresAt).Scan(&userID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to insert user: %w", err)
 	}

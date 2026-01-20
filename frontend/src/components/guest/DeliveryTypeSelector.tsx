@@ -60,6 +60,7 @@ export const DeliveryTypeSelector: React.FC<DeliveryTypeSelectorProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {availableTypes.map((type) => (
           <button
+            data-testid={`delivery-type-${type.value}`}
             key={type.value}
             type="button"
             onClick={() => onChange(type.value)}

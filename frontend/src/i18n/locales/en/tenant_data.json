@@ -1,0 +1,67 @@
+{
+  "tenant_data": {
+    "page_title": "Tenant Data Management",
+    "export_button": "Export All Data",
+    "loading": "Loading...",
+    "business_profile": {
+      "title": "Business Profile",
+      "business_name": "Business Name",
+      "slug": "Slug",
+      "status": "Status",
+      "created_at": "Created At",
+      "status_active": "Active",
+      "status_inactive": "Inactive",
+      "status_suspended": "Suspended",
+      "status_deleted": "Deleted"
+    },
+    "team_members": {
+      "title": "Team Members",
+      "count": "{{count}} members",
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "status": "Status",
+      "actions": "Actions",
+      "role_owner": "Owner",
+      "role_manager": "Manager",
+      "role_cashier": "Cashier",
+      "status_active": "Active",
+      "status_invited": "Invited",
+      "status_suspended": "Suspended",
+      "status_deleted": "Deleted",
+      "soft_delete": "Soft Delete",
+      "hard_delete": "Hard Delete"
+    },
+    "configuration": {
+      "title": "Configuration",
+      "delivery_types": "Delivery Types",
+      "payment_integration": "Payment Integration",
+      "midtrans_configured": "Midtrans Configured",
+      "midtrans_not_configured": "Not Configured",
+      "environment_sandbox": "Sandbox",
+      "environment_production": "Production"
+    },
+    "delete_confirmation": {
+      "soft_delete_title": "Soft Delete User?",
+      "soft_delete_message": "User will be marked for deletion. Data will be retained for 90 days before permanent deletion.",
+      "hard_delete_title": "Permanently Delete User?",
+      "hard_delete_message": "This action CANNOT BE UNDONE. All user data will be permanently deleted and audit trail will be anonymized.",
+      "confirm": "Yes, Delete",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "export_success": "Data exported successfully",
+      "export_failed": "Export failed: {{error}}",
+      "delete_success": "User deleted successfully",
+      "delete_failed": "Deletion failed: {{error}}",
+      "fetch_failed": "Failed to fetch tenant data: {{error}}"
+    },
+    "uu_pdp": {
+      "article_3": "Right to Access Data (UU PDP Article 3)",
+      "article_4": "Data Portability (UU PDP Article 4)",
+      "article_5": "Right to Deletion (UU PDP Article 5)",
+      "retention_period": "Retention Period: 90 days",
+      "compliance_notice": "This page complies with Indonesian Personal Data Protection Law No.27 of 2022"
+    }
+  }
+}

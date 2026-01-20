@@ -1,4 +1,130 @@
-# Production Deployment Checklist - Order Email Notifications Feature
+# Production Deployment Checklist
+
+**Active Deployment:** 006-uu-pdp-compliance (Data Encryption - User Story 1)  
+**Target Release:** v0.3.0  
+**Deployment Date:** TBD
+
+> **Note:** Previous deployment checklists (order email notifications, etc.) are maintained below for reference.
+
+---
+
+## Current Deployment: Encryption Performance Optimization (006-uu-pdp-compliance)
+
+**Feature:** HMAC Hash Searchable Encryption for O(1) Lookups  
+**Tasks:** T069c (Searchable Hash Implementation)  
+**Related Docs:** `docs/ENCRYPTION_PERFORMANCE_FIX.md`, `docs/SEARCH_HASH_SECRET_GUIDE.md`
+
+### Overview
+
+Implements searchable HMAC-SHA256 hashes for encrypted fields to enable O(1) indexed lookups without decrypting all records. Critical fix for login performance issue where `getTenantIDByEmail()` was decrypting ALL users in system per login attempt.
+
+### Quick Reference
+
+**Pre-Deployment:**
+1. ⚠️  **CRITICAL:** Create full database backup before proceeding
+2. ⚠️  Generate secure `SEARCH_HASH_SECRET` value: `openssl rand -hex 32`
+3. ✅ Verify all services have encryption already working
+4. ✅ Build data-migration tool: `docker build -t pos-data-migration .`
+
+**Deployment Steps:**
+1. **Apply schema migrations** (adds hash columns and fixes column sizes)
+   ```bash
+   # Migration 000043: Add searchable hash columns
+   docker exec -i postgres-db psql -U pos_user -d pos_db < \
+     backend/migrations/000043_add_searchable_hashes.up.sql
+   
+   # Migration 000044: Fix guest_orders encrypted column sizes
+   docker exec -i postgres-db psql -U pos_user -d pos_db < \
+     backend/migrations/000044_fix_guest_orders_encrypted_column_sizes.up.sql
+   ```
+
+2. **Configure SEARCH_HASH_SECRET** (must be identical across all services)
+   ```bash
+   SEARCH_SECRET=$(openssl rand -hex 32)
+   echo "SEARCH_HASH_SECRET=${SEARCH_SECRET}" >> backend/user-service/.env
+   echo "SEARCH_HASH_SECRET=${SEARCH_SECRET}" >> backend/auth-service/.env
+   echo "SEARCH_HASH_SECRET=${SEARCH_SECRET}" >> backend/tenant-service/.env
+   echo "SEARCH_HASH_SECRET=${SEARCH_SECRET}" >> scripts/data-migration/.env
+   ```
+
+3. **Rebuild and restart services**
+   ```bash
+   docker-compose build user-service auth-service tenant-service
+   docker-compose rm -f user-service auth-service tenant-service
+   docker-compose up -d user-service auth-service tenant-service
+   ```
+
+4. **Populate hashes for existing data**
+   ```bash
+   cd scripts/data-migration
+   docker run --rm --network pos-network --env-file .env \
+     pos-data-migration -type=search-hashes
+   ```
+
+5. **Verify hash population**
+   ```bash
+   docker exec -it postgres-db psql -U pos_user -d pos_db -c "
+     SELECT COUNT(*) as total, COUNT(email_hash) as with_hash 
+     FROM users;"
+   ```
+
+6. **Test login performance** (should be instant)
+   ```bash
+   curl -X POST http://localhost:8082/api/v1/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"test@example.com","password":"password123"}'
+   ```
+
+**Performance Impact:**
+- Login: O(ALL_USERS) → O(1) indexed lookup
+- Invitation lookup: O(PENDING_INVITATIONS) → O(1) indexed lookup
+- ~20x improvement with 21 users, scales linearly
+
+**Rollback Plan:**
+- Restore database from backup, OR
+- Run rollback migration:
+  ```bash
+  docker exec -i postgres-db psql -U pos_user -d pos_db < \
+    backend/migrations/000043_add_searchable_hashes.down.sql
+  ```
+- Revert code changes and restart services
+
+**Full Details:** `docs/ENCRYPTION_PERFORMANCE_FIX.md`
+
+---
+
+## Previous Deployment: Data Encryption (006-uu-pdp-compliance)
+
+**Feature:** PII Encryption at Rest using HashiCorp Vault Transit Engine  
+**Tasks:** T069a (Schema Migration) + T069 (Data Migration)  
+**Status:** ✅ Completed  
+**Deployment Runbook:** See `specs/006-uu-pdp-compliance/DATA_ENCRYPTION_RUNBOOK.md` for detailed steps
+
+### Quick Reference
+
+**Pre-Deployment:**
+1. ✅ Verify Vault Transit Engine configured with `pos-encryption-key`
+2. ⚠️  **CRITICAL:** Create full database backup before proceeding
+3. ⚠️  Schedule downtime window (10-15 minutes)
+4. ✅ Verify data-migration module built (`docker images | grep pos-data-migration`)
+
+**Deployment Steps:**
+1. Run schema migration 000042 (increases column sizes for encrypted data)
+2. Verify column sizes increased correctly
+3. Run data-migration container with `-type=all`
+4. Verify 100% encryption (all values start with "vault:v1:")
+5. Test application functionality (login, orders, tenant config)
+
+**Rollback Plan:**
+- Restore database from backup
+- Revert schema migration 000042
+- Restart services
+
+**Full Details:** `specs/006-uu-pdp-compliance/DATA_ENCRYPTION_RUNBOOK.md`
+
+---
+
+## Previous Deployment: Order Email Notifications Feature
 
 **Feature Branch:** `004-order-email-notifications`  
 **Target Release:** v0.2.0  

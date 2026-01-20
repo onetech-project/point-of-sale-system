@@ -38,6 +38,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T063)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	dbURL := GetEnv("DATABASE_URL")
@@ -53,8 +56,18 @@ func main() {
 	// Initialize Kafka producer and event publisher
 	kafkaBrokers := strings.Split(GetEnv("KAFKA_BROKERS"), ",")
 	kafkaTopic := GetEnv("KAFKA_TOPIC")
-	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
+	kafkaConsentTopic := GetEnv("KAFKA_CONSENT_TOPIC")
+	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic, kafkaConsentTopic)
 	defer eventPublisher.Close()
+
+	// Initialize AuditPublisher for audit trail (T102)
+	auditTopic := GetEnv("KAFKA_AUDIT_TOPIC")
+	serviceName := GetEnv("SERVICE_NAME")
+	auditPublisher, err := NewAuditPublisher(serviceName, kafkaBrokers, auditTopic)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuditPublisher: %v", err)
+	}
+	defer auditPublisher.Close()
 
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
@@ -66,7 +79,10 @@ func main() {
 	e.GET("/tenant", tenantHandler.GetTenant)
 
 	// Tenant configuration routes
-	configRepo := repository.NewTenantConfigRepository(db)
+	configRepo, err := repository.NewTenantConfigRepositoryWithVault(db, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to create tenant config repository: %v", err)
+	}
 	configService := services.NewTenantConfigService(configRepo, db)
 	configHandler := api.NewTenantConfigHandler(configService)
 
@@ -78,6 +94,15 @@ func main() {
 	admin.PATCH("/:tenant_id/config", configHandler.UpdateTenantConfig)
 	admin.GET("/:tenant_id/midtrans-config", configHandler.GetMidtransConfig)
 	admin.PATCH("/:tenant_id/midtrans-config", configHandler.UpdateMidtransConfig)
+
+	// Tenant data rights routes - UU PDP compliance (owner only via API Gateway RBAC)
+	tenantDataHandler, err := api.NewTenantDataHandler(db, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to create tenant data handler: %v", err)
+	}
+	dataRights := e.Group("/api/v1/tenant")
+	dataRights.GET("/data", tenantDataHandler.GetTenantData)
+	dataRights.POST("/data/export", tenantDataHandler.ExportTenantData)
 
 	port := GetEnv("PORT")
 

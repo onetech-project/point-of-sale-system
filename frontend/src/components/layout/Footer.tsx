@@ -77,7 +77,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/privacy"
+                  href="/privacy-policy"
                   className="text-gray-600 hover:text-primary-600 text-sm transition-colors"
                 >
                   {t('common.footer.privacy')}

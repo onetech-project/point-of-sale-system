@@ -2,19 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/store/auth';
-import apiClient from '@/services/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ROLES } from '@/constants/roles';
 import { useRouter } from 'next/navigation';
-
-interface TenantInfo {
-  id: string;
-  businessName: string;
-  slug: string;
-  status: string;
-  createdAt: string;
-}
+import { tenantService } from '@/services/tenant';
+import { TenantInfo } from '@/types/tenant';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -26,7 +19,7 @@ export default function ProfilePage() {
     const fetchTenantInfo = async () => {
       try {
         setLoadingTenant(true);
-        const data = await apiClient.get<TenantInfo>('/api/tenant');
+        const data = await tenantService.getTenantInfo();
         setTenantInfo(data);
       } catch (error) {
         console.error('Failed to fetch tenant info:', error);

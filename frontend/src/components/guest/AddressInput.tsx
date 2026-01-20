@@ -53,12 +53,12 @@ export const AddressInput: React.FC<AddressInputProps> = ({
         {/* Street Address */}
         <div className="mb-3">
           <input
+            data-testid="address-street-input"
             type="text"
             placeholder="Street address (e.g., Jl. Sudirman No. 123)"
             value={detailedAddress.street}
             onChange={(e) => handleFieldChange('street', e.target.value)}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500' : 'border-gray-300'
-              }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500' : 'border-gray-300'}`}
             required={required}
           />
         </div>
@@ -66,6 +66,7 @@ export const AddressInput: React.FC<AddressInputProps> = ({
         {/* City and Province */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <input
+            data-testid="address-city-input"
             type="text"
             placeholder="City (e.g., Jakarta)"
             value={detailedAddress.city}
@@ -74,6 +75,7 @@ export const AddressInput: React.FC<AddressInputProps> = ({
             required={required}
           />
           <input
+            data-testid="address-province-input"
             type="text"
             placeholder="Province (e.g., DKI Jakarta)"
             value={detailedAddress.province}
@@ -86,6 +88,7 @@ export const AddressInput: React.FC<AddressInputProps> = ({
         {/* Postal Code */}
         <div className="mb-3">
           <input
+            data-testid="address-postalcode-input"
             type="text"
             placeholder="Postal code (e.g., 12190)"
             value={detailedAddress.postalCode}
@@ -98,6 +101,7 @@ export const AddressInput: React.FC<AddressInputProps> = ({
         {/* Additional Notes */}
         <div>
           <textarea
+            data-testid="address-notes-input"
             placeholder="Additional notes (e.g., building name, floor, landmarks)"
             value={detailedAddress.notes}
             onChange={(e) => handleFieldChange('notes', e.target.value)}

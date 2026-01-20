@@ -64,6 +64,7 @@ services:
     image: grafana/promtail:latest
     container_name: pos-promtail
     volumes:
+      - /tmp:/host-tmp:ro # for development logs
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./promtail/promtail.yml:/etc/promtail/config.yml
@@ -106,6 +107,9 @@ services:
     volumes:
       - ./otel/otel-collector.yml:/etc/otel-collector.yml
     command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     networks:
       - pos-network
     restart: on-failure:5
@@ -137,12 +141,34 @@ services:
         echo '✅ Buckets created: loki, tempo-traces'
       "
     restart: "no"
+  
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: pos-cadvisor
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - pos-network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
 
 volumes:
   grafana_data:
+    name: pos_grafana_data
   prometheus_data:
+    name: pos_prometheus_data
   tempo_data:
+    name: pos_tempo_data
   loki_data:
+    name: pos_loki_data
 
 networks:
   pos-network:

@@ -13,6 +13,7 @@
 #   ./stop-all.sh notification        # Stop only Notification Service
 #   ./stop-all.sh frontend            # Stop only Frontend
 #   ./stop-all.sh auth user tenant    # Stop multiple services
+#   ./stop-all.sh all                 # Stop all services and docker containers
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -20,6 +21,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse arguments
 TARGET_SERVICES=()
 STOP_ALL=false
+STOP_DOCKER_CONTAINERS=false
 
 if [ $# -eq 0 ]; then
     STOP_ALL=true
@@ -47,11 +49,15 @@ else
             order|order-service)
                 TARGET_SERVICES+=("order")
                 ;;
+            audit|audit-service)
+                TARGET_SERVICES+=("audit")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
             all)
                 STOP_ALL=true
+                STOP_DOCKER_CONTAINERS=true
                 ;;
             *)
                 echo "❌ Unknown service: $arg"
@@ -64,8 +70,9 @@ else
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
                 echo "  order            - Order Service"
+                echo "  audit            - Audit Service"
                 echo "  frontend         - Frontend (Next.js)"
-                echo "  all              - All services (default)"
+                echo "  all              - All services and docker containers"
                 echo ""
                 exit 1
                 ;;
@@ -126,6 +133,7 @@ TENANT_SERVICE_PORT=${TENANT_SERVICE_PORT:-8084}
 NOTIFICATION_SERVICE_PORT=${NOTIFICATION_SERVICE_PORT:-8085}
 PRODUCT_SERVICE_PORT=${PRODUCT_SERVICE_PORT:-8086}
 ORDER_SERVICE_PORT=${ORDER_SERVICE_PORT:-8087}
+AUDIT_SERVICE_PORT=${AUDIT_SERVICE_PORT:-8088}
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
 # Map ports to services
@@ -137,11 +145,12 @@ PORT_SERVICE_MAP[$TENANT_SERVICE_PORT]="tenant"
 PORT_SERVICE_MAP[$NOTIFICATION_SERVICE_PORT]="notification"
 PORT_SERVICE_MAP[$PRODUCT_SERVICE_PORT]="product"
 PORT_SERVICE_MAP[$ORDER_SERVICE_PORT]="order"
+PORT_SERVICE_MAP[$AUDIT_SERVICE_PORT]="audit"
 PORT_SERVICE_MAP[$FRONTEND_PORT]="frontend"
 
 STOPPED_PORTS=()
 
-for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $FRONTEND_PORT; do
+for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $FRONTEND_PORT; do
     service_name=${PORT_SERVICE_MAP[$port]}
     
     if should_stop_service "$service_name"; then
@@ -196,6 +205,12 @@ fi
 if should_stop_service "product"; then
     LOG_FILES+=("/tmp/product-service.log")
 fi
+if should_stop_service "order"; then
+    LOG_FILES+=("/tmp/order-service.log")
+fi
+if should_stop_service "audit"; then
+    LOG_FILES+=("/tmp/audit-service.log")
+fi
 if should_stop_service "frontend"; then
     LOG_FILES+=("/tmp/frontend.log")
 fi
@@ -234,6 +249,28 @@ else
     echo "ℹ️  No log files found"
 fi
 
+# Stop Docker containers (PostgreSQL, Redis, Vault, Observability) if requested
+if [ "$STOP_DOCKER_CONTAINERS" = true ]; then 
+    echo ""
+    
+    echo "🛑 Stopping Docker containers (PostgreSQL, Redis)..."
+    cd "$PROJECT_ROOT"
+    docker compose down
+    sleep 1
+
+    echo "🛑 Stopping Vault..."
+    cd "$PROJECT_ROOT/vault"
+    docker compose down
+    sleep 1
+
+    echo "🛑 Stopping Observability..."
+    cd "$PROJECT_ROOT/observability"
+    docker compose down
+    sleep 1
+    
+    echo "✅ Docker containers stopped"
+fi
+
 echo ""
 echo "=========================================="
 echo "✨ Services stopped successfully!"
@@ -241,7 +278,7 @@ echo ""
 
 if [ "$STOP_ALL" = true ]; then
     echo "📊 Summary:"
-    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $FRONTEND_PORT"
+    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $ORDER_SERVICE_PORT, $AUDIT_SERVICE_PORT, $FRONTEND_PORT"
 else
     if [ ${#STOPPED_PORTS[@]} -gt 0 ]; then
         echo "📊 Summary:"

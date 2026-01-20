@@ -37,6 +37,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T064)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	// Database connection
@@ -56,7 +59,10 @@ func main() {
 	e.GET("/ready", api.ReadyCheck)
 
 	// Notification service
-	notificationService := services.NewNotificationService(db)
+	notificationService, err := services.NewNotificationService(db)
+	if err != nil {
+		log.Fatalf("Failed to create notification service: %v", err)
+	}
 
 	// Notification config service
 	notificationConfigService := services.NewNotificationConfigService(db)
@@ -101,7 +107,10 @@ func main() {
 	go consumer.Start(ctx)
 
 	// Start retry worker in background
-	retryWorker := services.NewRetryWorker(db, notificationService)
+	retryWorker, err := services.NewRetryWorker(db, notificationService)
+	if err != nil {
+		log.Fatalf("Failed to create retry worker: %v", err)
+	}
 	go retryWorker.Start(ctx)
 
 	// Graceful shutdown

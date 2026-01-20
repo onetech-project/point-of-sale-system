@@ -1,0 +1,12 @@
+{
+  "name": "pos-automation-scripts",
+  "version": "1.0.0",
+  "description": "Real browser automation scripts for POS system end-to-end testing",
+  "scripts": {
+    "register": "node --env-file=.env ./src/user-registration-flow.js",
+    "guest-checkout": "node --env-file=.env ./src/guest-checkout-flow.js"
+  },
+  "dependencies": {
+    "puppeteer": "^24.35.0"
+  }
+}

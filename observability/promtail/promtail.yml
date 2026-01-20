@@ -16,3 +16,11 @@ scrape_configs:
         target_label: env
       - source_labels: [__meta_docker_container_label_service]
         target_label: service
+
+  # for development logs
+  - job_name: service-logs
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: service-log
+          __path__: /host-tmp/*.log

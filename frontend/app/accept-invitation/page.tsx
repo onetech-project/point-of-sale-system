@@ -4,6 +4,7 @@ import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import userService from '@/services/user';
 import PublicLayout from '@/components/layout/PublicLayout';
+import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
 function AcceptInvitationForm() {
   const router = useRouter();
@@ -16,6 +17,8 @@ function AcceptInvitationForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
   const [passwordStrength, setPasswordStrength] = useState({
     minLength: false,
     hasLetterAndNumber: false,
@@ -36,6 +39,7 @@ function AcceptInvitationForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setConsentError('');
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -57,13 +61,34 @@ function AcceptInvitationForm() {
       return;
     }
 
+    // Validate required consents
+    const requiredConsents = Object.entries(consents).filter(([key, value]) => {
+      // Operational, third_party_midtrans are required for tenant users
+      return ['operational', 'third_party_midtrans'].includes(key);
+    });
+
+    const hasAllRequiredConsents = requiredConsents.every(([, value]) => value === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError('You must accept all required consents to proceed.');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Get granted optional consents only
+      const grantedOptionalConsents = Object.entries(consents)
+        .filter(([key, granted]) => {
+          const isOptional = !['operational', 'third_party_midtrans'].includes(key);
+          return isOptional && granted;
+        })
+        .map(([purpose_code]) => purpose_code);
+
       await userService.acceptInvitation(token, {
         firstName,
         lastName,
         password,
+        consents: grantedOptionalConsents,
       });
 
       // Redirect to login with success message
@@ -214,6 +239,23 @@ function AcceptInvitationForm() {
                   className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
                   placeholder="Re-enter password"
                 />
+              </div>
+
+              {/* Consent Purposes Section */}
+              <div className="pt-4 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">
+                  Data Processing Consent
+                </h3>
+                <ConsentPurposeList
+                  context="tenant"
+                  onConsentChange={setConsents}
+                  initialConsents={consents}
+                  showError={!!consentError}
+                  errorMessage={consentError}
+                />
+                {consentError && (
+                  <p className="mt-2 text-sm text-red-600">{consentError}</p>
+                )}
               </div>
 
               <div className="pt-4">

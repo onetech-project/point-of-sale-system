@@ -13,6 +13,7 @@ import (
 	"github.com/pos/auth-service/src/models"
 	"github.com/pos/auth-service/src/queue"
 	"github.com/pos/auth-service/src/repository"
+	"github.com/pos/auth-service/src/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,27 +22,46 @@ type PasswordResetService struct {
 	resetRepo      *repository.PasswordResetRepository
 	userDB         *sql.DB
 	eventPublisher *queue.EventPublisher
+	encryptor      utils.Encryptor
 }
 
-func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, userDB *sql.DB, eventPublisher *queue.EventPublisher) *PasswordResetService {
+func NewPasswordResetService(resetRepo *repository.PasswordResetRepository, userDB *sql.DB, eventPublisher *queue.EventPublisher, encryptor utils.Encryptor) *PasswordResetService {
 	return &PasswordResetService{
 		resetRepo:      resetRepo,
 		userDB:         userDB,
 		eventPublisher: eventPublisher,
+		encryptor:      encryptor,
 	}
 }
 
 func (s *PasswordResetService) RequestReset(email string) (string, error) {
+	// Encrypt email for database lookup (deterministic encryption)
+	ctx := context.Background()
+	encryptedEmail, err := s.encryptor.EncryptWithContext(ctx, email, "user:email")
+	if err != nil {
+		return "", err
+	}
+
 	var userID uuid.UUID
 	var tenantID uuid.UUID
-	var firstName string
-	var lastName string
+	var encryptedFirstName string
+	var encryptedLastName string
 	query := `SELECT id, tenant_id, first_name, last_name FROM users WHERE email = $1`
-	err := s.userDB.QueryRow(query, email).Scan(&userID, &tenantID, &firstName, &lastName)
+	err = s.userDB.QueryRow(query, encryptedEmail).Scan(&userID, &tenantID, &encryptedFirstName, &encryptedLastName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil
 		}
+		return "", err
+	}
+
+	// Decrypt first_name and last_name
+	firstName, err := s.encryptor.DecryptWithContext(ctx, encryptedFirstName, "user:first_name")
+	if err != nil {
+		return "", err
+	}
+	lastName, err := s.encryptor.DecryptWithContext(ctx, encryptedLastName, "user:last_name")
+	if err != nil {
 		return "", err
 	}
 
@@ -73,7 +93,6 @@ func (s *PasswordResetService) RequestReset(email string) (string, error) {
 
 	// Publish event to notification service
 	name := firstName + " " + lastName
-	ctx := context.Background()
 	if err := s.eventPublisher.PublishPasswordResetRequested(ctx, tenantID.String(), userID.String(), email, name, token); err != nil {
 		// Log error but don't fail the request
 		log.Printf("Error publishing password reset event: %v", err)
@@ -111,9 +130,24 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	}
 
 	// Get user details for notification
-	var email, firstName, lastName string
+	var encryptedEmail, encryptedFirstName, encryptedLastName string
 	query := `SELECT email, first_name, last_name FROM users WHERE id = $1 AND tenant_id = $2`
-	err = s.userDB.QueryRow(query, resetToken.UserID, resetToken.TenantID).Scan(&email, &firstName, &lastName)
+	err = s.userDB.QueryRow(query, resetToken.UserID, resetToken.TenantID).Scan(&encryptedEmail, &encryptedFirstName, &encryptedLastName)
+	if err != nil {
+		return err
+	}
+
+	// Decrypt email, first_name, and last_name
+	ctx := context.Background()
+	email, err := s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
+	if err != nil {
+		return err
+	}
+	firstName, err := s.encryptor.DecryptWithContext(ctx, encryptedFirstName, "user:first_name")
+	if err != nil {
+		return err
+	}
+	lastName, err := s.encryptor.DecryptWithContext(ctx, encryptedLastName, "user:last_name")
 	if err != nil {
 		return err
 	}
@@ -136,7 +170,6 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 
 	// Publish password changed event
 	name := firstName + " " + lastName
-	ctx := context.Background()
 	if err := s.eventPublisher.PublishPasswordChanged(ctx, resetToken.TenantID.String(), resetToken.UserID.String(), email, name); err != nil {
 		// Log error but don't fail the request
 		log.Printf("Error publishing password changed event: %v", err)

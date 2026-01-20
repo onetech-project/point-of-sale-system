@@ -41,6 +41,9 @@ func main() {
 	// Trace → Log bridge
 	e.Use(middleware.TraceLogger)
 
+	// Logging with PII masking (T061)
+	e.Use(middleware.LoggingMiddleware)
+
 	middleware.MetricsMiddleware(e)
 
 	// Database connection
@@ -88,7 +91,25 @@ func main() {
 	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
 	defer eventPublisher.Close()
 
-	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
+	// Initialize AuditPublisher for audit trail (T103, T104)
+	auditTopic := utils.GetEnv("KAFKA_AUDIT_TOPIC")
+	serviceName := utils.GetEnv("SERVICE_NAME")
+	auditPublisher, err := utils.NewAuditPublisher(serviceName, kafkaBrokers, auditTopic)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuditPublisher: %v", err)
+	}
+	defer auditPublisher.Close()
+
+	authService, err := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuthService: %v", err)
+	}
+
+	// Initialize VaultClient for password reset service
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		log.Fatalf("Failed to initialize VaultClient for password reset: %v", err)
+	}
 
 	// Health checks
 	e.GET("/health", api.HealthCheck)
@@ -109,8 +130,11 @@ func main() {
 	e.POST("/verify-account", accountVerificationHandler.VerifyAccount)
 
 	// Password reset endpoints
-	passwordResetRepo := repository.NewPasswordResetRepository(db)
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
+	passwordResetRepo, err := repository.NewPasswordResetRepositoryWithVault(db)
+	if err != nil {
+		log.Fatalf("Failed to initialize PasswordResetRepository: %v", err)
+	}
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher, vaultClient)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)

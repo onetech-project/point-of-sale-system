@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pos/user-service/src/repository"
+	"github.com/pos/user-service/src/utils"
 )
 
 // UserService handles user-related business logic
@@ -14,10 +15,23 @@ type UserService struct {
 	db       *sql.DB
 }
 
-// NewUserService creates a new user service
-func NewUserService(db *sql.DB) *UserService {
+// NewUserService creates a new user service with a real VaultClient (production use)
+func NewUserService(db *sql.DB, auditPublisher utils.AuditPublisherInterface) (*UserService, error) {
+	userRepo, err := repository.NewUserRepositoryWithVault(db, auditPublisher)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user repository: %w", err)
+	}
 	return &UserService{
-		userRepo: repository.NewUserRepository(db),
+		userRepo: userRepo,
+		db:       db,
+	}, nil
+}
+
+// NewUserServiceWithRepository creates a user service with an injected repository (testing use)
+// This allows you to inject a repository with a mock Encryptor for unit testing
+func NewUserServiceWithRepository(db *sql.DB, userRepo *repository.UserRepository) *UserService {
+	return &UserService{
+		userRepo: userRepo,
 		db:       db,
 	}
 }
@@ -26,11 +40,12 @@ func NewUserService(db *sql.DB) *UserService {
 func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]map[string]interface{}, error) {
 	ctx := context.Background()
 
-	// Query to get all users with notification preferences
+	// Query to get all users with encrypted PII fields
 	query := `
 		SELECT 
 			id,
-			(first_name) || ' ' || (last_name) AS name,
+			first_name,
+			last_name,
 			email,
 			role,
 			receive_order_notifications,
@@ -38,7 +53,7 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 			updated_at
 		FROM users
 		WHERE tenant_id = $1
-		ORDER BY name ASC
+		ORDER BY created_at DESC
 	`
 
 	rows, err := s.db.QueryContext(ctx, query, tenantID)
@@ -51,17 +66,42 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 	for rows.Next() {
 		var (
 			id                        string
-			name                      string
-			email                     string
+			encryptedFirstName        sql.NullString
+			encryptedLastName         sql.NullString
+			encryptedEmail            string
 			role                      string
 			receiveOrderNotifications bool
 			createdAt                 string
 			updatedAt                 string
 		)
 
-		if err := rows.Scan(&id, &name, &email, &role, &receiveOrderNotifications, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &encryptedFirstName, &encryptedLastName, &encryptedEmail, &role, &receiveOrderNotifications, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
+
+		// Decrypt PII fields
+		var firstName, lastName string
+		if encryptedFirstName.Valid && encryptedFirstName.String != "" {
+			firstName, err = s.userRepo.DecryptFieldWithContext(ctx, encryptedFirstName.String, "user:first_name")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt first_name for user %s: %w", id, err)
+			}
+		}
+
+		if encryptedLastName.Valid && encryptedLastName.String != "" {
+			lastName, err = s.userRepo.DecryptFieldWithContext(ctx, encryptedLastName.String, "user:last_name")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt last_name for user %s: %w", id, err)
+			}
+		}
+
+		email, err := s.userRepo.DecryptFieldWithContext(ctx, encryptedEmail, "user:email")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt email for user %s: %w", id, err)
+		}
+
+		// Combine first and last name
+		name := fmt.Sprintf("%s %s", firstName, lastName)
 
 		users = append(users, map[string]interface{}{
 			"id":                          id,

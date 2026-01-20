@@ -14,15 +14,16 @@ import (
 	"github.com/pos/user-service/src/models"
 	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/repository"
+	"github.com/pos/user-service/src/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	ErrInvitationNotFound = errors.New("invitation not found")
-	ErrInvitationExpired  = errors.New("invitation expired")
-	ErrInvitationInvalid  = errors.New("invitation invalid")
+	ErrInvitationNotFound  = errors.New("invitation not found")
+	ErrInvitationExpired   = errors.New("invitation expired")
+	ErrInvitationInvalid   = errors.New("invitation invalid")
 	ErrEmailAlreadyInvited = errors.New("email already invited")
-	ErrEmailAlreadyExists = errors.New("email already registered")
+	ErrEmailAlreadyExists  = errors.New("email already registered")
 )
 
 type InvitationService struct {
@@ -32,13 +33,23 @@ type InvitationService struct {
 	eventProducer  *queue.KafkaProducer
 }
 
-func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationService {
+func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer, auditPublisher utils.AuditPublisherInterface) (*InvitationService, error) {
+	userRepo, err := repository.NewUserRepositoryWithVault(db, auditPublisher)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user repository: %w", err)
+	}
+
+	invitationRepo, err := repository.NewInvitationRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invitation repository: %w", err)
+	}
+
 	return &InvitationService{
-		invitationRepo: repository.NewInvitationRepository(db),
-		userRepo:       repository.NewUserRepository(db),
+		invitationRepo: invitationRepo,
+		userRepo:       userRepo,
 		db:             db,
 		eventProducer:  eventProducer,
-	}
+	}, nil
 }
 
 func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, invitedByID string) (*models.Invitation, error) {
@@ -149,7 +160,7 @@ func (s *InvitationService) List(ctx context.Context, tenantID string) ([]*model
 	return invitations, nil
 }
 
-func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastName, password string) (*models.User, error) {
+func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastName, password string, consents []string, ipAddress, userAgent string) (*models.User, error) {
 	// Find invitation by token
 	invitation, err := s.invitationRepo.FindByToken(ctx, token)
 	if err != nil {
@@ -206,6 +217,37 @@ func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastNa
 	// Mark invitation as accepted
 	if err := s.invitationRepo.MarkAccepted(ctx, invitation.ID); err != nil {
 		return nil, fmt.Errorf("failed to mark invitation as accepted: %w", err)
+	}
+
+	// Publish ConsentGrantedEvent to Kafka (async, after user creation)
+	if s.eventProducer != nil {
+		go func() {
+			// Required consents for tenant users (implicit)
+			requiredConsents := []string{"operational", "third_party_midtrans"}
+			
+			consentEvent := events.ConsentGrantedEvent{
+				EventID:          uuid.New().String(),
+				EventType:        "consent.granted",
+				TenantID:         user.TenantID,
+				SubjectType:      "tenant",
+				SubjectID:        user.ID,
+				ConsentMethod:    "registration", // Invitation acceptance is similar to registration
+				PolicyVersion:    "1.0.0",
+				Consents:         consents,          // Optional consents provided by user
+				RequiredConsents: requiredConsents,  // Required consents (implicit)
+				Metadata: events.ConsentMetadata{
+					IPAddress: ipAddress,
+					UserAgent: userAgent,
+					SessionID: nil,
+					RequestID: "", // TODO: Extract from context
+				},
+				Timestamp: time.Now(),
+			}
+
+			if err := s.eventProducer.Publish(context.Background(), user.ID, consentEvent); err != nil {
+				fmt.Printf("Warning: failed to publish consent event: %v\n", err)
+			}
+		}()
 	}
 
 	return user, nil

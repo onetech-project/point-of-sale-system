@@ -120,6 +120,9 @@ export default function CheckoutPage() {
         data
       );
 
+      // Consents are now sent with the order creation request
+      // No separate API call needed - backend publishes ConsentGrantedEvent
+
       // T068: Redirect to order confirmation page
       // The order confirmation page will display the QR code for payment
       // Customer can scan and pay directly on the order detail page

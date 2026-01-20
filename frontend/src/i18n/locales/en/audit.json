@@ -1,0 +1,30 @@
+{
+  "audit": {
+    "title": "Audit Trail",
+    "load_error": "Failed to load audit trail",
+    "no_events": "No audit events found",
+    "events": "events",
+    "filter": {
+      "action": "Action",
+      "resource_type": "Resource Type",
+      "start_date": "Start Date",
+      "end_date": "End Date",
+      "all_actions": "All Actions",
+      "all_resources": "All Resources"
+    },
+    "table": {
+      "timestamp": "Timestamp",
+      "actor": "Actor",
+      "action": "Action",
+      "resource": "Resource",
+      "ip_address": "IP Address",
+      "details": "Details"
+    },
+    "show_details": "Show",
+    "hide_details": "Hide",
+    "before_value": "Before Value",
+    "after_value": "After Value",
+    "metadata": "Metadata",
+    "user_agent": "User Agent"
+  }
+}

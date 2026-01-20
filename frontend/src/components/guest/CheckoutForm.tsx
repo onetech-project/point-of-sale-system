@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { tenant } from '../../services/tenant';
 import DeliveryTypeSelector from './DeliveryTypeSelector';
 import AddressInput from './AddressInput';
+import ConsentPurposeList from '../consent/ConsentPurposeList';
 import { useTranslation } from 'react-i18next';
 import { CheckoutData, TenantConfig } from '../../types/checkout';
 import { formatPrice } from '../../utils/format';
@@ -21,7 +22,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
   loading = false,
   estimatedDeliveryFee = 0, // T084: Default to 0
 }) => {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'consent']);
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [formData, setFormData] = useState<CheckoutData>({
@@ -34,6 +35,8 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
     notes: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
 
   useEffect(() => {
     fetchTenantConfig();
@@ -103,7 +106,16 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       }
     }
 
+    // Validate required consents (order_processing and payment_processing_midtrans)
+    const requiredConsentCodes = ['order_processing', 'payment_processing_midtrans'];
+    const hasAllRequiredConsents = requiredConsentCodes.every(code => consents[code] === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return false;
+    }
+
     setErrors(newErrors);
+    setConsentError('');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -114,6 +126,16 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       return;
     }
 
+    // Get granted optional consents only (required consents are implicit on backend)
+    const grantedOptionalConsents = Object.entries(consents)
+      .filter(([key, granted]) => {
+        // Only include optional consents that were granted
+        // Required consents (order_processing, payment_processing_midtrans) are NOT sent (backend enforces)
+        const isOptional = !['order_processing', 'payment_processing_midtrans'].includes(key);
+        return isOptional && granted;
+      })
+      .map(([purpose_code]) => purpose_code); // Array of consent codes only
+
     // Clean up data based on delivery type
     const submitData: CheckoutData = {
       delivery_type: formData.delivery_type,
@@ -121,6 +143,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       customer_phone: formData.customer_phone.replace(/[\s-]/g, ''),
       customer_email: formData.customer_email?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
+      consents: grantedOptionalConsents, // Simplified payload - only optional consent codes
     };
 
     if (formData.delivery_type === 'delivery') {
@@ -168,6 +191,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.yourName')} <span className="text-red-500">*</span>
             </label>
             <input
+              data-testid="customer-name-input"
               type="text"
               value={formData.customer_name}
               onChange={(e) => {
@@ -189,6 +213,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.phoneNumber')} <span className="text-red-500">*</span>
             </label>
             <input
+              data-testid="customer-phone-input"
               type="tel"
               value={formData.customer_phone}
               onChange={(e) => {
@@ -210,6 +235,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.email')} <span className="text-gray-500 text-xs">(optional for invoice)</span>
             </label>
             <input
+              data-testid="customer-email-input"
               type="email"
               value={formData.customer_email || ''}
               onChange={(e) => {
@@ -253,6 +279,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
               {t('common.checkout.form.tableNumber')}
             </label>
             <input
+              data-testid="table-number-input"
               type="text"
               value={formData.table_number || ''}
               onChange={(e) => setFormData({ ...formData, table_number: e.target.value })}
@@ -270,6 +297,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold mb-4">{t('common.checkout.form.additionalNotes')}</h2>
         <textarea
+          data-testid="additional-notes-input"
           value={formData.notes || ''}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           rows={3}
@@ -337,8 +365,26 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </div>
       </div>
 
+      {/* Consent Collection Section */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-lg font-semibold mb-4">
+          {t('common.checkout.form.dataConsent', 'Data Privacy Consent')}
+        </h2>
+        <ConsentPurposeList
+          context="guest"
+          onConsentChange={(newConsents) => {
+            setConsents(newConsents);
+            if (consentError) setConsentError('');
+          }}
+          initialConsents={consents}
+          showError={!!consentError}
+          errorMessage={consentError}
+        />
+      </div>
+
       {/* Submit Button */}
       <button
+        data-testid="proceed-to-payment-button"
         type="submit"
         disabled={loading}
         className={`w-full py-4 rounded-lg font-semibold text-white transition-colors ${loading

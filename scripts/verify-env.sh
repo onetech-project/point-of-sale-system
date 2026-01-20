@@ -29,6 +29,9 @@ files=(
     "backend/notification-service/.env"
     "backend/product-service/.env"
     "backend/order-service/.env"
+    "backend/audit-service/.env"
+    "observability/.env"
+    "vault/.env"
     "frontend/.env.local"
 )
 
@@ -110,8 +113,28 @@ fi
 
 echo ""
 
+# Check Vault configuration
+echo "5. Checking Vault configuration..."
+echo ""
+
+vault_addr=$(grep "^VAULT_ADDR=" backend/auth-service/.env | cut -d= -f2)
+vault_token=$(grep "^VAULT_TOKEN=" backend/auth-service/.env | cut -d= -f2)
+if [ -n "$vault_addr" ] && [ -n "$vault_token" ]; then
+    echo -e "  ${GREEN}✓${NC} Vault configured"
+    echo "    Address: $vault_addr"
+    if [ "$vault_token" = "hvs.XXX" ]; then
+        echo -e "  ${YELLOW}⚠️  WARNING: Using default Vault token${NC}"
+        echo -e "     ${YELLOW}Change this for production!${NC}"
+    fi
+else
+    echo -e "  ${RED}✗${NC} Vault not properly configured"
+    exit 1
+fi
+
+echo ""
+
 # Check API URL in frontend
-echo "5. Checking frontend API URL..."
+echo "6. Checking frontend API URL..."
 echo ""
 
 api_url=$(grep "^NEXT_PUBLIC_API_URL=" frontend/.env.local | cut -d= -f2)
@@ -133,8 +156,10 @@ echo "📝 Recommendations:"
 echo ""
 echo "  1. Review and update JWT_SECRET for production"
 echo "  2. Update database password for production"
-echo "  3. Configure SMTP settings for email"
-echo "  4. Set ENVIRONMENT=production when deploying"
+echo "  3. Update Vault token for production"
+echo "  4. Configure SMTP settings for email"
+echo "  5. Set ENVIRONMENT=production when deploying"
+echo "  6. Review all service-specific configurations"
 echo ""
 echo "📖 For more details, see: docs/ENVIRONMENT.md"
 echo ""

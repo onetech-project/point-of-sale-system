@@ -19,6 +19,7 @@ export interface AcceptInvitationRequest {
   firstName: string;
   lastName: string;
   password: string;
+  consents?: string[];
 }
 
 class UserService {

@@ -20,7 +20,9 @@ services:
 
 volumes:
   caddy_data:
+    name: pos_caddy_data
   caddy_config:
+    name: pos_caddy_config
 
 networks:
   pos-network:

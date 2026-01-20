@@ -3,35 +3,63 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/point-of-sale-system/order-service/src/models"
+	"github.com/point-of-sale-system/order-service/src/utils"
 	"github.com/rs/zerolog/log"
 )
 
 // OrderRepository handles database operations for orders
 type OrderRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
-// NewOrderRepository creates a new order repository
-func NewOrderRepository(db *sql.DB) *OrderRepository {
+// NewOrderRepository creates a new order repository with custom encryptor
+func NewOrderRepository(db *sql.DB, encryptor utils.Encryptor) *OrderRepository {
 	return &OrderRepository{
-		db: db,
+		db:        db,
+		encryptor: encryptor,
 	}
+}
+
+// NewOrderRepositoryWithVault creates a repository with Vault encryption (production)
+func NewOrderRepositoryWithVault(db *sql.DB) (*OrderRepository, error) {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault client: %w", err)
+	}
+	return NewOrderRepository(db, vaultClient), nil
+}
+
+// Helper function to decrypt pointer string fields
+func (r *OrderRepository) decryptToStringPtr(ctx context.Context, encrypted string, encContext string) (*string, error) {
+	if encrypted == "" {
+		return nil, nil
+	}
+	decrypted, err := r.encryptor.DecryptWithContext(ctx, encrypted, encContext)
+	if err != nil {
+		return nil, err
+	}
+	return &decrypted, nil
 }
 
 // GetOrderByReference retrieves an order by its reference number
 func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReference string) (*models.GuestOrder, error) {
 	query := `
-SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
-       customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
-       created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
-FROM guest_orders
-WHERE order_reference = $1
-`
+		SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
+					customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
+					created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent, is_anonymized, anonymized_at
+		FROM guest_orders
+		WHERE order_reference = $1
+	`
 
 	var order models.GuestOrder
+	var encryptedName, encryptedPhone sql.NullString
+	var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+
 	err := r.db.QueryRowContext(ctx, query, orderReference).Scan(
 		&order.ID,
 		&order.OrderReference,
@@ -40,9 +68,9 @@ WHERE order_reference = $1
 		&order.SubtotalAmount,
 		&order.DeliveryFee,
 		&order.TotalAmount,
-		&order.CustomerName,
-		&order.CustomerPhone,
-		&order.CustomerEmail,
+		&encryptedName,
+		&encryptedPhone,
+		&encryptedEmail,
 		&order.DeliveryType,
 		&order.TableNumber,
 		&order.Notes,
@@ -51,12 +79,14 @@ WHERE order_reference = $1
 		&order.CompletedAt,
 		&order.CancelledAt,
 		&order.SessionID,
-		&order.IPAddress,
-		&order.UserAgent,
+		&encryptedIP,
+		&encryptedUA,
+		&order.IsAnonymized,
+		&order.AnonymizedAt,
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // Order not found
+		return nil, sql.ErrNoRows // Return error instead of (nil, nil)
 	}
 
 	if err != nil {
@@ -65,6 +95,33 @@ WHERE order_reference = $1
 			Str("order_reference", orderReference).
 			Msg("Failed to get order by reference")
 		return nil, err
+	}
+
+	// Decrypt PII fields
+	if encryptedName.Valid {
+		if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
+		}
+	}
+	if encryptedPhone.Valid {
+		if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
+		}
+	}
+	if encryptedEmail.Valid {
+		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
+		}
+	}
+	if encryptedIP.Valid && encryptedIP.String != "" {
+		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
+		}
+	}
+	if encryptedUA.Valid && encryptedUA.String != "" {
+		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
+		}
 	}
 
 	return &order, nil
@@ -81,6 +138,9 @@ WHERE id = $1
 `
 
 	var order models.GuestOrder
+	var encryptedName, encryptedPhone sql.NullString
+	var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+
 	err := r.db.QueryRowContext(ctx, query, orderID).Scan(
 		&order.ID,
 		&order.OrderReference,
@@ -89,9 +149,9 @@ WHERE id = $1
 		&order.SubtotalAmount,
 		&order.DeliveryFee,
 		&order.TotalAmount,
-		&order.CustomerName,
-		&order.CustomerPhone,
-		&order.CustomerEmail,
+		&encryptedName,
+		&encryptedPhone,
+		&encryptedEmail,
 		&order.DeliveryType,
 		&order.TableNumber,
 		&order.Notes,
@@ -100,12 +160,12 @@ WHERE id = $1
 		&order.CompletedAt,
 		&order.CancelledAt,
 		&order.SessionID,
-		&order.IPAddress,
-		&order.UserAgent,
+		&encryptedIP,
+		&encryptedUA,
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // Order not found
+		return nil, sql.ErrNoRows // Return error instead of (nil, nil)
 	}
 
 	if err != nil {
@@ -114,6 +174,33 @@ WHERE id = $1
 			Str("order_id", orderID).
 			Msg("Failed to get order by ID")
 		return nil, err
+	}
+
+	// Decrypt PII fields
+	if encryptedName.Valid {
+		if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
+		}
+	}
+	if encryptedPhone.Valid {
+		if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
+		}
+	}
+	if encryptedEmail.Valid {
+		if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
+		}
+	}
+	if encryptedIP.Valid && encryptedIP.String != "" {
+		if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
+		}
+	}
+	if encryptedUA.Valid && encryptedUA.String != "" {
+		if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
+			return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
+		}
 	}
 
 	return &order, nil
@@ -224,6 +311,9 @@ WHERE tenant_id = $1
 	orders := []*models.GuestOrder{}
 	for rows.Next() {
 		var order models.GuestOrder
+		var encryptedName, encryptedPhone sql.NullString
+		var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+
 		err := rows.Scan(
 			&order.ID,
 			&order.OrderReference,
@@ -232,9 +322,9 @@ WHERE tenant_id = $1
 			&order.SubtotalAmount,
 			&order.DeliveryFee,
 			&order.TotalAmount,
-			&order.CustomerName,
-			&order.CustomerPhone,
-			&order.CustomerEmail,
+			&encryptedName,
+			&encryptedPhone,
+			&encryptedEmail,
 			&order.DeliveryType,
 			&order.TableNumber,
 			&order.Notes,
@@ -243,13 +333,46 @@ WHERE tenant_id = $1
 			&order.CompletedAt,
 			&order.CancelledAt,
 			&order.SessionID,
-			&order.IPAddress,
-			&order.UserAgent,
+			&encryptedIP,
+			&encryptedUA,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan order row")
 			return nil, err
 		}
+
+		// Decrypt PII fields
+		if encryptedName.Valid {
+			if order.CustomerName, err = r.encryptor.DecryptWithContext(ctx, encryptedName.String, "guest_order:customer_name"); err != nil {
+				log.Error().Err(err).Msg("Failed to decrypt customer_name")
+				return nil, fmt.Errorf("failed to decrypt customer_name: %w", err)
+			}
+		}
+		if encryptedPhone.Valid {
+			if order.CustomerPhone, err = r.encryptor.DecryptWithContext(ctx, encryptedPhone.String, "guest_order:customer_phone"); err != nil {
+				log.Error().Err(err).Msg("Failed to decrypt customer_phone")
+				return nil, fmt.Errorf("failed to decrypt customer_phone: %w", err)
+			}
+		}
+		if encryptedEmail.Valid {
+			if order.CustomerEmail, err = r.decryptToStringPtr(ctx, encryptedEmail.String, "guest_order:customer_email"); err != nil {
+				log.Error().Err(err).Msg("Failed to decrypt customer_email")
+				return nil, fmt.Errorf("failed to decrypt customer_email: %w", err)
+			}
+		}
+		if encryptedIP.Valid {
+			if order.IPAddress, err = r.decryptToStringPtr(ctx, encryptedIP.String, "guest_order:ip_address"); err != nil {
+				log.Error().Err(err).Msg("Failed to decrypt ip_address")
+				return nil, fmt.Errorf("failed to decrypt ip_address: %w", err)
+			}
+		}
+		if encryptedUA.Valid {
+			if order.UserAgent, err = r.decryptToStringPtr(ctx, encryptedUA.String, "guest_order:user_agent"); err != nil {
+				log.Error().Err(err).Msg("Failed to decrypt user_agent")
+				return nil, fmt.Errorf("failed to decrypt user_agent: %w", err)
+			}
+		}
+
 		orders = append(orders, &order)
 	}
 

@@ -1,0 +1,29 @@
+{
+  "page": {
+    "title": "Pengaturan Privasi",
+    "subtitle": "Kelola preferensi persetujuan Anda dan pengaturan privasi data"
+  },
+  "info": {
+    "title": "Tentang Pengaturan Persetujuan",
+    "description": "Anda dapat mencabut persetujuan opsional kapan saja. Persetujuan yang diperlukan untuk operasional layanan tidak dapat dicabut selama akun Anda aktif."
+  },
+  "consents": {
+    "title": "Persetujuan Anda",
+    "description": "Kelola persetujuan pengumpulan dan pemrosesan data Anda sesuai dengan UU PDP No.27 Tahun 2022.",
+    "required": "Wajib",
+    "cannot_revoke": "Persetujuan ini diperlukan untuk operasional layanan dan tidak dapat dicabut selama akun Anda aktif.",
+    "status": {
+      "granted": "Diberikan",
+      "revoked": "Dicabut"
+    }
+  },
+  "compliance": {
+    "title": "Kepatuhan UU PDP",
+    "description": "Semua perubahan persetujuan dicatat dalam jejak audit untuk kepatuhan terhadap Pasal 21 UU PDP No.27 Tahun 2022 (Hak untuk mencabut persetujuan)."
+  },
+  "loading": "Memuat...",
+  "error": {
+    "load_failed": "Gagal memuat data persetujuan",
+    "update_failed": "Gagal memperbarui persetujuan"
+  }
+}

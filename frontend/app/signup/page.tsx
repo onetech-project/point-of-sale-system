@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { authService } from '@/services/auth';
 import PublicLayout from '@/components/layout/PublicLayout';
+import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
 interface FormData {
   businessName: string;
@@ -26,7 +27,7 @@ interface FormErrors {
 }
 
 export default function SignupPage() {
-  const { t } = useTranslation(['auth', 'common']);
+  const { t } = useTranslation(['auth', 'common', 'consent']);
   const router = useRouter();
 
   const [formData, setFormData] = useState<FormData>({
@@ -48,6 +49,8 @@ export default function SignupPage() {
     hasUpperCase: false,
     hasSpecialChar: false,
   });
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -109,6 +112,7 @@ export default function SignupPage() {
     e.preventDefault();
     setServerError('');
     setStatus(null);
+    setConsentError('');
 
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
@@ -116,17 +120,41 @@ export default function SignupPage() {
       return;
     }
 
+    // Validate required consents
+    const requiredConsents = Object.entries(consents).filter(([key, value]) => {
+      // Operational, third_party_midtrans are required for tenant registration
+      return ['operational', 'third_party_midtrans'].includes(key);
+    });
+
+    const hasAllRequiredConsents = requiredConsents.every(([, value]) => value === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await authService.registerTenant({
+      // Get granted optional consents only (required consents are implicit on backend)
+      const grantedOptionalConsents = Object.entries(consents)
+        .filter(([key, granted]) => {
+          // Only include optional consents that were granted
+          // Required consents (operational, third_party_midtrans) are NOT sent (backend enforces)
+          const isOptional = !['operational', 'third_party_midtrans'].includes(key);
+          return isOptional && granted;
+        })
+        .map(([purpose_code]) => purpose_code); // Array of consent codes only
+
+      // Register tenant with consents in single request
+      const registrationResponse = await authService.registerTenant({
         businessName: formData.businessName,
         email: formData.email.toLowerCase(),
         password: formData.password,
         ownerProfile: {
           firstName: formData.firstName,
           lastName: formData.lastName
-        }
+        },
+        consents: grantedOptionalConsents, // Simplified payload
       });
 
       setStatus('success');
@@ -328,6 +356,23 @@ export default function SignupPage() {
                     {errors.confirmPassword && (
                       <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                     )}
+                  </div>
+
+                  {/* Consent Collection Section */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      {t('auth.signup.dataConsent', 'Data Privacy Consent')}
+                    </h3>
+                    <ConsentPurposeList
+                      context="tenant"
+                      onConsentChange={(newConsents) => {
+                        setConsents(newConsents);
+                        if (consentError) setConsentError('');
+                      }}
+                      initialConsents={consents}
+                      showError={!!consentError}
+                      errorMessage={consentError}
+                    />
                   </div>
 
                   <button
