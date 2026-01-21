@@ -554,7 +554,7 @@ func (s *NotificationService) handleGuestDataDeleted(ctx context.Context, event 
 
 	// Determine subject based on language
 	subject := "Data Deletion Confirmation"
-	merchantName := "POS System"
+	merchantName := "Posku"
 	if language == "id" {
 		subject = "Konfirmasi Penghapusan Data"
 	}
