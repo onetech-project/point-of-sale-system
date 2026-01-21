@@ -4,18 +4,25 @@ services:
     container_name: pos-vault
     entrypoint: ["/vault/scripts/vault-entrypoint.sh"]
     environment:
-      VAULT_ADDR: ${VAULT_ADDR}
+      VAULT_ENV: ${VAULT_ENV}
     ports:
       - "8200:8200"
     cap_add:
       - IPC_LOCK
     volumes:
       - vault_data:/vault/data
-      - ./vault-config.hcl:/vault/config/vault-config.hcl:ro
+      - ${HCL_CONFIG}:/vault/config/vault-config.hcl:ro
       - ./vault-init.sh:/vault/scripts/vault-init.sh:ro
       - ./vault-entrypoint.sh:/vault/scripts/vault-entrypoint.sh:ro
+      - ./tls:/vault/tls
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "VAULT_ADDR=https://vault:8200 VAULT_CACERT=/vault/tls/ca.crt vault status"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -152,6 +152,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/order-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8087:8080"
     healthcheck:
@@ -189,6 +191,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/auth-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8082:8080"
     healthcheck:
@@ -222,6 +226,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/notification-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8085:8080"
     healthcheck:
@@ -259,6 +265,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/product-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8086:8080"
     healthcheck:
@@ -294,6 +302,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/tenant-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8084:8080"
     healthcheck:
@@ -329,6 +339,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/user-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8083:8080"
     healthcheck:
@@ -364,6 +376,8 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/audit-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8088:8080"
     healthcheck:
@@ -397,6 +411,8 @@ services:
         condition: service_healthy
     env_file:
       - ./api-gateway/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
     ports:
       - "8080:8080"
     healthcheck:
