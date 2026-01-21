@@ -17,8 +17,10 @@ if (!fs.existsSync(resultPath)){
   fs.mkdirSync(resultPath, { recursive: true });
 }
 
+const { BASE_URL, BUSINESS_NAME, FIRST_NAME, LAST_NAME, EMAIL, PASSWORD } = process.env;
+
 const config = {
-  baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+  baseUrl: BASE_URL || 'http://localhost:3000',
   headless: false, // Show browser
   slowMo: 10, // Slow down by 10ms to see actions
 };
@@ -27,11 +29,11 @@ const config = {
 function generateUserData() {
   const timestamp = Date.now();
   return {
-    businessName: `Test Business ${timestamp}`,
-    email: `owner.business${timestamp}@yopmail.com`,
-    firstName: 'Owner',
-    lastName: `Business ${timestamp}`,
-    password: 'P@ssw0rd',
+    businessName: BUSINESS_NAME || `Test Business ${timestamp}`,
+    email: EMAIL || `owner.business${timestamp}@yopmail.com`,
+    firstName: FIRST_NAME || 'Owner',
+    lastName: LAST_NAME || `Business ${timestamp}`,
+    password: PASSWORD || 'P@ssw0rd',
     ts: timestamp
   };
 }

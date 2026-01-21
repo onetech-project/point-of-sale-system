@@ -11,7 +11,7 @@ sleep 5
 
 # Run initialization script
 echo "Running initialization..."
-/vault/scripts/vault-init.sh
+/vault/scripts/vault-init.sh ${VAULT_ENV}
 
 # Keep container running by waiting for Vault process
 wait $VAULT_PID
