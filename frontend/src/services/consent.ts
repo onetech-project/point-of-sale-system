@@ -169,7 +169,11 @@ class ConsentService {
         policy_text_id: string;
         effective_date: string;
       };
-    }>('/api/v1/privacy-policy');
+    }>('/api/v1/privacy-policy', {
+      headers: {
+        'Accept-Language': localStorage.getItem('locale') || 'en',
+      },
+    });
     return response.data;
   }
 

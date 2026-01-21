@@ -6,7 +6,7 @@ import '@/styles/globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'POS System',
+  title: 'Posku',
   description: 'Modern Point of Sale System',
 };
 
