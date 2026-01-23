@@ -143,22 +143,30 @@ services:
     restart: "no"
   
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    image: gcr.io/cadvisor/cadvisor:latest
     container_name: pos-cadvisor
     restart: on-failure:5
+    networks:
+      - pos-network
     deploy:
       resources:
         limits:
           memory: 256M
         reservations:
           memory: 128M
-    networks:
-      - pos-network
+    command:
+      - "-store_container_labels=true"
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /cgroup/cpu:/cgroup/cpu
+      - /cgroup/cpuacct:/cgroup/cpuacct
+      - /cgroup/cpuset:/cgroup/cpuset
+      - /cgroup/memory:/cgroup/memory
+      - /cgroup/blkio:/cgroup/blkio
+      - /dev/disk/:/dev/disk:ro
 
 volumes:
   grafana_data:
