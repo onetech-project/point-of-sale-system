@@ -30,6 +30,7 @@ files=(
     "backend/product-service/.env"
     "backend/order-service/.env"
     "backend/audit-service/.env"
+    "backend/analytics-service/.env"
     "observability/.env"
     "vault/.env"
     "frontend/.env.local"

@@ -90,6 +90,15 @@ else
     echo "✓ backend/audit-service/.env already exists"
 fi
 
+# Analytics Service
+if [ ! -f "backend/analytics-service/.env" ]; then
+    echo "Creating backend/analytics-service/.env file..."
+    cp backend/analytics-service/.env.example backend/analytics-service/.env
+    echo "✓ Created backend/analytics-service/.env"
+else
+    echo "✓ backend/analytics-service/.env already exists"
+fi
+
 # Observability
 if [ ! -f "observability/.env" ]; then
     echo "Creating observability/.env file..."
@@ -133,6 +142,7 @@ echo "  - backend/notification-service/.env (email, SMS, Kafka, Vault config)"
 echo "  - backend/product-service/.env (Vault config)"
 echo "  - backend/order-service/.env (Midtrans, Google Maps, Vault config)"
 echo "  - backend/audit-service/.env (Kafka, Vault config)"
+echo "  - backend/analytics-service/.env (analytics DB, Vault config)"
 echo "  - observability/.env (Grafana, MinIO credentials)"
 echo "  - vault/.env (Vault token)"
 echo "  - frontend/.env.local (API URL)"

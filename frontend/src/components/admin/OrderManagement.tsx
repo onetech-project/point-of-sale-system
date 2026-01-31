@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { order, Order, OrderWithDetails } from '../../services/order';
-import { OrderItem, OrderNote } from '../../types/cart';
-import { formatCurrency, renderTextWithLinks } from '../../utils/text';
+import { renderTextWithLinks } from '../../utils/text';
+import { formatCurrency } from '../../utils/format';
 
 interface OrderManagementProps {
   // Removed tenantId - API Gateway extracts it from session

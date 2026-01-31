@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from '@/i18n/provider';
 import { product } from '@/services/product';
 import { InventorySummary } from '@/types/product';
-import { formatNumber, formatCompactNumber } from '@/utils/format';
+import { formatNumber, formatCompactNumber, formatPrice } from '@/utils/format';
 
 const InventoryDashboard: React.FC = () => {
   const { t } = useTranslation(['products', 'common']);
@@ -80,8 +80,8 @@ const InventoryDashboard: React.FC = () => {
     },
     {
       title: t('products.inventory.totalValue'),
-      value: formatNumber(summary.total_value, 0),
-      compactValue: formatCompactNumber(summary.total_value),
+      value: formatPrice(summary.total_value),
+      compactValue: formatPrice(summary.total_value, true),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path

@@ -400,6 +400,43 @@ services:
       prometheus.port: "8080"
       service: "audit-service"
       env: "development"
+
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: analytics-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./backend/analytics-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8089:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8089/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8089"
+      service: "analytics-service"
+      env: "development"
   
   api-gateway:
     build:

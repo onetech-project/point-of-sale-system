@@ -190,7 +190,17 @@ func (r *productRepository) FindLowStock(ctx context.Context, tenantID uuid.UUID
 }
 
 func (r *productRepository) HasSalesHistory(ctx context.Context, id uuid.UUID) (bool, error) {
-	return false, nil
+	query := `
+		SELECT EXISTS (
+			SELECT 1 FROM order_items oi
+			JOIN guest_orders go ON go.id = oi.order_id
+			WHERE oi.product_id = $1 AND go.status IN ('PAID', 'COMPLETED')
+			LIMIT 1
+		)
+	`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&exists)
+	return exists, err
 }
 
 func (r *productRepository) Count(ctx context.Context, tenantID uuid.UUID, filters map[string]interface{}) (int, error) {

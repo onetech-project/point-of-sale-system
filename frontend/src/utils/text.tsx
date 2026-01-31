@@ -26,16 +26,3 @@ export const renderTextWithLinks = (text: string): React.ReactNode => {
     return <span key={index}>{part}</span>;
   });
 };
-
-/**
- * Formats currency in IDR format
- * @param amount - Amount in smallest currency unit (cents/sen)
- * @returns Formatted currency string
- */
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
