@@ -436,7 +436,6 @@ Email delivery requires the following environment variables:
 The notification service implements comprehensive error handling:
 
 1. **Error Classification**: Errors are categorized as:
-
    - Connection errors (network issues)
    - Authentication errors (invalid credentials)
    - Timeout errors (request timeouts)
@@ -444,7 +443,6 @@ The notification service implements comprehensive error handling:
    - Rate limiting errors (SMTP provider limits)
 
 2. **Retry Logic**:
-
    - Retryable errors (connection, timeout, rate limit) are automatically retried
    - Exponential backoff: 2s, 4s, 8s delays between retries
    - Non-retryable errors (auth, invalid recipient) fail immediately
@@ -1162,3 +1160,485 @@ Generate compliance status report (admin only).
 - Added user notification preferences endpoints
 - Implemented comprehensive error handling and retry logic
 - Added monitoring metrics for email delivery
+
+### 2026-01-31
+
+- Added analytics service with business insights dashboard endpoints
+- Added sales overview endpoint with period comparison
+- Added top products endpoint with revenue and quantity rankings
+- Added top customers endpoint with PII masking
+- Added operational tasks endpoint (delayed orders, low stock alerts)
+- Added time series sales trend endpoint with configurable granularity
+- Implemented Redis caching for analytics queries with dynamic TTL
+- Added comprehensive query performance logging
+
+---
+
+## Analytics Service API
+
+Base URL: `http://api-gateway:8080/api/v1`
+
+**Authentication**: All endpoints require JWT authentication  
+**Authorization**: Tenant Owner role required for all analytics endpoints  
+**Tenant Isolation**: All queries automatically filtered by authenticated user's tenant_id
+
+---
+
+### Get Sales Overview
+
+Get comprehensive sales analytics including metrics, trends, and category breakdown.
+
+**Endpoint**: `GET /analytics/overview`
+
+**Query Parameters**:
+
+| Parameter  | Type   | Required    | Default    | Description                                                   |
+| ---------- | ------ | ----------- | ---------- | ------------------------------------------------------------- |
+| time_range | string | No          | this_month | Predefined time range (see options below)                     |
+| start_date | string | Conditional | -          | Custom start date (YYYY-MM-DD), required if time_range=custom |
+| end_date   | string | Conditional | -          | Custom end date (YYYY-MM-DD), required if time_range=custom   |
+
+**Time Range Options**:
+
+- `today` - Current day
+- `yesterday` - Previous day
+- `this_week` - Current week (Monday-Sunday)
+- `last_week` - Previous week
+- `this_month` - Current month (default)
+- `last_month` - Previous month
+- `last_30_days` - Last 30 days
+- `last_90_days` - Last 90 days
+- `this_year` - Current year
+- `custom` - Custom date range (requires start_date and end_date)
+
+**Response**: `200 OK`
+
+```json
+{
+  "metrics": {
+    "total_revenue": 125450.75,
+    "total_orders": 342,
+    "average_order_value": 366.81,
+    "inventory_value": 45230.0,
+    "revenue_change": 12.5,
+    "orders_change": 8.3,
+    "aov_change": 3.9,
+    "previous_revenue": 111645.0,
+    "previous_orders": 316,
+    "previous_aov": 353.31,
+    "start_date": "2026-01-01T00:00:00Z",
+    "end_date": "2026-01-31T23:59:59Z"
+  }
+}
+```
+
+**Field Descriptions**:
+
+- `total_revenue`: Sum of all completed order amounts in the period
+- `total_orders`: Count of completed orders
+- `average_order_value`: Total revenue / total orders
+- `inventory_value`: Sum of (product cost × quantity) for all products
+- `revenue_change`: Percentage change vs previous period
+- `orders_change`: Percentage change in order count vs previous period
+- `aov_change`: Percentage change in average order value vs previous period
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid time_range or date format
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User is not a tenant owner
+- `500 Internal Server Error`: Server error
+
+**Example Requests**:
+
+```bash
+# Get current month overview
+curl -X GET "http://localhost:8080/api/v1/analytics/overview?time_range=this_month" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get custom date range
+curl -X GET "http://localhost:8080/api/v1/analytics/overview?time_range=custom&start_date=2026-01-01&end_date=2026-01-31" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Get Top Products
+
+Get rankings of top and bottom performing products by revenue and quantity sold.
+
+**Endpoint**: `GET /analytics/top-products`
+
+**Query Parameters**:
+
+| Parameter  | Type    | Required    | Default    | Description                              |
+| ---------- | ------- | ----------- | ---------- | ---------------------------------------- |
+| time_range | string  | No          | this_month | Time range (see overview options)        |
+| limit      | integer | No          | 5          | Number of products per ranking (1-20)    |
+| start_date | string  | Conditional | -          | Custom start date (if time_range=custom) |
+| end_date   | string  | Conditional | -          | Custom end date (if time_range=custom)   |
+
+**Response**: `200 OK`
+
+```json
+{
+  "top_by_revenue": [
+    {
+      "product_id": 42,
+      "name": "Premium Coffee Beans",
+      "quantity_sold": 156,
+      "revenue": 4680.0,
+      "rank": 1
+    }
+  ],
+  "top_by_quantity": [
+    {
+      "product_id": 23,
+      "name": "Bottled Water",
+      "quantity_sold": 890,
+      "revenue": 1780.0,
+      "rank": 1
+    }
+  ],
+  "bottom_by_revenue": [
+    {
+      "product_id": 78,
+      "name": "Specialty Tea",
+      "quantity_sold": 3,
+      "revenue": 45.0,
+      "rank": 1
+    }
+  ],
+  "bottom_by_quantity": [
+    {
+      "product_id": 91,
+      "name": "Limited Edition Mug",
+      "quantity_sold": 1,
+      "revenue": 25.0,
+      "rank": 1
+    }
+  ]
+}
+```
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid parameters (limit out of range 1-20)
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User is not a tenant owner
+
+**Example Request**:
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/analytics/top-products?limit=10&time_range=last_30_days" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Get Top Customers
+
+Get rankings of top customers by total spending and order count with masked PII.
+
+**Endpoint**: `GET /analytics/top-customers`
+
+**Query Parameters**:
+
+| Parameter  | Type    | Required    | Default    | Description                              |
+| ---------- | ------- | ----------- | ---------- | ---------------------------------------- |
+| time_range | string  | No          | this_month | Time range (see overview options)        |
+| limit      | integer | No          | 5          | Number of customers per ranking (1-20)   |
+| start_date | string  | Conditional | -          | Custom start date (if time_range=custom) |
+| end_date   | string  | Conditional | -          | Custom end date (if time_range=custom)   |
+
+**Response**: `200 OK`
+
+```json
+{
+  "top_by_spending": [
+    {
+      "customer_id": "cust-uuid-123",
+      "name": "J***",
+      "phone": "****1234",
+      "email": "j***@example.com",
+      "total_spent": 2450.0,
+      "order_count": 8,
+      "rank": 1
+    }
+  ],
+  "top_by_orders": [
+    {
+      "customer_id": "cust-uuid-456",
+      "name": "M***",
+      "phone": "****5678",
+      "email": "m***@company.com",
+      "total_spent": 1890.0,
+      "order_count": 15,
+      "rank": 1
+    }
+  ]
+}
+```
+
+**PII Masking**:
+
+- **Name**: Shows only first character + asterisks (e.g., "John" → "J\*\*\*")
+- **Phone**: Shows only last 4 digits (e.g., "+62812345678" → "\*\*\*\*5678")
+- **Email**: Shows first character + domain (e.g., "john@example.com" → "j\*\*\*@example.com")
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid parameters
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User is not a tenant owner
+
+**Example Request**:
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/analytics/top-customers?limit=10" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Get Operational Tasks
+
+Get actionable alerts for delayed orders and low stock products.
+
+**Endpoint**: `GET /analytics/tasks`
+
+**Query Parameters**: None
+
+**Response**: `200 OK`
+
+```json
+{
+  "delayed_orders": {
+    "count": 3,
+    "delayed_orders": [
+      {
+        "order_id": 1234,
+        "order_reference": "ORD-2026-001234",
+        "customer_phone": "****1234",
+        "elapsed_minutes": 45,
+        "created_at": "2026-01-31T10:15:00Z"
+      }
+    ]
+  },
+  "restock_alerts": {
+    "count": 5,
+    "restock_alerts": [
+      {
+        "product_id": 42,
+        "product_name": "Premium Coffee Beans",
+        "current_quantity": 8,
+        "restock_threshold": 20,
+        "units_needed": 12
+      }
+    ]
+  }
+}
+```
+
+**Alert Criteria**:
+
+- **Delayed Orders**: Orders in 'pending' status for more than 30 minutes
+- **Restock Alerts**: Products where current quantity ≤ restock threshold
+
+**Error Responses**:
+
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User is not a tenant owner
+- `500 Internal Server Error`: Server error
+
+**Example Request**:
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/analytics/tasks" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Get Sales Trend
+
+Get time series data for sales revenue and order count with configurable granularity.
+
+**Endpoint**: `GET /analytics/sales-trend`
+
+**Query Parameters**:
+
+| Parameter   | Type   | Required | Description                                              |
+| ----------- | ------ | -------- | -------------------------------------------------------- |
+| granularity | string | Yes      | Time bucket size (daily/weekly/monthly/quarterly/yearly) |
+| start_date  | string | Yes      | Start date (YYYY-MM-DD)                                  |
+| end_date    | string | Yes      | End date (YYYY-MM-DD)                                    |
+
+**Granularity Options**:
+
+- `daily` - One data point per day (max 90 days range)
+- `weekly` - One data point per week (max 52 weeks range)
+- `monthly` - One data point per month (max 12 months range)
+- `quarterly` - One data point per quarter (max 8 quarters range)
+- `yearly` - One data point per year (max 5 years range)
+
+**Response**: `200 OK`
+
+```json
+{
+  "period": "2026-01-01 to 2026-01-31",
+  "granularity": "daily",
+  "start_date": "2026-01-01",
+  "end_date": "2026-01-31",
+  "revenue_data": [
+    {
+      "date": "2026-01-01",
+      "label": "Jan 01",
+      "value": 4250.5
+    },
+    {
+      "date": "2026-01-02",
+      "label": "Jan 02",
+      "value": 3890.25
+    }
+  ],
+  "orders_data": [
+    {
+      "date": "2026-01-01",
+      "label": "Jan 01",
+      "value": 12
+    },
+    {
+      "date": "2026-01-02",
+      "label": "Jan 02",
+      "value": 11
+    }
+  ]
+}
+```
+
+**Label Formats by Granularity**:
+
+- **Daily**: "Jan 02" (short month + day)
+- **Weekly**: "Week of Jan 02" (week start date)
+- **Monthly**: "Jan 2026" (month + year)
+- **Quarterly**: "2026 Q1" (year + quarter number)
+- **Yearly**: "2026" (year only)
+
+**Gap Filling**:
+The API uses PostgreSQL `generate_series` to ensure complete date ranges. Dates with no sales will have `value: 0` to ensure chart continuity.
+
+**Validation Rules**:
+
+- `end_date` must be ≥ `start_date`
+- Both dates must not be in the future
+- Granularity must be one of the valid options
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid granularity, date format, or date range
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User is not a tenant owner
+- `500 Internal Server Error`: Server error
+
+**Example Requests**:
+
+```bash
+# Daily trend for last 30 days
+curl -X GET "http://localhost:8080/api/v1/analytics/sales-trend?granularity=daily&start_date=2026-01-01&end_date=2026-01-31" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Monthly trend for last year
+curl -X GET "http://localhost:8080/api/v1/analytics/sales-trend?granularity=monthly&start_date=2025-01-01&end_date=2025-12-31" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Quarterly trend
+curl -X GET "http://localhost:8080/api/v1/analytics/sales-trend?granularity=quarterly&start_date=2024-01-01&end_date=2025-12-31" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Performance Characteristics
+
+**Caching Strategy**:
+
+- All analytics queries are cached in Redis
+- Cache TTL varies by data freshness:
+  - Current period (today, this week, this month): 5 minutes
+  - Historical data: 1 hour
+- Cache keys include tenant_id and query parameters
+
+**Expected Response Times**:
+
+- Cached queries: < 50ms
+- Uncached queries: < 300ms (p95)
+- Time series queries with 365 data points: < 500ms (p95)
+
+**Query Performance Logging**:
+All endpoints log `query_time_ms` for monitoring:
+
+```json
+{
+  "level": "info",
+  "tenant_id": 123,
+  "time_range": "this_month",
+  "query_time_ms": 87,
+  "message": "Sales overview retrieved successfully"
+}
+```
+
+**Rate Limiting**: Follow standard API gateway rate limits (100 requests/minute per tenant)
+
+---
+
+### Common Error Codes
+
+| Status | Error Code                | Description                                               |
+| ------ | ------------------------- | --------------------------------------------------------- |
+| 400    | `invalid_time_range`      | Invalid time range parameter                              |
+| 400    | `invalid_date_format`     | Date must be YYYY-MM-DD format                            |
+| 400    | `invalid_date_range`      | End date must be after start date                         |
+| 400    | `future_date_not_allowed` | Dates in the future are not allowed                       |
+| 400    | `invalid_granularity`     | Granularity must be daily/weekly/monthly/quarterly/yearly |
+| 400    | `invalid_limit`           | Limit must be between 1 and 20                            |
+| 401    | `unauthorized`            | Missing or invalid JWT token                              |
+| 403    | `forbidden`               | User is not a tenant owner                                |
+| 500    | `internal_error`          | Internal server error                                     |
+
+---
+
+### Security & Privacy
+
+**Authentication**:
+
+- All endpoints require valid JWT token in Authorization header
+- Token must contain valid tenant_id claim
+
+**Authorization**:
+
+- Only users with "tenant_owner" role can access analytics
+- Middleware validates role before query execution
+
+**Tenant Isolation**:
+
+- All database queries automatically filtered by tenant_id from JWT
+- Row-Level Security (RLS) policies enforce tenant boundaries
+- Zero cross-tenant data leakage possible
+
+**PII Protection**:
+
+- Customer names masked to first character + asterisks
+- Phone numbers masked to show only last 4 digits
+- Email addresses masked to show first character + domain
+- All customer PII encrypted at rest using Vault transit encryption
+- Decryption and masking happen in repository layer before API response
+
+**Logging**:
+
+- No PII logged (phone, email, name masked in logs)
+- Query parameters logged for debugging
+- Performance metrics (query_time_ms) logged for monitoring
+- Structured logging with zerolog
+
+---

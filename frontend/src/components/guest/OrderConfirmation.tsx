@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PaymentInfo, OrderItem } from '../../types/cart';
-import { renderTextWithLinks, formatCurrency } from '../../utils/text';
+import { renderTextWithLinks } from '../../utils/text';
 import { download } from '../../utils/download';
+import { formatCurrency } from '../../utils/format';
 
 interface OrderConfirmationProps {
   orderReference: string;

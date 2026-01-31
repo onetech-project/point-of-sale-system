@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from '@/i18n/provider';
 import { GuestDataResponse } from '@/services/guest';
+import { formatCurrency, formatDate } from '../../utils/format';
 
 interface GuestDataSectionProps {
   data: GuestDataResponse;
@@ -8,25 +9,6 @@ interface GuestDataSectionProps {
 
 export default function GuestDataSection({ data }: GuestDataSectionProps) {
   const { t } = useTranslation(['guest_data', 'common']);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    const locale = localStorage.getItem('locale') === 'id' ? 'id-ID' : 'en-US';
-    return new Date(dateString).toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   const getStatusBadgeColor = (status: string) => {
     const statusColors: { [key: string]: string } = {

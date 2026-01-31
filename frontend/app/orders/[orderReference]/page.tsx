@@ -7,7 +7,6 @@ import PublicLayout from '../../../src/components/layout/PublicLayout';
 import OrderConfirmation from '../../../src/components/guest/OrderConfirmation';
 import { order as orderService } from '../../../src/services/order';
 import { OrderData } from '../../../src/types/cart';
-import { formatCurrency } from '../../../src/utils/text';
 
 export default function OrderStatusPage() {
   const router = useRouter();

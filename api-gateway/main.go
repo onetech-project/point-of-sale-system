@@ -70,6 +70,7 @@ func main() {
 	authServiceURL := utils.GetEnv("AUTH_SERVICE_URL")
 	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
 	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
+	analyticsServiceURL := utils.GetEnv("ANALYTICS_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
 	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
@@ -229,6 +230,11 @@ func main() {
 	protected.GET("/api/v1/consent/status", proxyHandler(auditServiceURL, "/api/v1/consent/status"))
 	protected.POST("/api/v1/consent/revoke", proxyHandler(auditServiceURL, "/api/v1/consent/revoke"))
 	protected.GET("/api/v1/consent/history", proxyHandler(auditServiceURL, "/api/v1/consent/history"))
+
+	// Analytics service routes (owner and manager only)
+	analyticsGroup := protected.Group("/api/v1/analytics")
+	analyticsGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	analyticsGroup.Any("/*", proxyWildcard(analyticsServiceURL))
 
 	port := utils.GetEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)

@@ -59,6 +59,10 @@ jobs:
             context: backend/audit-service
             dockerfile: backend/audit-service/Dockerfile
 
+          - name: analytics-service
+            context: backend/analytics-service
+            dockerfile: backend/analytics-service/Dockerfile
+
           - name: frontend
             context: frontend
             dockerfile: frontend/Dockerfile

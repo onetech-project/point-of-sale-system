@@ -57,6 +57,9 @@ else
             audit|audit-service)
                 TARGET_SERVICES+=("audit")
                 ;;
+            analytics|analytics-service)
+                TARGET_SERVICES+=("analytics")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -81,6 +84,7 @@ else
                 echo "  product          - Product Service"
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
+                echo "  analytics        - Analytics Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -143,7 +147,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -168,6 +172,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     if [ "$START_ALL" = true ] || should_start_service "audit"; then
         services_to_check+=("backend/audit-service/.env")
     fi
+    if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+        services_to_check+=("backend/analytics-service/.env")
+    fi
 
     missing_files=false
     for service_env in "${services_to_check[@]}"; do
@@ -191,7 +198,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
@@ -217,7 +224,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 
     # Start Docker services if available
     if docker info > /dev/null 2>&1; then
-        echo "📦 Starting Docker services (PostgreSQL & Redis)..."
+        echo "📦 Starting Docker services (PostgreSQL, Redis, Kafka, Minio, Mailhog)..."
         cd "$PROJECT_ROOT"
         docker compose up -d
         echo "✅ Docker services started"
@@ -241,7 +248,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then
@@ -267,6 +274,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "audit"; then
         cd "$PROJECT_ROOT/backend/audit-service" && go build -o audit-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+        cd "$PROJECT_ROOT/backend/analytics-service" && go build -o analytics-service.bin main.go &
     fi
     
     wait
@@ -335,6 +345,10 @@ if [ "$START_ALL" = true ] || should_start_service "audit"; then
     start_service_with_env "Audit Service" "$PROJECT_ROOT/backend/audit-service" "audit-service" "/tmp/audit-service.log"
 fi
 
+if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+    start_service_with_env "Analytics Service" "$PROJECT_ROOT/backend/analytics-service" "analytics-service" "/tmp/analytics-service.log"
+fi
+
 # Wait a moment for services to start
 sleep 2
 
@@ -371,6 +385,7 @@ echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-808
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
 echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
 echo "   Audit Service:        http://localhost:${AUDIT_SERVICE_PORT:-8088}"
+echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"
 echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
@@ -382,6 +397,7 @@ echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
 echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
 echo "   curl http://localhost:${ORDER_SERVICE_PORT:-8087}/health"
 echo "   curl http://localhost:${AUDIT_SERVICE_PORT:-8088}/health"
+echo "   curl http://localhost:${ANALYTICS_SERVICE_PORT:-8089}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
@@ -392,6 +408,7 @@ echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
 echo "   tail -f /tmp/order-service.log"
 echo "   tail -f /tmp/audit-service.log"
+echo "   tail -f /tmp/analytics-service.log"
 echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"
