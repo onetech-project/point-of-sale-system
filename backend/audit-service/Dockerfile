@@ -15,12 +15,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o audit-service main.go
 # Production image
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
 COPY --from=builder /app/audit-service .
 
-EXPOSE 8085
+EXPOSE 8088
 
 CMD ["./audit-service"]

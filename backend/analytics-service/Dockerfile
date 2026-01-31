@@ -15,12 +15,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o analytics-service main.go
 # Production image
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
 COPY --from=builder /app/analytics-service .
 
-EXPOSE 8080
+EXPOSE 8089
 
 CMD ["./analytics-service"]
