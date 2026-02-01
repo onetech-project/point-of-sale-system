@@ -129,7 +129,7 @@ func (r *CustomerRepository) queryCustomers(ctx context.Context, query string, t
 
 	decryptedEmails, err := r.encryptor.DecryptBatch(ctx, encryptedEmails, "guest_order:customer_email")
 	if err != nil {
-		log.Error().Err(err).Str("emails", encryptedEmails[0]).Msg("Failed to decrypt customer emails")
+		log.Error().Err(err).Msg("Failed to decrypt customer emails")
 		decryptedEmails = encryptedEmails
 	}
 
