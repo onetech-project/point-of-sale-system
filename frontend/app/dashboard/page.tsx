@@ -76,7 +76,7 @@ export default function AnalyticsDashboardPage() {
         const dayOfWeek = now.getDay();
         const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
-        end = new Date(now);
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - dayOfWeek));
         break;
       case 'last_week':
         // Monday-based week calculation
@@ -89,7 +89,7 @@ export default function AnalyticsDashboardPage() {
         break;
       case 'this_month':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         break;
       case 'last_month':
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -105,11 +105,11 @@ export default function AnalyticsDashboardPage() {
         break;
       case 'this_year':
         start = new Date(now.getFullYear(), 0, 1);
-        end = new Date(now);
+        end = new Date(now.getFullYear(), 11, 31);
         break;
       default:
         start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
 
     setStartDate(formatLocalDate(start));
@@ -433,10 +433,12 @@ export default function AnalyticsDashboardPage() {
             <CustomerRankingTable
               customers={topCustomers?.top_by_spending || []}
               loading={loading}
+              type="Spending"
             />
             <CustomerRankingTable
               customers={topCustomers?.top_by_orders || []}
               loading={loading}
+              type="Orders"
             />
           </div>
           </DashboardErrorBoundary>

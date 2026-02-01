@@ -19,7 +19,7 @@ type Encryptor interface {
 	EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error)
 	Decrypt(ctx context.Context, ciphertext string) (string, error)
 	DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error)
-	DecryptBatch(ctx context.Context, ciphertexts []string, encryptionContexts []string) ([]string, error)
+	DecryptBatch(ctx context.Context, ciphertexts []string, encryptionContext string) ([]string, error)
 }
 
 // VaultClient handles encryption/decryption via Vault Transit Engine
@@ -199,24 +199,22 @@ func (vc *VaultClient) DecryptWithContext(ctx context.Context, ciphertext string
 
 // DecryptBatch decrypts multiple ciphertexts in a single Vault API call
 // encryptionContexts: slice of encryption contexts (one per ciphertext). Pass empty string for no context.
-func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string, encryptionContexts []string) ([]string, error) {
+func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string, encryptionContext string) ([]string, error) {
 	if len(ciphertexts) == 0 {
 		return []string{}, nil
-	}
-
-	// Validate that contexts match ciphertexts length
-	if len(encryptionContexts) != len(ciphertexts) {
-		return nil, fmt.Errorf("encryption contexts length (%d) must match ciphertexts length (%d)", len(encryptionContexts), len(ciphertexts))
 	}
 
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 
-	// Prepare batch items and verify HMACs
-	batchInput := make([]map[string]interface{}, len(ciphertexts))
+	// Track which indices have empty strings and build batch for non-empty items only
+	indexMap := make(map[int]int) // Maps original index to batch index
+	batchInput := make([]map[string]interface{}, 0, len(ciphertexts))
+	batchIndex := 0
+
 	for i, ct := range ciphertexts {
 		if ct == "" {
-			batchInput[i] = map[string]interface{}{"ciphertext": ""}
+			// Skip empty strings - they won't be sent to Vault
 			continue
 		}
 
@@ -262,11 +260,18 @@ func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string, e
 		}
 
 		// Add encryption context if provided
-		if encryptionContexts[i] != "" {
-			batchItem["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContexts[i]))
+		if encryptionContext != "" {
+			batchItem["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContext))
 		}
 
-		batchInput[i] = batchItem
+		indexMap[i] = batchIndex
+		batchInput = append(batchInput, batchItem)
+		batchIndex++
+	}
+
+	// If all items were empty, return empty strings
+	if len(batchInput) == 0 {
+		return make([]string, len(ciphertexts)), nil
 	}
 
 	path := fmt.Sprintf("transit/decrypt/%s", vc.transitKey)
@@ -284,28 +289,33 @@ func (vc *VaultClient) DecryptBatch(ctx context.Context, ciphertexts []string, e
 	}
 
 	batchResults := secret.Data["batch_results"].([]interface{})
-	plaintexts := make([]string, len(batchResults))
 
-	for i, result := range batchResults {
+	// Reconstruct full results array with empty strings in correct positions
+	plaintexts := make([]string, len(ciphertexts))
+
+	for originalIndex, batchIdx := range indexMap {
+		result := batchResults[batchIdx]
 		resultMap := result.(map[string]interface{})
+
 		if resultMap["error"] != nil {
-			return nil, fmt.Errorf("batch decrypt item %d failed: %v", i, resultMap["error"])
+			return nil, fmt.Errorf("batch decrypt item %d failed: %v", originalIndex, resultMap["error"])
 		}
 
 		if resultMap["plaintext"] == nil {
-			plaintexts[i] = ""
+			plaintexts[originalIndex] = ""
 			continue
 		}
 
 		plaintextBase64 := resultMap["plaintext"].(string)
 		plaintext, err := base64.StdEncoding.DecodeString(plaintextBase64)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode plaintext for item %d: %w", i, err)
+			return nil, fmt.Errorf("failed to decode plaintext for item %d: %w", originalIndex, err)
 		}
 
-		plaintexts[i] = string(plaintext)
+		plaintexts[originalIndex] = string(plaintext)
 	}
 
+	// Empty strings remain as empty strings (default zero value)
 	return plaintexts, nil
 }
 

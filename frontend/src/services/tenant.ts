@@ -15,26 +15,11 @@ export const tenantService = {
    * Get tenant configuration by ID (public endpoint)
    * Includes delivery types, branding, and operational settings
    */
-  async getTenantConfig(tenantId: string): Promise<TenantConfig> {
+  async getTenantConfig(tenantSlug: string): Promise<TenantConfig> {
     const response = await apiClient.get<TenantConfig>(
-      `/api/public/tenants/${tenantId}/config`
+      `/api/public/tenants/${tenantSlug}/config`
     );
     return response;
-  },
-
-  /**
-   * Check if tenant is active and accessible
-   */
-  async validateTenant(tenantId: string): Promise<boolean> {
-    try {
-      await this.getTenantConfig(tenantId);
-      return true;
-    } catch (error: any) {
-      if (error.response?.status === 404 || error.response?.status === 403) {
-        return false;
-      }
-      throw error;
-    }
   },
 
   /**

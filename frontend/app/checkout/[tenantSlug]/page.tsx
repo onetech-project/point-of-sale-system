@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import CheckoutForm from '../../../src/components/guest/CheckoutForm';
-import { CheckoutData } from '../../../src/types/checkout';
+import { CheckoutData, TenantConfig } from '../../../src/types/checkout';
 import { cart as cartService } from '../../../src/services/cart';
 import { order } from '../../../src/services/order';
 import { tenant } from '../../../src/services/tenant';
@@ -16,8 +16,10 @@ export default function CheckoutPage() {
   const { t } = useTranslation(['common']);
   const router = useRouter();
   const params = useParams();
-  const tenantId = params?.tenantId as string;
+  const tenantSlug = params?.tenantSlug as string;
 
+  const [tenantId, setTenantId] = useState<string>('');
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -26,13 +28,13 @@ export default function CheckoutPage() {
   const [cartAdjusted, setCartAdjusted] = useState(false);
 
   useEffect(() => {
-    if (tenantId) {
+    if (tenantSlug) {
       loadCheckoutData();
     }
-  }, [tenantId]);
+  }, [tenantSlug]);
 
   const loadCheckoutData = async () => {
-    if (!tenantId) return;
+    if (!tenantSlug) return;
 
     try {
       setLoading(true);
@@ -41,11 +43,17 @@ export default function CheckoutPage() {
       // Store previous cart for comparison
       const previousCart = cart;
 
-      // Load both cart and tenant config in parallel
-      const [cartData, tenantConfig] = await Promise.all([
-        cartService.getCart(tenantId),
-        tenant.getTenantConfig(tenantId)
-      ]);
+      // Load both cart and tenant config in serial
+      const tenantConfig = await tenant.getTenantConfig(tenantSlug);
+      setTenantConfig(tenantConfig);
+      setTenantId(tenantConfig.tenant_id);
+
+      const cartData = await cartService.getCart(tenantConfig.tenant_id);
+
+      // Set delivery fee from tenant config if charge_delivery_fee is enabled
+      if (tenantConfig.charge_delivery_fee && tenantConfig.default_delivery_fee) {
+        setDeliveryFee(tenantConfig.default_delivery_fee);
+      }
 
       if (!cartData || cartData.items.length === 0) {
         setError(t('common.checkout.emptyCart'));
@@ -62,11 +70,6 @@ export default function CheckoutPage() {
       }
 
       setCart(cartData);
-
-      // Set delivery fee from tenant config if charge_delivery_fee is enabled
-      if (tenantConfig.charge_delivery_fee && tenantConfig.default_delivery_fee) {
-        setDeliveryFee(tenantConfig.default_delivery_fee);
-      }
     } catch (err: any) {
       console.error('Failed to load checkout data:', err);
       // Extract actual error message from backend response
@@ -155,7 +158,7 @@ export default function CheckoutPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('common.checkout.error')}</h1>
             <p className="text-gray-600 mb-6">{error}</p>
             <button
-              onClick={() => router.push(`/menu/${tenantId}`)}
+              onClick={() => router.push(`/menu/${tenantSlug}`)}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               {t('common.checkout.returnToMenu')}
@@ -175,7 +178,7 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-gray-900">{t('common.checkout.title')}</h1>
               <button
-                onClick={() => router.push(`/menu/${tenantId}`)}
+                onClick={() => router.push(`/menu/${tenantSlug}`)}
                 className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2"
               >
                 <span>←</span>
@@ -220,7 +223,7 @@ export default function CheckoutPage() {
 
               {/* Checkout Form */}
               <CheckoutForm
-                tenantId={tenantId}
+                tenantConfig={tenantConfig}
                 cartTotal={cart.items.reduce((sum, item) => sum + item.total_price, 0)}
                 estimatedDeliveryFee={deliveryFee}
                 onSubmit={handleCheckout}

@@ -73,9 +73,9 @@ func main() {
 	analyticsServiceURL := utils.GetEnv("ANALYTICS_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
-	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
-		tenantID := c.Param("tenant_id")
-		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantID+"/config")(c)
+	public.GET("/api/public/tenants/:tenant_slug/config", func(c echo.Context) error {
+		tenantSlug := c.Param("tenant_slug")
+		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
 	})
 
 	// Public menu endpoint for guest ordering
@@ -126,6 +126,9 @@ func main() {
 	protected := e.Group("")
 	protected.Use(middleware.JWTAuth())
 	protected.Use(middleware.TenantScope())
+
+	// Refresh endpoint - outside protected group since it may not have valid JWT
+	e.POST("/api/auth/refresh", proxyHandler(authServiceURL, "/refresh"))
 
 	protected.GET("/api/auth/session", proxyHandler(authServiceURL, "/session"))
 	protected.POST("/api/auth/logout", proxyHandler(authServiceURL, "/logout"))
@@ -194,7 +197,7 @@ func main() {
 	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
 	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
-	auditGroup.Any("/audit/tenant*", proxyWildcard(auditServiceURL))                       // Tenant audit trail (T110)
+	auditGroup.Any("/audit/tenant*", proxyWildcard(auditServiceURL))            // Tenant audit trail (T110)
 	auditGroup.Any("/admin/compliance/report*", proxyWildcard(auditServiceURL)) // Compliance report (T201)
 
 	// Tenant data rights routes (owner only - UU PDP compliance)

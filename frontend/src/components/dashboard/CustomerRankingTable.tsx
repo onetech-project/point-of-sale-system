@@ -7,11 +7,13 @@ import { formatNumber, formatCurrency } from '@/utils/format';
 export interface CustomerRankingTableProps {
   customers: CustomerRanking[];
   loading?: boolean;
+  type?: 'Spending' | 'Orders';
 }
 
 export const CustomerRankingTable: React.FC<CustomerRankingTableProps> = ({
   customers,
   loading = false,
+  type = 'Spending',
 }) => {
   if (loading) {
     return (
@@ -46,7 +48,7 @@ export const CustomerRankingTable: React.FC<CustomerRankingTableProps> = ({
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="p-6 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">
-          Top {customers.length} Customers
+          Top {customers.length} Customers by {type}
         </h3>
       </div>
 
@@ -92,14 +94,14 @@ export const CustomerRankingTable: React.FC<CustomerRankingTableProps> = ({
               {/* Customer Details (Masked PII) */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {customer.masked_name || 'Anonymous'}
+                  {customer.name || 'Anonymous'}
                 </p>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
-                  {customer.masked_phone && (
-                    <span className="font-mono">{customer.masked_phone}</span>
+                  {customer.phone && (
+                    <span className="font-mono">{customer.phone}</span>
                   )}
-                  {customer.masked_email && (
-                    <span className="truncate">{customer.masked_email}</span>
+                  {customer.email && (
+                    <span className="truncate">{customer.email}</span>
                   )}
                 </div>
               </div>
@@ -112,9 +114,11 @@ export const CustomerRankingTable: React.FC<CustomerRankingTableProps> = ({
                 <p className="text-xs text-gray-500">
                   {formatNumber(customer.order_count)} orders
                 </p>
-                <p className="text-xs text-gray-500">
-                  Avg: {formatCurrency(customer.avg_order_value)}
-                </p>
+                {customer.avg_order_value && (
+                  <p className="text-xs text-gray-500">
+                    Avg: {formatCurrency(customer.avg_order_value)}
+                  </p>
+                )}
               </div>
             </div>
           </div>

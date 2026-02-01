@@ -189,7 +189,7 @@ func (r *TaskRepository) batchDecryptAndMaskCustomerData(
 		phoneIndexMap[phone] = orderID
 	}
 
-	decryptedPhones, err := r.vaultClient.DecryptBatch(ctx, phoneBatch, []string{"guest_order:customer_phone"})
+	decryptedPhones, err := r.vaultClient.DecryptBatch(ctx, phoneBatch, "guest_order:customer_phone")
 	if err != nil {
 		return fmt.Errorf("failed to batch decrypt phones: %w", err)
 	}
@@ -202,7 +202,7 @@ func (r *TaskRepository) batchDecryptAndMaskCustomerData(
 		nameIndexMap[name] = orderID
 	}
 
-	decryptedNames, err := r.vaultClient.DecryptBatch(ctx, nameBatch, []string{"guest_order:customer_name"})
+	decryptedNames, err := r.vaultClient.DecryptBatch(ctx, nameBatch, "guest_order:customer_name")
 	if err != nil {
 		return fmt.Errorf("failed to batch decrypt names: %w", err)
 	}
@@ -215,7 +215,7 @@ func (r *TaskRepository) batchDecryptAndMaskCustomerData(
 		emailIndexMap[email] = orderID
 	}
 
-	decryptedEmails, err := r.vaultClient.DecryptBatch(ctx, emailBatch, []string{"guest_order:customer_email"})
+	decryptedEmails, err := r.vaultClient.DecryptBatch(ctx, emailBatch, "guest_order:customer_email")
 	if err != nil {
 		return fmt.Errorf("failed to batch decrypt emails: %w", err)
 	}

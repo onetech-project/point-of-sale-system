@@ -107,9 +107,9 @@ export interface TopProductsResponse {
 
 // Customer Ranking (from backend API with masked PII)
 export interface CustomerRanking {
-  masked_name: string;
-  masked_phone: string;
-  masked_email: string;
+  name: string;
+  phone: string;
+  email: string;
   order_count: number;
   total_spent: number;
   avg_order_value: number;

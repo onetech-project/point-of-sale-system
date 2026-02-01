@@ -8,7 +8,7 @@ import { CheckoutData, TenantConfig } from '../../types/checkout';
 import { formatPrice } from '../../utils/format';
 
 interface CheckoutFormProps {
-  tenantId: string;
+  tenantConfig: TenantConfig | null;
   cartTotal: number;
   onSubmit: (data: CheckoutData) => void;
   loading?: boolean;
@@ -16,14 +16,13 @@ interface CheckoutFormProps {
 }
 
 export const CheckoutForm: React.FC<CheckoutFormProps> = ({
-  tenantId,
+  tenantConfig,
   cartTotal,
   onSubmit,
   loading = false,
   estimatedDeliveryFee = 0, // T084: Default to 0
 }) => {
   const { t } = useTranslation(['common', 'consent']);
-  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [formData, setFormData] = useState<CheckoutData>({
     delivery_type: '',
@@ -39,34 +38,43 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
   const [consentError, setConsentError] = useState<string>('');
 
   useEffect(() => {
-    fetchTenantConfig();
-  }, [tenantId]);
-
-  const fetchTenantConfig = async () => {
-    try {
-      setConfigLoading(true);
-      const response = await tenant.getTenantConfig(tenantId);
-      setTenantConfig(response);
-
+    if (tenantConfig) {
       // Set default delivery type if only one is available
-      if (response.enabled_delivery_types.length === 1) {
+      if (tenantConfig.enabled_delivery_types.length === 1) {
         setFormData(prev => ({
           ...prev,
-          delivery_type: response.enabled_delivery_types[0],
+          delivery_type: tenantConfig.enabled_delivery_types[0],
         }));
       }
-    } catch (error) {
-      console.error('Failed to fetch tenant config:', error);
-      // Set default config
-      setTenantConfig({
-        tenant_id: tenantId,
-        enabled_delivery_types: ['pickup', 'delivery', 'dine_in'],
-        auto_calculate_fees: false,
-      });
-    } finally {
       setConfigLoading(false);
     }
-  };
+  }, [tenantConfig]);
+
+  // const fetchTenantConfig = async () => {
+  //   try {
+  //     setConfigLoading(true);
+  //     const response = await tenant.getTenantConfig(tenantId);
+  //     setTenantConfig(response);
+
+  //     // Set default delivery type if only one is available
+  //     if (response.enabled_delivery_types.length === 1) {
+  //       setFormData(prev => ({
+  //         ...prev,
+  //         delivery_type: response.enabled_delivery_types[0],
+  //       }));
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to fetch tenant config:', error);
+  //     // Set default config
+  //     setTenantConfig({
+  //       tenant_id: tenantId,
+  //       enabled_delivery_types: ['pickup', 'delivery', 'dine_in'],
+  //       auto_calculate_fees: false,
+  //     });
+  //   } finally {
+  //     setConfigLoading(false);
+  //   }
+  // };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

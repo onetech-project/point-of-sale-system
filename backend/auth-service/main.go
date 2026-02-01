@@ -121,6 +121,7 @@ func main() {
 
 	sessionHandler := api.NewSessionHandler(authService, jwtService)
 	e.GET("/session", sessionHandler.GetSession)
+	e.POST("/refresh", sessionHandler.RefreshSession)
 
 	logoutHandler := api.NewLogoutHandler(authService, jwtService)
 	e.POST("/logout", logoutHandler.Logout)

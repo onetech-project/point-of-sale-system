@@ -57,14 +57,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Handle authentication errors globally
+  const handleAuthError = useCallback(() => {
+    // Clear auth state
+    setUser(null);
+    setIsAuthenticated(false);
+    apiClient.clearAuth();
+  }, []);
+
+  // Register auth error handler with API client
+  useEffect(() => {
+    apiClient.setAuthErrorHandler(handleAuthError);
+  }, [handleAuthError]);
+
   const checkAuth = useCallback(async () => {
-    // Skip auth check for public routes
+    // Skip auth check for public routes (but don't clear auth state if already authenticated)
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
 
       if (isPublicPage(pathname)) {
-        setUser(null);
-        setIsAuthenticated(false);
+        // Don't clear existing auth state on public pages
+        // This allows proper redirect after login
         setIsLoading(false);
         return;
       }
@@ -85,9 +98,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // If 401, no valid session exists
       if (axiosError.response?.status === 401) {
-        setUser(null);
-        setIsAuthenticated(false);
-        apiClient.clearAuth();
+        handleAuthError();
+        
+        // Redirect to login if not on a public page
+        if (typeof window !== 'undefined') {
+          const pathname = window.location.pathname;
+          if (!isPublicPage(pathname)) {
+            window.location.href = '/login?session_expired=true';
+          }
+        }
       } else {
         // For network errors or other issues, default to not authenticated
         console.error('Auth check failed:', error);
@@ -101,17 +120,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     checkAuth();
+
+    // Set up periodic session validation (every 5 minutes) to trigger renewal
+    // This ensures the session stays alive as long as the user has the app open
+    const interval = setInterval(() => {
+      // Only check auth if not on a public page
+      if (typeof window !== 'undefined' && !isPublicPage(window.location.pathname)) {
+        checkAuth();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
   }, [checkAuth]);
 
-  const login = async (email: string, password: string, tenantSlug?: string) => {
+  const login = async (email: string, password: string) => {
     try {
       const data = await apiClient.post<{ user: User; message: string }>('/api/auth/login', {
         email,
         password,
-        tenant_slug: tenantSlug,
       });
 
-      // Token is stored in HTTP-only cookie by backend, no need to store in localStorage
+      // Token is stored in HTTP-only cookie by backend
       setUser(data.user);
       setIsAuthenticated(true);
       return data;

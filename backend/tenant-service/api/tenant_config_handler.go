@@ -18,16 +18,16 @@ func NewTenantConfigHandler(configService *services.TenantConfigService) *Tenant
 	}
 }
 
-// GetPublicTenantConfig handles GET /public/tenants/:tenant_id/config
+// GetPublicTenantConfig handles GET /public/tenants/:tenant_slug/config
 func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
-	tenantID := c.Param("tenant_id")
-	if tenantID == "" {
+	tenantSlug := c.Param("tenant_slug")
+	if tenantSlug == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "tenant_id is required",
+			"error": "tenant_slug is required",
 		})
 	}
 
-	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantID)
+	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantSlug)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to retrieve tenant configuration",

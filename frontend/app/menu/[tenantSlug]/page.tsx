@@ -14,8 +14,9 @@ export default function PublicMenuPage() {
   const { t } = useTranslation(['common']);
   const router = useRouter();
   const params = useParams();
-  const tenantId = params?.tenantId as string;
+  const tenantSlug = params?.tenantSlug as string;
 
+  const [tenantId, setTenantId] = useState<string>('');
   const [cartData, setCartData] = useState<Cart | null>(null);
   const [cartLoading, setCartLoading] = useState<boolean>(true);
   const [tenantInfo, setTenantInfo] = useState<any>(null);
@@ -33,8 +34,13 @@ export default function PublicMenuPage() {
   };
 
   useEffect(() => {
+    if (tenantSlug) {
+      fetchTenantData();
+    }
+  }, [tenantSlug]);
+
+  useEffect(() => {
     if (tenantId) {
-      fetchTenantData(); // T107: Fetch tenant config
       loadCart();
     }
 
@@ -54,14 +60,14 @@ export default function PublicMenuPage() {
 
   // T107: Fetch tenant configuration
   const fetchTenantData = async () => {
-    if (!tenantId) return;
+    if (!tenantSlug) return;
 
     try {
       setTenantLoading(true);
       setTenantError(null);
 
       // Fetch tenant config (includes delivery types, branding, etc.)
-      const configData = await tenant.getTenantConfig(tenantId);
+      const configData = await tenant.getTenantConfig(tenantSlug);
       setTenantConfig(configData);
 
       // Extract tenant branding info for T104
@@ -70,6 +76,8 @@ export default function PublicMenuPage() {
         logo: configData.logo_url,
         description: configData.description,
       });
+
+      setTenantId(configData.tenant_id);
     } catch (error: any) {
       console.error('Failed to fetch tenant data:', error);
       // T105: Handle invalid tenant error
@@ -269,7 +277,7 @@ export default function PublicMenuPage() {
     }
 
     // Navigate to checkout page
-    router.push(`/checkout/${tenantId}`);
+    router.push(`/checkout/${tenantSlug}`);
   };
 
   if (!tenantId) {

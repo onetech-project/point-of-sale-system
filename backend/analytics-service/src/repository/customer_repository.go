@@ -114,22 +114,22 @@ func (r *CustomerRepository) queryCustomers(ctx context.Context, query string, t
 	}
 
 	// Batch decrypt customer PII
-	decryptedNames, err := r.encryptor.DecryptBatch(ctx, encryptedNames, []string{"guest_order:customer_name"})
+	decryptedNames, err := r.encryptor.DecryptBatch(ctx, encryptedNames, "guest_order:customer_name")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to decrypt customer names")
 		// Continue with encrypted values
 		decryptedNames = encryptedNames
 	}
 
-	decryptedPhones, err := r.encryptor.DecryptBatch(ctx, encryptedPhones, []string{"guest_order:customer_phone"})
+	decryptedPhones, err := r.encryptor.DecryptBatch(ctx, encryptedPhones, "guest_order:customer_phone")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to decrypt customer phones")
 		decryptedPhones = encryptedPhones
 	}
 
-	decryptedEmails, err := r.encryptor.DecryptBatch(ctx, encryptedEmails, []string{"guest_order:customer_email"})
+	decryptedEmails, err := r.encryptor.DecryptBatch(ctx, encryptedEmails, "guest_order:customer_email")
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to decrypt customer emails")
+		log.Error().Err(err).Str("emails", encryptedEmails[0]).Msg("Failed to decrypt customer emails")
 		decryptedEmails = encryptedEmails
 	}
 
