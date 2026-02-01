@@ -49,10 +49,12 @@ func (r *OrderRepository) decryptToStringPtr(ctx context.Context, encrypted stri
 // GetOrderByReference retrieves an order by its reference number
 func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReference string) (*models.GuestOrder, error) {
 	query := `
-		SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
-					customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
-					created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent, is_anonymized, anonymized_at
-		FROM guest_orders
+		SELECT od.id, od.order_reference, od.tenant_id, od.status, od.subtotal_amount, od.delivery_fee, od.total_amount,
+					od.customer_name, od.customer_phone, od.customer_email, od.delivery_type, od.table_number, od.notes,
+					od.created_at, od.paid_at, od.completed_at, od.cancelled_at, od.session_id, od.ip_address, od.user_agent, od.is_anonymized,
+					od.anonymized_at, t.slug as tenant_slug
+		FROM guest_orders od
+		LEFT JOIN tenants t ON od.tenant_id = t.id
 		WHERE order_reference = $1
 	`
 
@@ -83,6 +85,7 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 		&encryptedUA,
 		&order.IsAnonymized,
 		&order.AnonymizedAt,
+		&order.TenantSlug,
 	)
 
 	if err == sql.ErrNoRows {

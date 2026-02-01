@@ -87,7 +87,7 @@ func main() {
 
 	// Initialize handlers
 	// TODO: Get product service URL from environment
-	inventoryService := services.NewInventoryService(config.GetDB(), config.GetRedis(), "http://product-service:8082")
+	inventoryService := services.NewInventoryService(config.GetDB(), config.GetRedis())
 
 	// Initialize repositories
 	paymentRepo := repository.NewPaymentRepository(config.GetDB())

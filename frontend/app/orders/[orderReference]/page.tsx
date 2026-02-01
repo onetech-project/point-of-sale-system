@@ -153,7 +153,7 @@ export default function OrderStatusPage() {
           <div className="py-4">
             <div className="flex items-center justify-between">
               <button
-                onClick={() => router.push(`/menu/${orderData.order.tenant_id}`)}
+                onClick={() => router.push(`/menu/${orderData.order.tenant_slug}`)}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <svg

@@ -106,6 +106,7 @@ export interface Order {
   updated_at: string;
   payment?: PaymentInfo;
   notes?: string;
+  tenant_slug: string;
 }
 
 /**

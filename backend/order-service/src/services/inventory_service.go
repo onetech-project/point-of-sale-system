@@ -20,18 +20,16 @@ const (
 )
 
 type InventoryService struct {
-	db                    *sql.DB
-	redisClient           *redis.Client
-	reservationRepo       *repository.ReservationRepository
-	productServiceBaseURL string
+	db              *sql.DB
+	redisClient     *redis.Client
+	reservationRepo *repository.ReservationRepository
 }
 
-func NewInventoryService(db *sql.DB, redisClient *redis.Client, productServiceURL string) *InventoryService {
+func NewInventoryService(db *sql.DB, redisClient *redis.Client) *InventoryService {
 	return &InventoryService{
-		db:                    db,
-		redisClient:           redisClient,
-		reservationRepo:       repository.NewReservationRepository(db),
-		productServiceBaseURL: productServiceURL,
+		db:              db,
+		redisClient:     redisClient,
+		reservationRepo: repository.NewReservationRepository(db),
 	}
 }
 
