@@ -48,7 +48,7 @@ type GuestOrder struct {
 	UserAgent      *string      `json:"user_agent,omitempty"`
 	IsAnonymized   bool         `json:"is_anonymized"`
 	AnonymizedAt   *time.Time   `json:"anonymized_at,omitempty"`
-	TenantSlug     string       `json:"teanant_slug"`
+	TenantSlug     string       `json:"tenant_slug"`
 }
 
 // CreateOrderRequest represents the request to create a new order
