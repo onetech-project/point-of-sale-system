@@ -123,11 +123,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
+          envs: DEPLOY_ENV
+        env:
+          DEPLOY_ENV: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
           script: |
-            if [ "${GITHUB_REF_NAME}" = "master" ]; then
-              cd /srv/posku/production/app
-            else
-              cd /srv/posku/staging/app
-            fi
-            docker compose -f docker-compose.yml pull
-            docker compose -f docker-compose.yml up -d --remove-orphans
+            echo "Deploy env: $DEPLOY_ENV"
+
+            cd /srv/posku/$DEPLOY_ENV/app
+            docker compose pull
+            docker compose up -d --remove-orphans
