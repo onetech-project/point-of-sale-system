@@ -8,16 +8,22 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	"github.com/pos/backend/product-service/api"
 	"github.com/pos/backend/product-service/src/config"
 	customMiddleware "github.com/pos/backend/product-service/src/middleware"
+	"github.com/pos/backend/product-service/src/observability"
 	"github.com/pos/backend/product-service/src/repository"
 	"github.com/pos/backend/product-service/src/services"
 	"github.com/pos/backend/product-service/src/utils"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	utils.InitLogger()
 
 	if err := config.InitDatabase(); err != nil {
@@ -31,10 +37,7 @@ func main() {
 	defer config.CloseRedis()
 
 	// Initialize storage configuration (Feature 005)
-	storageConfig, err := config.LoadStorageConfig()
-	if err != nil {
-		log.Fatal("Failed to load storage configuration:", err)
-	}
+	storageConfig := config.LoadStorageConfig()
 
 	// Initialize storage service
 	storageService, err := services.NewStorageService(storageConfig)
@@ -52,22 +55,29 @@ func main() {
 	e := echo.New()
 
 	// CORS configuration
-	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:3000,http://localhost:3001"
-	}
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{allowedOrigins},
-		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE},
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-Tenant-ID"},
-		AllowCredentials: true,
-		MaxAge:           3600,
-	}))
+	// allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	// if allowedOrigins == "" {
+	// 	allowedOrigins = "http://localhost:3000,http://localhost:3001"
+	// }
+	// e.Use(emw.CORSWithConfig(emw.CORSConfig{
+	// 	AllowOrigins:     []string{allowedOrigins},
+	// 	AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE},
+	// 	AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-Tenant-ID"},
+	// 	AllowCredentials: true,
+	// 	MaxAge:           3600,
+	// }))
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Logger())
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(customMiddleware.TraceLogger)
+
 	e.Use(customMiddleware.RequestIDMiddleware)
-	e.Use(customMiddleware.MetricsMiddleware)
+	customMiddleware.MetricsMiddleware(e)
 
 	// Rate limiting: 100 requests per minute per IP
 	rateLimiter := customMiddleware.NewRateLimiter(100, time.Minute)
@@ -139,11 +149,7 @@ func main() {
 	e.GET("/public/menu/:tenant_id/products", publicCatalogHandler.GetPublicMenu)
 	e.GET("/public/products/:tenant_id/:id/photo", publicCatalogHandler.GetPublicPhoto)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8086"
-	}
-
+	port := utils.GetEnv("PORT")
 	utils.Log.Info("Product service starting on port %s", port)
 
 	// Start server in a goroutine

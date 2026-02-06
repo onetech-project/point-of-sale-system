@@ -1,0 +1,30 @@
+{
+  "audit": {
+    "title": "Jejak Audit",
+    "load_error": "Gagal memuat jejak audit",
+    "no_events": "Tidak ada peristiwa audit ditemukan",
+    "events": "peristiwa",
+    "filter": {
+      "action": "Aksi",
+      "resource_type": "Tipe Sumber Daya",
+      "start_date": "Tanggal Mulai",
+      "end_date": "Tanggal Akhir",
+      "all_actions": "Semua Aksi",
+      "all_resources": "Semua Sumber Daya"
+    },
+    "table": {
+      "timestamp": "Waktu",
+      "actor": "Pelaku",
+      "action": "Aksi",
+      "resource": "Sumber Daya",
+      "ip_address": "Alamat IP",
+      "details": "Detail"
+    },
+    "show_details": "Tampilkan",
+    "hide_details": "Sembunyikan",
+    "before_value": "Nilai Sebelum",
+    "after_value": "Nilai Sesudah",
+    "metadata": "Metadata",
+    "user_agent": "User Agent"
+  }
+}

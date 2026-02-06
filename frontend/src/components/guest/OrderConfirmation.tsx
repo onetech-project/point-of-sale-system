@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PaymentInfo, OrderItem } from '../../types/cart';
-import { renderTextWithLinks, formatCurrency } from '../../utils/text';
+import { renderTextWithLinks } from '../../utils/text';
+import { download } from '../../utils/download';
+import { formatCurrency } from '../../utils/format';
 
 interface OrderConfirmationProps {
   orderReference: string;
   deliveryType: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   deliveryAddress?: string;
   tableNumber?: string;
   subtotal: number;
@@ -19,6 +22,7 @@ interface OrderConfirmationProps {
   paymentInfo?: PaymentInfo;
   notes?: string;
   items?: OrderItem[];
+  customerNotes?: string;
 }
 
 export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
@@ -26,6 +30,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   deliveryType,
   customerName,
   customerPhone,
+  customerEmail,
   deliveryAddress,
   tableNumber,
   subtotal,
@@ -37,6 +42,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   paymentInfo,
   notes,
   items,
+  customerNotes
 }) => {
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -48,25 +54,26 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
       return;
     }
 
+    const { expiry_time, remaining_time } = paymentInfo;
+
+    let secondsLeft = remaining_time || 0;
     const updateTimer = () => {
-      if (!paymentInfo.expiry_time) return;
+      if (!expiry_time) return;
 
-      // Parse the expiry time - it comes as RFC3339 format with timezone
-      // e.g., "2024-12-08T15:30:00+07:00"
-      const expiryDate = new Date(paymentInfo.expiry_time);
-      const now = new Date();
-
-      // Calculate difference in milliseconds using UTC timestamps
-      const diff = expiryDate.getTime() - now.getTime();
-
-      if (diff <= 0) {
+      if (secondsLeft <= 0) {
         setTimeRemaining('Expired');
         return;
       }
 
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+      const minutes = Math.floor(secondsLeft / 60);
+      const seconds = Math.floor(secondsLeft % 60);
+
+      setTimeRemaining(
+        `${minutes.toString().padStart(2, '0')}:${seconds
+          .toString()
+          .padStart(2, '0')}`
+      );
+      secondsLeft -= 1;
     };
 
     updateTimer();
@@ -113,6 +120,53 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
     }
   };
 
+  const getStatusMessage = (status: string): React.ReactElement => {
+    let messageObj: { message: string; color?: string } = { message: '', color: '' };
+    switch (status) {
+      case 'PENDING':
+        messageObj = {
+          message: t(
+            'orderConfirmation.pendingMessage',
+            'Please complete payment to confirm your order.'
+          ),
+          color: 'text-yellow-800',
+        }
+        break;
+      case 'PAID':
+        messageObj = {
+          message: t(
+            'orderConfirmation.paidMessage',
+            'Payment received! Your order is being prepared.'
+          ),
+          color: 'text-green-800',
+        };
+        break;
+      case 'COMPLETE':
+        messageObj = {
+          message: t(
+            'orderConfirmation.completeMessage',
+            'Your order has been completed. Thank you!'
+          ),
+          color: 'text-blue-800',
+        };
+        break;
+      case 'CANCELLED':
+        messageObj = {
+          message: t(
+            'orderConfirmation.cancelledMessage',
+            'This order has been cancelled.'
+          ),
+          color: 'text-red-800',
+        };
+        break;
+      default:
+        messageObj = { message: '', color: '' };
+    }
+    return <p className={`text-sm text-center ${messageObj.color}`}>
+      {messageObj.message}
+    </p>
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       {/* Header */}
@@ -140,6 +194,55 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
         </p>
       </div>
 
+      {/* Payment QR Code - Show for PENDING orders */}
+      {orderStatus === 'PENDING' && (paymentInfo?.qr_code_url || paymentQrUrl) && (
+        <div className="my-6 p-6 bg-white border-2 border-blue-500 rounded-lg">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              {t('orderConfirmation.scanToPay', 'Scan to Pay')}
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {t('orderConfirmation.qrisInstruction', 'Scan this QR code with your mobile banking or e-wallet app')}
+            </p>
+            <div className="flex justify-center">
+              <img
+                data-testid="payment-qris-qr-code"
+                src={paymentInfo?.qr_code_url || paymentQrUrl || ''}
+                alt="QRIS Payment QR Code"
+                className="w-64 h-64 border-4 border-gray-200 rounded-lg"
+                onError={(e) => {
+                  console.error('Failed to load QR code image');
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+            {timeRemaining && (
+              <div className="mt-4">
+                <p className="text-lg font-semibold text-gray-900">
+                  {t('orderConfirmation.timeRemaining', 'Time Remaining')}
+                </p>
+                <p className={`text-3xl font-bold ${timeRemaining === 'Expired' ? 'text-red-600' : 'text-blue-600'}`}>
+                  {timeRemaining}
+                </p>
+              </div>
+            )}
+            <p className="mt-4 text-xs text-gray-500">
+              {t('orderConfirmation.paymentExpiry', 'Please complete payment within 15 minutes')}
+            </p>
+          </div>
+          {/* rounded block button for download the QR code with fetch */}
+          <div className="mt-6 text-center">
+            <div
+              onClick={() => download(paymentInfo?.qr_code_url || paymentQrUrl || '', `QRIS_${orderReference}.png`, 'image/png')}
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 cursor-pointer"
+            >
+              {t('orderConfirmation.downloadQr', 'Download QR Code')}
+            </div>
+          </div>
+
+        </div>
+      )}
+
       {/* Order Reference */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6">
         <div className="flex justify-between items-center mb-2">
@@ -154,7 +257,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             {orderStatus}
           </span>
         </div>
-        <p className="text-2xl font-mono font-bold text-gray-900">
+        <p data-testid="order-reference" className="text-2xl font-mono font-bold text-gray-900">
           {orderReference}
         </p>
         <p className="text-sm text-gray-500 mt-1">{formatDate(createdAt)}</p>
@@ -174,6 +277,12 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             <span className="text-gray-600">{t('checkout.phone', 'Phone')}</span>
             <span className="font-medium text-gray-900">{customerPhone}</span>
           </div>
+          {customerEmail && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">{t('checkout.email', 'Email')}</span>
+              <span className="font-medium text-gray-900">{customerEmail}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -230,6 +339,18 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                 <span className="font-medium text-gray-900">{formatCurrency(item.total_price)}</span>
               </div>
             ))}
+
+            {/* Customer Note */}
+            {customerNotes && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  {t('orderConfirmation.customerNote', 'Notes')}
+                </h3>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {renderTextWithLinks(customerNotes)}
+                </p>
+              </div>
+            )}
             <div className="border-t my-2"></div>
           </div>
         )}
@@ -252,78 +373,9 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
         </div>
       </div>
 
-      {/* Payment QR Code - Show for PENDING orders */}
-      {orderStatus === 'PENDING' && (paymentInfo?.qr_code_url || paymentQrUrl) && (
-        <div className="mt-6 p-6 bg-white border-2 border-blue-500 rounded-lg">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              {t('orderConfirmation.scanToPay', 'Scan to Pay')}
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              {t('orderConfirmation.qrisInstruction', 'Scan this QR code with your mobile banking or e-wallet app')}
-            </p>
-            <div className="flex justify-center">
-              <img
-                src={paymentInfo?.qr_code_url || paymentQrUrl || ''}
-                alt="QRIS Payment QR Code"
-                className="w-64 h-64 border-4 border-gray-200 rounded-lg"
-                onError={(e) => {
-                  console.error('Failed to load QR code image');
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-            {timeRemaining && (
-              <div className="mt-4">
-                <p className="text-lg font-semibold text-gray-900">
-                  {t('orderConfirmation.timeRemaining', 'Time Remaining')}
-                </p>
-                <p className={`text-3xl font-bold ${timeRemaining === 'Expired' ? 'text-red-600' : 'text-blue-600'}`}>
-                  {timeRemaining}
-                </p>
-              </div>
-            )}
-            <p className="mt-4 text-xs text-gray-500">
-              {t('orderConfirmation.paymentExpiry', 'Please complete payment within 15 minutes')}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Status Message */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        {orderStatus === 'PENDING' && (
-          <p className="text-sm text-blue-800 text-center">
-            {t(
-              'orderConfirmation.pendingMessage',
-              'Please complete payment to confirm your order.'
-            )}
-          </p>
-        )}
-        {orderStatus === 'PAID' && (
-          <p className="text-sm text-green-800">
-            {t(
-              'orderConfirmation.paidMessage',
-              'Payment received! Your order is being prepared.'
-            )}
-          </p>
-        )}
-        {orderStatus === 'COMPLETE' && (
-          <p className="text-sm text-blue-800">
-            {t(
-              'orderConfirmation.completeMessage',
-              'Your order has been completed. Thank you!'
-            )}
-          </p>
-        )}
-        {orderStatus === 'CANCELLED' && (
-          <p className="text-sm text-red-800">
-            {t(
-              'orderConfirmation.cancelledMessage',
-              'This order has been cancelled.'
-            )}
-          </p>
-        )}
+        {getStatusMessage(orderStatus)}
       </div>
 
       {/* Admin Notes / Courier Info */}
@@ -335,7 +387,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
             </svg>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-amber-900 mb-1">
-                {t('orderConfirmation.noteFromAdmin', 'Note')}
+                {t('orderConfirmation.noteFromAdmin', 'Tenant Notes')}
               </h3>
               <p className="text-sm text-amber-800 whitespace-pre-wrap">
                 {renderTextWithLinks(notes)}

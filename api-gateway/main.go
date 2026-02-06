@@ -5,28 +5,59 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 
 	"github.com/labstack/echo/v4"
+	emw "github.com/labstack/echo/v4/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
+
 	"github.com/pos/api-gateway/middleware"
+	"github.com/pos/api-gateway/utils"
+
+	"github.com/pos/api-gateway/observability"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
+
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	// Metrics
+	middleware.MetricsMiddleware(e)
 
 	e.Use(middleware.Logging())
 	e.Use(middleware.CORS())
 
-	// rateLimiter := middleware.NewRateLimiter()
+	rateLimiter := middleware.NewRateLimiter()
 
 	e.GET("/health", func(c echo.Context) error {
+		tr := otel.Tracer(utils.GetEnv("SERVICE_NAME"))
+		_, span := tr.Start(c.Request().Context(), "call-downstream-service")
+		defer span.End()
+
 		return c.JSON(http.StatusOK, map[string]string{
 			"status":  "ok",
-			"service": "api-gateway",
+			"service": utils.GetEnv("SERVICE_NAME"),
 		})
 	})
 
 	e.GET("/ready", func(c echo.Context) error {
+		if !rateLimiter.IsRedisConnected() {
+			return c.JSON(http.StatusServiceUnavailable, map[string]string{
+				"status": "down",
+				"redis":  "unreachable",
+			})
+		}
 		return c.JSON(http.StatusOK, map[string]string{
 			"status": "ready",
 		})
@@ -34,15 +65,17 @@ func main() {
 
 	public := e.Group("")
 
-	tenantServiceURL := getEnv("TENANT_SERVICE_URL", "http://localhost:8084")
-	productServiceURL := getEnv("PRODUCT_SERVICE_URL", "http://localhost:8086")
-	authServiceURL := getEnv("AUTH_SERVICE_URL", "http://localhost:8082")
-	userServiceURL := getEnv("USER_SERVICE_URL", "http://localhost:8083")
+	tenantServiceURL := utils.GetEnv("TENANT_SERVICE_URL")
+	productServiceURL := utils.GetEnv("PRODUCT_SERVICE_URL")
+	authServiceURL := utils.GetEnv("AUTH_SERVICE_URL")
+	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
+	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
+	analyticsServiceURL := utils.GetEnv("ANALYTICS_SERVICE_URL")
 
 	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
-	public.GET("/api/public/tenants/:tenant_id/config", func(c echo.Context) error {
-		tenantID := c.Param("tenant_id")
-		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantID+"/config")(c)
+	public.GET("/api/public/tenants/:tenant_slug/config", func(c echo.Context) error {
+		tenantSlug := c.Param("tenant_slug")
+		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
 	})
 
 	// Public menu endpoint for guest ordering
@@ -86,12 +119,16 @@ func main() {
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
 	public.POST("/api/auth/password-reset/request", proxyHandler(authServiceURL, "/password-reset/request"))
 	public.POST("/api/auth/password-reset/reset", proxyHandler(authServiceURL, "/password-reset/reset"))
+	public.POST("/api/auth/verify-account", proxyHandler(authServiceURL, "/verify-account"))
 
 	public.POST("/api/invitations/:token/accept", proxyHandler(userServiceURL, "/invitations/:token/accept"))
 
 	protected := e.Group("")
 	protected.Use(middleware.JWTAuth())
 	protected.Use(middleware.TenantScope())
+
+	// Refresh endpoint - outside protected group since it may not have valid JWT
+	e.POST("/api/auth/refresh", proxyHandler(authServiceURL, "/refresh"))
 
 	protected.GET("/api/auth/session", proxyHandler(authServiceURL, "/session"))
 	protected.POST("/api/auth/logout", proxyHandler(authServiceURL, "/logout"))
@@ -120,7 +157,7 @@ func main() {
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
 
 	// Order service routes
-	orderServiceURL := getEnv("ORDER_SERVICE_URL", "http://localhost:8087")
+	orderServiceURL := utils.GetEnv("ORDER_SERVICE_URL")
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
@@ -141,7 +178,7 @@ func main() {
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
 
 	// Notification service routes (owner/manager only)
-	notificationServiceURL := getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8085")
+	notificationServiceURL := utils.GetEnv("NOTIFICATION_SERVICE_URL")
 	notificationGroup := protected.Group("/api/v1")
 	notificationGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	notificationGroup.Any("/notifications*", proxyWildcard(notificationServiceURL))
@@ -155,7 +192,54 @@ func main() {
 		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
 	})
 
-	port := getEnv("PORT", "8080")
+	// Audit service routes (owner only - compliance audit trail access)
+	auditGroup := protected.Group("/api/v1")
+	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
+	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
+	auditGroup.Any("/audit/tenant*", proxyWildcard(auditServiceURL))            // Tenant audit trail (T110)
+	auditGroup.Any("/admin/compliance/report*", proxyWildcard(auditServiceURL)) // Compliance report (T201)
+
+	// Tenant data rights routes (owner only - UU PDP compliance)
+	tenantDataGroup := protected.Group("/api/v1/tenant")
+	tenantDataGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	tenantDataGroup.GET("/data", proxyHandler(tenantServiceURL, "/api/v1/tenant/data"))
+	tenantDataGroup.POST("/data/export", proxyHandler(tenantServiceURL, "/api/v1/tenant/data/export"))
+
+	// User deletion routes (owner only - UU PDP compliance)
+	userDeletionGroup := protected.Group("/api/v1/tenant/users")
+	userDeletionGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	userDeletionGroup.DELETE("/:user_id", func(c echo.Context) error {
+		userID := c.Param("user_id")
+		path := "/api/v1/users/" + userID
+		// Forward force parameter if present
+		if c.QueryParam("force") != "" {
+			path += "?force=" + c.QueryParam("force")
+		}
+		return proxyHandler(userServiceURL, path)(c)
+	})
+
+	// Consent management routes (public for registration/checkout, authenticated for status/revoke)
+	public.GET("/api/v1/consent/purposes", proxyHandler(auditServiceURL, "/api/v1/consent/purposes"))
+	public.GET("/api/v1/privacy-policy", proxyHandler(auditServiceURL, "/api/v1/privacy-policy"))
+	public.POST("/api/v1/consent/grant", proxyHandler(auditServiceURL, "/api/v1/consent/grant")) // Used during registration/checkout
+
+	// Guest data rights routes (T144-T147) - public but require order verification
+	// No authentication required, access controlled by order_reference + email/phone verification
+	// public.GET("/api/v1/guest/order/:order_reference/data", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/data"))
+	// public.POST("/api/v1/guest/order/:order_reference/delete", proxyHandler(orderServiceURL, "/api/v1/guest/order/:order_reference/delete"))
+
+	// Protected consent routes (require authentication)
+	protected.GET("/api/v1/consent/status", proxyHandler(auditServiceURL, "/api/v1/consent/status"))
+	protected.POST("/api/v1/consent/revoke", proxyHandler(auditServiceURL, "/api/v1/consent/revoke"))
+	protected.GET("/api/v1/consent/history", proxyHandler(auditServiceURL, "/api/v1/consent/history"))
+
+	// Analytics service routes (owner and manager only)
+	analyticsGroup := protected.Group("/api/v1/analytics")
+	analyticsGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	analyticsGroup.Any("/*", proxyWildcard(analyticsServiceURL))
+
+	port := utils.GetEnv("PORT")
 	log.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
@@ -205,14 +289,6 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 
 		return nil
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
 
 func proxyWildcard(targetURL string) echo.HandlerFunc {

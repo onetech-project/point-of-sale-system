@@ -8,17 +8,132 @@ import (
 	"time"
 
 	"github.com/pos/notification-service/src/models"
+	"github.com/pos/notification-service/src/utils"
 )
 
 type NotificationRepository struct {
-	db *sql.DB
+	db        *sql.DB
+	encryptor utils.Encryptor
 }
 
-func NewNotificationRepository(db *sql.DB) *NotificationRepository {
-	return &NotificationRepository{db: db}
+// NewNotificationRepository creates a repository with custom encryptor (for testing)
+func NewNotificationRepository(db *sql.DB, encryptor utils.Encryptor) *NotificationRepository {
+	return &NotificationRepository{
+		db:        db,
+		encryptor: encryptor,
+	}
+}
+
+// NewNotificationRepositoryWithVault creates a repository with Vault encryption (production)
+func NewNotificationRepositoryWithVault(db *sql.DB) (*NotificationRepository, error) {
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault client: %w", err)
+	}
+	return &NotificationRepository{
+		db:        db,
+		encryptor: vaultClient,
+	}, nil
+}
+
+// encryptSensitiveMetadata encrypts sensitive PII fields within metadata
+// Sensitive fields: email, name, inviter_name, token, invitation_token, ip_address, user_agent, customer_name, customer_email, customer_phone
+func (r *NotificationRepository) encryptSensitiveMetadata(ctx context.Context, metadata map[string]interface{}) (map[string]interface{}, error) {
+	if metadata == nil {
+		return nil, nil
+	}
+
+	// Create a copy to avoid modifying the original
+	encryptedMetadata := make(map[string]interface{})
+	for k, v := range metadata {
+		encryptedMetadata[k] = v
+	}
+
+	// List of sensitive string fields to encrypt with their contexts
+	sensitiveFields := map[string]string{
+		"email":            "notification_metadata:email",
+		"name":             "notification_metadata:name",
+		"inviter_name":     "notification_metadata:inviter_name",
+		"token":            "notification_metadata:token",
+		"invitation_token": "notification_metadata:invitation_token",
+		"ip_address":       "notification_metadata:ip_address",
+		"user_agent":       "notification_metadata:user_agent",
+		"customer_name":    "notification_metadata:customer_name",
+		"customer_email":   "notification_metadata:customer_email",
+		"customer_phone":   "notification_metadata:customer_phone",
+	}
+
+	for field, context := range sensitiveFields {
+		if val, ok := encryptedMetadata[field].(string); ok && val != "" {
+			encrypted, err := r.encryptor.EncryptWithContext(ctx, val, context)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encrypt %s: %w", field, err)
+			}
+			encryptedMetadata[field] = encrypted
+		}
+	}
+
+	return encryptedMetadata, nil
+}
+
+// decryptSensitiveMetadata decrypts sensitive PII fields within metadata
+func (r *NotificationRepository) decryptSensitiveMetadata(ctx context.Context, metadata map[string]interface{}) (map[string]interface{}, error) {
+	if metadata == nil {
+		return nil, nil
+	}
+
+	// Create a copy to avoid modifying the original
+	decryptedMetadata := make(map[string]interface{})
+	for k, v := range metadata {
+		decryptedMetadata[k] = v
+	}
+
+	// List of sensitive string fields to decrypt with their contexts
+	sensitiveFields := map[string]string{
+		"email":            "notification_metadata:email",
+		"name":             "notification_metadata:name",
+		"inviter_name":     "notification_metadata:inviter_name",
+		"token":            "notification_metadata:token",
+		"invitation_token": "notification_metadata:invitation_token",
+		"ip_address":       "notification_metadata:ip_address",
+		"user_agent":       "notification_metadata:user_agent",
+		"customer_name":    "notification_metadata:customer_name",
+		"customer_email":   "notification_metadata:customer_email",
+		"customer_phone":   "notification_metadata:customer_phone",
+	}
+
+	for field, context := range sensitiveFields {
+		if val, ok := decryptedMetadata[field].(string); ok && val != "" {
+			decrypted, err := r.encryptor.DecryptWithContext(ctx, val, context)
+			if err != nil {
+				// If decryption fails, it might be plaintext (old data), keep as is
+				continue
+			}
+			decryptedMetadata[field] = decrypted
+		}
+	}
+
+	return decryptedMetadata, nil
 }
 
 func (r *NotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
+	// Encrypt PII fields with context
+	encryptedRecipient, err := r.encryptor.EncryptWithContext(ctx, notification.Recipient, "notification:recipient")
+	if err != nil {
+		return fmt.Errorf("failed to encrypt recipient: %w", err)
+	}
+
+	encryptedBody, err := r.encryptor.EncryptWithContext(ctx, notification.Body, "notification:body")
+	if err != nil {
+		return fmt.Errorf("failed to encrypt body: %w", err)
+	}
+
+	// Encrypt sensitive fields in metadata
+	encryptedMetadata, err := r.encryptSensitiveMetadata(ctx, notification.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt metadata: %w", err)
+	}
+
 	query := `
 		INSERT INTO notifications (tenant_id, user_id, type, status, event_type, subject, body, recipient, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -26,17 +141,16 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *model
 
 	// Extract event_type from metadata if present
 	eventType := "unknown"
-	if notification.Metadata != nil {
-		if et, ok := notification.Metadata["event_type"].(string); ok {
+	if encryptedMetadata != nil {
+		if et, ok := encryptedMetadata["event_type"].(string); ok {
 			eventType = et
 		}
 	}
 
 	// Convert metadata map to JSON
 	var metadataJSON []byte
-	var err error
-	if notification.Metadata != nil {
-		metadataJSON, err = json.Marshal(notification.Metadata)
+	if encryptedMetadata != nil {
+		metadataJSON, err = json.Marshal(encryptedMetadata)
 		if err != nil {
 			return err
 		}
@@ -51,8 +165,8 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *model
 		notification.Status,
 		eventType,
 		notification.Subject,
-		notification.Body,
-		notification.Recipient,
+		encryptedBody,
+		encryptedRecipient,
 		metadataJSON,
 	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
 }
@@ -75,6 +189,7 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*mode
 		WHERE id = $1`
 
 	notification := &models.Notification{}
+	var encryptedBody, encryptedRecipient string
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&notification.ID,
 		&notification.TenantID,
@@ -82,8 +197,8 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*mode
 		&notification.Type,
 		&notification.Status,
 		&notification.Subject,
-		&notification.Body,
-		&notification.Recipient,
+		&encryptedBody,
+		&encryptedRecipient,
 		&notification.Metadata,
 		&notification.SentAt,
 		&notification.FailedAt,
@@ -97,7 +212,30 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*mode
 		return nil, nil
 	}
 
-	return notification, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to find notification: %w", err)
+	}
+
+	// Decrypt PII fields with context
+	notification.Body, err = r.encryptor.DecryptWithContext(ctx, encryptedBody, "notification:body")
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt body: %w", err)
+	}
+
+	notification.Recipient, err = r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
+	}
+
+	// Decrypt sensitive fields in metadata
+	if notification.Metadata != nil {
+		notification.Metadata, err = r.decryptSensitiveMetadata(ctx, notification.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt metadata: %w", err)
+		}
+	}
+
+	return notification, nil
 }
 
 // HasSentOrderNotification checks if a notification has already been sent for a given transaction_id
@@ -132,6 +270,7 @@ func (r *NotificationRepository) GetByID(id string) (*models.Notification, error
 	notification := &models.Notification{}
 	var metadataJSON []byte
 	var eventType string
+	var encryptedBody, encryptedRecipient string
 
 	err := r.db.QueryRow(query, id).Scan(
 		&notification.ID,
@@ -141,8 +280,8 @@ func (r *NotificationRepository) GetByID(id string) (*models.Notification, error
 		&notification.Status,
 		&eventType, // Read event_type but don't store in struct
 		&notification.Subject,
-		&notification.Body,
-		&notification.Recipient,
+		&encryptedBody,
+		&encryptedRecipient,
 		&metadataJSON,
 		&notification.SentAt,
 		&notification.FailedAt,
@@ -154,6 +293,18 @@ func (r *NotificationRepository) GetByID(id string) (*models.Notification, error
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Decrypt PII fields with context
+	ctx := context.Background()
+	notification.Body, err = r.encryptor.DecryptWithContext(ctx, encryptedBody, "notification:body")
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt body: %w", err)
+	}
+
+	notification.Recipient, err = r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
 	}
 
 	// Parse metadata JSON
@@ -262,7 +413,7 @@ func (r *NotificationRepository) GetNotificationHistory(filters map[string]inter
 	var notifications []map[string]interface{}
 
 	for rows.Next() {
-		var id, eventType, notifType, recipient, subject, status string
+		var id, eventType, notifType, encryptedRecipient, subject, status string
 		var sentAt, failedAt sql.NullTime
 		var errorMsg, orderReference sql.NullString
 		var retryCount int
@@ -272,7 +423,7 @@ func (r *NotificationRepository) GetNotificationHistory(filters map[string]inter
 			&id,
 			&eventType,
 			&notifType,
-			&recipient,
+			&encryptedRecipient,
 			&subject,
 			&status,
 			&sentAt,
@@ -284,6 +435,13 @@ func (r *NotificationRepository) GetNotificationHistory(filters map[string]inter
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		// Decrypt recipient
+		ctx := context.Background()
+		recipient, err := r.encryptor.DecryptWithContext(ctx, encryptedRecipient, "notification:recipient")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt recipient: %w", err)
 		}
 
 		notification := map[string]interface{}{

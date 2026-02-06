@@ -54,11 +54,11 @@ class NotificationService {
 
   // Notification history
   async getNotificationHistory(filters?: NotificationHistoryFilters): Promise<NotificationHistoryResponse> {
-    const response = await apiClient.get<NotificationHistoryResponse>(
+    const response = await apiClient.get<{ data: NotificationHistoryResponse }>(
       '/api/v1/notifications/history',
       { params: filters }
     );
-    return response;
+    return response.data;
   }
 
   async resendNotification(notificationId: string): Promise<void> {

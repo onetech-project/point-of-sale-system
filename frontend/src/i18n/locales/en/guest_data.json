@@ -1,0 +1,87 @@
+{
+  "lookup": {
+    "title": "Access Your Personal Data",
+    "subtitle": "Enter your order reference and verification information to access your personal data",
+    "order_reference": "Order Reference",
+    "verification_label": "Verify Your Identity (Choose One)",
+    "email": "Email",
+    "phone": "Phone Number",
+    "submit": "View My Data",
+    "info_message": "Provide the email OR phone number you used when placing the order to verify your identity.",
+    "privacy_note": "Your data is protected in accordance with the Personal Data Protection Law (UU PDP)"
+  },
+  "data_page": {
+    "title": "Your Personal Data",
+    "subtitle": "Order: {{order_reference}}"
+  },
+  "sections": {
+    "customer_info": "Customer Information",
+    "order_details": "Order Details",
+    "order_items": "Order Items",
+    "delivery_address": "Delivery Address"
+  },
+  "fields": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone Number",
+    "order_reference": "Order Reference",
+    "status": "Status",
+    "order_date": "Order Date",
+    "order_type": "Order Type",
+    "payment_method": "Payment Method",
+    "total_amount": "Total Amount",
+    "address": "Full Address",
+    "coordinates": "Coordinates",
+    "delivery": "Delivery",
+    "pickup": "Pickup",
+    "dine_in": "Dine-In"
+  },
+  "actions": {
+    "title": "Manage Your Data",
+    "deletion_info": "You have the right to delete your personal data in accordance with UU PDP Article 5. Order data will be retained for merchant business purposes.",
+    "delete_data": "Delete My Personal Data",
+    "confirm_delete": "Yes, Delete My Data",
+    "back_to_lookup": "Back to Search"
+  },
+  "deletion": {
+    "confirm_title": "Confirm Data Deletion",
+    "confirm_message": "Are you sure you want to delete your personal data? This action cannot be undone.",
+    "will_be_deleted": "What Will Be Deleted:",
+    "deleted_items": {
+      "name": "Your Name",
+      "email": "Email Address",
+      "phone": "Phone Number",
+      "address": "Delivery Address",
+      "ip_address": "IP Address"
+    },
+    "will_be_preserved": "What Will Be Preserved (For Business Purposes):",
+    "preserved_items": {
+      "order_reference": "Order Reference",
+      "order_items": "List of Ordered Products",
+      "amounts": "Total Payment",
+      "status": "Order Status"
+    },
+    "irreversible_warning": "This action cannot be undone. Once deleted, you will no longer be able to access this personal data.",
+    "success_title": "Data Successfully Deleted",
+    "success_message": "Your personal data has been successfully deleted from our system. A confirmation email has been sent to your email address."
+  },
+  "privacy": {
+    "title": "Your Data Privacy",
+    "message": "In accordance with UU PDP Articles 4 & 5, you have the right to access and delete your personal data. The data you see here is all the personal information we store related to this order."
+  },
+  "errors": {
+    "order_reference_required": "Order reference is required",
+    "verification_required": "Email or phone number is required for verification",
+    "invalid_email": "Invalid email format",
+    "invalid_phone": "Invalid phone number format",
+    "missing_credentials": "Verification credentials are missing",
+    "verification_failed": "Verification failed - email or phone number does not match the order",
+    "order_not_found": "Order not found",
+    "already_deleted": "Data has already been deleted",
+    "lookup_failed": "Lookup failed, please try again",
+    "fetch_failed": "Failed to fetch data, please try again",
+    "deletion_failed": "Failed to delete data, please try again",
+    "title": "An Error Occurred",
+    "not_completed_or_cancelled": "Data deletion can only be performed on completed or cancelled orders"
+  }
+}

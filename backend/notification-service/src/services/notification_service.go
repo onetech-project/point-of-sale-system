@@ -26,16 +26,29 @@ type NotificationService struct {
 	templates     map[string]*template.Template
 	frontendURL   string
 	db            *sql.DB
+	encryptor     utils.Encryptor
 }
 
-func NewNotificationService(db *sql.DB) *NotificationService {
+func NewNotificationService(db *sql.DB) (*NotificationService, error) {
+	repo, err := repository.NewNotificationRepositoryWithVault(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create notification repository: %w", err)
+	}
+
+	// Initialize Vault encryptor for decrypting user emails
+	encryptor, err := utils.NewVaultClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault client: %w", err)
+	}
+
 	service := &NotificationService{
-		repo:          repository.NewNotificationRepository(db),
+		repo:          repo,
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
-		frontendURL:   getEnv("FRONTEND_DOMAIN", "http://localhost:3000"),
+		frontendURL:   getEnv("FRONTEND_DOMAIN"),
 		db:            db,
+		encryptor:     encryptor,
 	}
 
 	// Load all templates
@@ -43,19 +56,20 @@ func NewNotificationService(db *sql.DB) *NotificationService {
 		log.Printf("Warning: Failed to load templates: %v", err)
 	}
 
-	return service
+	return service, nil
 }
 
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
+func getEnv(key string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return value
+
+	//thow error: missing environment variable
+	panic("Environment variable " + key + " is not set")
 }
 
 func (s *NotificationService) loadTemplates() error {
-	templateDir := getEnv("TEMPLATE_DIR", "./templates")
+	templateDir := getEnv("TEMPLATE_DIR")
 
 	templateFiles := []string{
 		"registration.html",
@@ -65,6 +79,8 @@ func (s *NotificationService) loadTemplates() error {
 		"team_invitation.html",
 		"order_invoice.html",
 		"order_staff_notification.html",
+		"user_deletion_warning.html",
+		"guest_data_deleted.html",
 	}
 
 	// Get custom template functions
@@ -110,6 +126,10 @@ func (s *NotificationService) HandleEvent(ctx context.Context, eventData []byte)
 		return s.handleOrderInvoice(ctx, event)
 	case "order.paid":
 		return s.handleOrderPaid(ctx, event)
+	case "user_deletion_warning":
+		return s.handleUserDeletionWarning(ctx, event)
+	case "guest_data_deleted":
+		return s.handleGuestDataDeleted(ctx, event)
 	default:
 		log.Printf("Unknown event type: %s", event.EventType)
 		return nil
@@ -125,7 +145,7 @@ func (s *NotificationService) handleUserRegistration(ctx context.Context, event 
 	body := s.renderTemplate("registration", map[string]interface{}{
 		"Name":  name,
 		"Token": verificationToken,
-		"URL":   fmt.Sprintf("%s/verify?token=%s", s.frontendURL, verificationToken),
+		"URL":   fmt.Sprintf("%s/verify-email?token=%s", s.frontendURL, verificationToken),
 	})
 
 	// Add event_type to metadata
@@ -417,6 +437,163 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 	return s.sendEmail(ctx, notification)
 }
 
+// handleUserDeletionWarning processes user_deletion_warning events and sends 30-day deletion notice (T136)
+// Sent 60 days after soft delete to warn users their account will be permanently deleted in 30 days
+func (s *NotificationService) handleUserDeletionWarning(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	userID, _ := event.Data["user_id"].(string)
+	deletionDate, _ := event.Data["deletion_date"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for user deletion warning")
+	}
+
+	// Get user name from database if available
+	name := "User"
+	var firstName, lastName sql.NullString
+	query := `SELECT first_name, last_name FROM users WHERE id = $1`
+	err := s.db.QueryRowContext(ctx, query, userID).Scan(&firstName, &lastName)
+	if err == nil {
+		if firstName.Valid && firstName.String != "" {
+			name = firstName.String
+			if lastName.Valid && lastName.String != "" {
+				name = firstName.String + " " + lastName.String
+			}
+		}
+	}
+
+	// Parse deletion date to calculate days remaining
+	var deletionDateFormatted string
+	var daysRemaining int
+	if t, err := time.Parse(time.RFC3339, deletionDate); err == nil {
+		deletionDateFormatted = t.Format("January 2, 2006")
+		// Calculate days remaining until deletion
+		daysRemaining = int(time.Until(t).Hours() / 24)
+		if daysRemaining < 0 {
+			daysRemaining = 0
+		}
+	} else {
+		// Fallback if date parsing fails
+		deletionDateFormatted = deletionDate
+		daysRemaining = 30
+	}
+
+	// Use bilingual template (includes both Indonesian and English)
+	subject := "Account Deletion Notice - Action Required / Pemberitahuan Penghapusan Akun"
+
+	body := s.renderTemplate("user_deletion_warning", map[string]interface{}{
+		"full_name":      name,
+		"days_remaining": daysRemaining,
+		"deletion_date":  deletionDateFormatted,
+	})
+
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		UserID:    &userID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create notification: %w", err)
+	}
+
+	log.Printf("[USER_DELETION_WARNING] Sending deletion warning to %s (deletion date: %s)", email, deletionDateFormatted)
+	return s.sendEmail(ctx, notification)
+}
+
+// handleGuestDataDeleted processes guest_data_deleted events and sends confirmation email (T156)
+func (s *NotificationService) handleGuestDataDeleted(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	orderReference, _ := event.Data["order_reference"].(string)
+	customerName, _ := event.Data["customer_name"].(string)
+	anonymizedAt, _ := event.Data["anonymized_at"].(string)
+	language, _ := event.Data["language"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for guest data deletion confirmation")
+	}
+
+	if orderReference == "" {
+		return fmt.Errorf("order_reference is required for guest data deletion confirmation")
+	}
+
+	// Default language to Indonesian
+	if language == "" {
+		language = "id"
+	}
+
+	// Default customer name if not provided
+	if customerName == "" {
+		customerName = "Customer"
+		if language == "id" {
+			customerName = "Pelanggan"
+		}
+	}
+
+	// Format anonymization timestamp
+	anonymizedAtFormatted := anonymizedAt
+	if t, err := time.Parse(time.RFC3339, anonymizedAt); err == nil {
+		if language == "id" {
+			anonymizedAtFormatted = t.Format("2 January 2006, 15:04 WIB")
+		} else {
+			anonymizedAtFormatted = t.Format("January 2, 2006, 3:04 PM")
+		}
+	}
+
+	// Determine subject based on language
+	subject := "Data Deletion Confirmation"
+	merchantName := "Posku"
+	if language == "id" {
+		subject = "Konfirmasi Penghapusan Data"
+	}
+
+	body := s.renderTemplate("guest_data_deleted", map[string]interface{}{
+		"customer_name":   customerName,
+		"order_reference": orderReference,
+		"anonymized_at":   anonymizedAtFormatted,
+		"merchant_name":   merchantName,
+		"language":        language,
+	})
+
+	// Add event_type to metadata
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	// Create notification record
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		UserID:    nil,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create notification: %w", err)
+	}
+
+	log.Printf("[GUEST_DATA_DELETED] Sending deletion confirmation to %s (order: %s)", email, orderReference)
+	return s.sendEmail(ctx, notification)
+}
+
 // handleOrderPaid processes order.paid events and sends notifications to staff
 func (s *NotificationService) handleOrderPaid(ctx context.Context, event models.NotificationEvent) error {
 	// Convert the generic NotificationEvent to OrderPaidEvent
@@ -508,11 +685,19 @@ func (s *NotificationService) queryStaffRecipients(ctx context.Context, tenantID
 
 	var emails []string
 	for rows.Next() {
-		var id, email string
-		if err := rows.Scan(&id, &email); err != nil {
+		var id, encryptedEmail string
+		if err := rows.Scan(&id, &encryptedEmail); err != nil {
 			log.Printf("[ORDER_PAID] Error scanning staff row: %v", err)
 			continue
 		}
+
+		// Decrypt email address with context (user:email is the encryption context used during encryption)
+		email, err := s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
+		if err != nil {
+			log.Printf("[ORDER_PAID] Failed to decrypt email for user %s: %v", id, err)
+			continue // Skip this user
+		}
+
 		emails = append(emails, email)
 		log.Printf("[ORDER_PAID] Found staff recipient: %s (ID: %s)", email, id)
 	}

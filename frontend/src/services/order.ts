@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Order, OrderItem, OrderNote } from '../types/cart';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 // Re-export types for backward compatibility
 export type { Order, OrderItem, OrderNote };

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { order, Order, OrderWithDetails } from '../../services/order';
-import { OrderItem, OrderNote } from '../../types/cart';
-import { formatCurrency, renderTextWithLinks } from '../../utils/text';
+import { renderTextWithLinks } from '../../utils/text';
+import { formatCurrency } from '../../utils/format';
 
 interface OrderManagementProps {
   // Removed tenantId - API Gateway extracts it from session
@@ -415,6 +415,20 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                           {formatCurrency(item.total_price)}
                         </p>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              { /* Customer Notes */}
+              {selectedOrderDetails.order.notes && (
+                <div>
+                  <h4 className="font-semibold mb-2">Customer Notes</h4>
+                  <div className="bg-gray-50 border border-gray-200 rounded p-4">
+                    {selectedOrderDetails.order.notes.split('\n').map((line, index) => (
+                      <p key={index} className="text-sm text-gray-700">
+                        {renderTextWithLinks(line)}
+                      </p>
                     ))}
                   </div>
                 </div>

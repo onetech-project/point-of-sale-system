@@ -28,7 +28,7 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [showAvailableOnly, setShowAvailableOnly] = useState<boolean>(true);
+  const [showAvailableOnly, setShowAvailableOnly] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 

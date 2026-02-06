@@ -14,9 +14,11 @@ Implemented complete QRIS payment flow integration with Midtrans Core API, repla
 ### Backend Changes
 
 #### 1. Database Schema (Migration 000020)
+
 **File**: `backend/migrations/000020_add_qr_fields_to_payment_transactions.up.sql`
 
 Added three new columns to `payment_transactions` table:
+
 - `qr_code_url TEXT` - URL to QR code image from Midtrans actions array
 - `qr_string TEXT` - Raw QRIS string data
 - `expiry_time TIMESTAMP` - Payment expiration timestamp (default 15 minutes)
@@ -24,9 +26,11 @@ Added three new columns to `payment_transactions` table:
 **Migration Status**: ⚠️ Not yet executed - run migration before testing
 
 #### 2. Data Models
+
 **File**: `backend/order-service/src/models/payment_transaction.go`
 
 Extended `PaymentTransaction` model:
+
 ```go
 type PaymentTransaction struct {
     // ... existing fields
@@ -37,6 +41,7 @@ type PaymentTransaction struct {
 ```
 
 #### 3. Midtrans Configuration
+
 **File**: `backend/order-service/src/config/midtrans.go`
 
 - Added Core API client initialization alongside Snap client
@@ -44,17 +49,20 @@ type PaymentTransaction struct {
 - Added `GetWebhookURL()` method to retrieve webhook endpoint from env
 
 **Required Environment Variable**:
+
 ```bash
 MIDTRANS_WEBHOOK_URL=https://your-domain.com/api/v1/webhooks/midtrans
 # Defaults to http://localhost:8080/api/v1/webhooks/midtrans if not set
 ```
 
 #### 4. Payment Service
+
 **File**: `backend/order-service/src/services/payment_service.go`
 
 **New Methods**:
 
 a) `CreateQRISCharge(ctx context.Context, order *models.Order)`:
+
 - Creates QRIS payment using Midtrans Core API `/v2/charge` endpoint
 - Builds JSON payload with `payment_type: "qris"` and transaction details
 - Sets `Authorization: Basic {base64(serverKey:)}` header
@@ -63,12 +71,14 @@ a) `CreateQRISCharge(ctx context.Context, order *models.Order)`:
 - Returns `QRISChargeResponse` with transaction_id, expiry_time, actions
 
 b) `SaveQRISPaymentInfo(ctx context.Context, orderID string, chargeResp *QRISChargeResponse)`:
+
 - Parses expiry_time string to time.Time
 - Extracts QR code URL from `actions[0].url`
 - Creates PaymentTransaction record with all QR fields populated
 - Handles idempotency via transaction_id
 
 **Data Structures**:
+
 ```go
 type QRISChargeResponse struct {
     TransactionID     string   `json:"transaction_id"`
@@ -91,18 +101,22 @@ type Action struct {
 ```
 
 #### 5. Payment Repository
+
 **File**: `backend/order-service/src/repository/payment_repository.go`
 
 Updated all CRUD methods to handle new QR fields:
+
 - `CreatePaymentTransaction`: INSERT includes qr_code_url, qr_string, expiry_time
 - `GetPaymentByOrderID`: SELECT and Scan include QR fields
 - `GetPaymentByTransactionID`: SELECT and Scan include QR fields
 - `GetPaymentByIdempotencyKey`: SELECT and Scan include QR fields
 
 #### 6. Checkout Handler
+
 **File**: `backend/order-service/api/checkout_handler.go`
 
 **Modified Checkout Flow** (CreateOrder method):
+
 - Replaced `CreateSnapTransaction` with `CreateQRISCharge`
 - Added `SaveQRISPaymentInfo` call after charge creation
 - Extracts QR code URL from `qrisResp.Actions[0].URL`
@@ -110,8 +124,10 @@ Updated all CRUD methods to handle new QR fields:
 - Sets `PaymentToken` to nil (not needed for QRIS)
 
 **Enhanced Order Status Endpoint** (GetPublicOrder method):
+
 - Added payment repository query to fetch payment by order ID
 - Returns combined response with both order and payment objects:
+
 ```json
 {
   "order": { ... },
@@ -126,9 +142,11 @@ Updated all CRUD methods to handle new QR fields:
 ```
 
 #### 7. Webhook Handler
+
 **File**: `backend/order-service/src/services/payment_service.go`
 
 **Existing handlers verified** (no changes needed):
+
 - `ProcessNotification`: Verifies Midtrans signature and routes to handlers
 - `handlePaymentSuccess`: settlement + accept → order.PAID + convert inventory
 - `handlePaymentFailure`: expire + accept → order.CANCELLED + release inventory
@@ -138,49 +156,56 @@ Updated all CRUD methods to handle new QR fields:
 ### Frontend Changes
 
 #### 1. Type Definitions
+
 **File**: `frontend/src/types/cart.ts`
 
 Added `PaymentInfo` interface:
+
 ```typescript
 export interface PaymentInfo {
-  transaction_id: string;
-  transaction_status: string;
-  qr_code_url?: string;
-  expiry_time?: string;
-  payment_type: string;
+  transaction_id: string
+  transaction_status: string
+  qr_code_url?: string
+  expiry_time?: string
+  payment_type: string
 }
 ```
 
 Extended `Order` interface:
+
 ```typescript
 export interface Order {
   // ... existing fields
-  payment?: PaymentInfo;
+  payment?: PaymentInfo
 }
 ```
 
 #### 2. Order Service
+
 **File**: `frontend/src/services/order.ts`
 
 Updated `getOrderByReference` method:
+
 - Handles new response structure `{ order: {...}, payment: {...} }`
 - Attaches payment info to order object
 - Sets `payment_url` from `payment.qr_code_url` for backward compatibility
 
 ```typescript
-const orderData = response.data.order;
+const orderData = response.data.order
 if (response.data.payment) {
-  orderData.payment = response.data.payment;
+  orderData.payment = response.data.payment
   if (response.data.payment.qr_code_url) {
-    orderData.payment_url = response.data.payment.qr_code_url;
+    orderData.payment_url = response.data.payment.qr_code_url
   }
 }
 ```
 
 #### 3. Order Confirmation Component
+
 **File**: `frontend/src/components/guest/OrderConfirmation.tsx`
 
 **New Features**:
+
 - Added `paymentInfo?: PaymentInfo` prop
 - Implemented countdown timer using React useState/useEffect
 - Timer updates every second showing MM:SS format
@@ -188,43 +213,46 @@ if (response.data.payment) {
 - Only shows countdown for PENDING orders with expiry_time
 
 **Timer Logic**:
+
 ```typescript
-const [timeRemaining, setTimeRemaining] = useState<string>('');
+const [timeRemaining, setTimeRemaining] = useState<string>('')
 
 useEffect(() => {
   if (!paymentInfo?.expiry_time || orderStatus !== 'PENDING') {
-    setTimeRemaining('');
-    return;
+    setTimeRemaining('')
+    return
   }
 
   const updateTimer = () => {
-    const expiryDate = new Date(paymentInfo.expiry_time);
-    const now = new Date();
-    const diff = expiryDate.getTime() - now.getTime();
+    const expiryDate = new Date(paymentInfo.expiry_time)
+    const now = new Date()
+    const diff = expiryDate.getTime() - now.getTime()
 
     if (diff <= 0) {
-      setTimeRemaining('Expired');
-      return;
+      setTimeRemaining('Expired')
+      return
     }
 
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-    setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-  };
+    const minutes = Math.floor(diff / 60000)
+    const seconds = Math.floor((diff % 60000) / 1000)
+    setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`)
+  }
 
-  updateTimer();
-  const interval = setInterval(updateTimer, 1000);
-  return () => clearInterval(interval);
-}, [paymentInfo?.expiry_time, orderStatus]);
+  updateTimer()
+  const interval = setInterval(updateTimer, 1000)
+  return () => clearInterval(interval)
+}, [paymentInfo?.expiry_time, orderStatus])
 ```
 
 **UI Enhancements**:
+
 - QR code displayed in bordered container
 - Countdown timer displayed prominently below QR code
 - Color changes to red when expired
 - Instructions for scanning with mobile banking/e-wallet
 
 #### 4. Order Status Page
+
 **File**: `frontend/app/orders/[orderReference]/page.tsx`
 
 - Added `paymentInfo={orderData.payment}` prop to OrderConfirmation
@@ -278,7 +306,7 @@ useEffect(() => {
    ↓
 6. Frontend receives:
    {
-     "order_reference": "ORD-XXX",
+     "order_reference": "GO-XXX",
      "payment_url": "https://.../qr-code"
    }
    ↓
@@ -371,15 +399,18 @@ useEffect(() => {
 ## Midtrans API Integration
 
 ### Endpoint
+
 - **Sandbox**: `https://api.sandbox.midtrans.com/v2/charge`
 - **Production**: `https://api.midtrans.com/v2/charge`
 
 ### Authentication
+
 ```
 Authorization: Basic base64encode(ServerKey + ":")
 ```
 
 ### Request Headers
+
 ```json
 {
   "Content-Type": "application/json",
@@ -390,6 +421,7 @@ Authorization: Basic base64encode(ServerKey + ":")
 ```
 
 ### Request Body
+
 ```json
 {
   "payment_type": "qris",
@@ -401,6 +433,7 @@ Authorization: Basic base64encode(ServerKey + ":")
 ```
 
 ### Response Structure
+
 ```json
 {
   "status_code": "201",
@@ -427,6 +460,7 @@ Authorization: Basic base64encode(ServerKey + ":")
 ```
 
 ### Webhook Notification
+
 ```json
 {
   "transaction_time": "2025-12-07 12:20:15",
@@ -473,6 +507,7 @@ DB_NAME=pos_order_db
 ## Testing Checklist
 
 ### Prerequisites
+
 - [ ] Run migration 000020: `make migrate-up` or manual SQL execution
 - [ ] Verify `MIDTRANS_WEBHOOK_URL` is set to publicly accessible URL
 - [ ] Ensure Midtrans sandbox credentials are configured
@@ -482,6 +517,7 @@ DB_NAME=pos_order_db
 ### Backend Testing
 
 #### 1. Migration Verification
+
 ```bash
 # Connect to database
 psql -h localhost -U postgres -d pos_order_db
@@ -496,6 +532,7 @@ psql -h localhost -U postgres -d pos_order_db
 ```
 
 #### 2. QRIS Charge Creation
+
 ```bash
 # Test checkout endpoint
 curl -X POST http://localhost:8080/api/v1/public/orders/checkout \
@@ -511,7 +548,7 @@ curl -X POST http://localhost:8080/api/v1/public/orders/checkout \
 
 # Expected response:
 {
-  "order_reference": "ORD-XXX",
+  "order_reference": "GO-XXX",
   "order_id": "uuid",
   "status": "PENDING",
   "payment_url": "https://api.sandbox.midtrans.com/v2/qris/{id}/qr-code",
@@ -521,15 +558,16 @@ curl -X POST http://localhost:8080/api/v1/public/orders/checkout \
 ```
 
 #### 3. Order Status Endpoint
+
 ```bash
 # Test public order endpoint
-curl http://localhost:8080/api/v1/public/orders/ORD-XXX
+curl http://localhost:8080/api/v1/public/orders/GO-XXX
 
 # Expected response:
 {
   "order": {
     "id": "uuid",
-    "order_reference": "ORD-XXX",
+    "order_reference": "GO-XXX",
     "status": "PENDING",
     ...
   },
@@ -544,17 +582,18 @@ curl http://localhost:8080/api/v1/public/orders/ORD-XXX
 ```
 
 #### 4. Database Verification
+
 ```sql
 -- Check payment_transactions record
-SELECT 
+SELECT
   order_id,
   midtrans_transaction_id,
   transaction_status,
   qr_code_url,
   expiry_time,
   created_at
-FROM payment_transactions 
-ORDER BY created_at DESC 
+FROM payment_transactions
+ORDER BY created_at DESC
 LIMIT 1;
 
 -- Should show:
@@ -566,17 +605,19 @@ LIMIT 1;
 ### Frontend Testing
 
 #### 1. Checkout Flow
+
 1. Navigate to `/menu/{tenant_id}`
 2. Add items to cart
 3. Click "Checkout"
 4. Fill in customer details
 5. Submit checkout form
-6. **Verify**: Redirected to `/orders/ORD-XXX`
+6. **Verify**: Redirected to `/orders/GO-XXX`
 7. **Verify**: QR code image displayed
 8. **Verify**: Countdown timer showing MM:SS format
 9. **Verify**: Order status shows "PENDING"
 
 #### 2. QR Code Display
+
 1. On order status page
 2. **Verify**: QR code image loads (not broken image)
 3. **Verify**: Image size is 256x256px with border
@@ -584,6 +625,7 @@ LIMIT 1;
 5. **Verify**: Instructions displayed below heading
 
 #### 3. Countdown Timer
+
 1. **Verify**: Timer displays initially (e.g., "14:59")
 2. Wait 1 minute
 3. **Verify**: Timer decrements (e.g., "13:59")
@@ -591,6 +633,7 @@ LIMIT 1;
 5. **Verify**: Format is MM:SS with leading zeros
 
 #### 4. Auto-refresh
+
 1. Keep order status page open
 2. Wait 10 seconds
 3. **Verify**: Console shows new API call
@@ -600,9 +643,11 @@ LIMIT 1;
 ### Integration Testing
 
 #### 1. Successful Payment Flow
+
 1. Create order via checkout
 2. Copy QR code URL from network inspector
 3. Simulate Midtrans webhook (settlement):
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
   -H "Content-Type: application/json" \
@@ -615,14 +660,17 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
     "signature_key": "calculated-signature"
   }'
 ```
+
 4. **Verify**: Order status updates to "PAID" within 10 seconds
 5. **Verify**: Payment status message changes to "Payment received!"
 6. **Verify**: QR code section disappears
 7. **Verify**: Inventory converted from reserved to sold
 
 #### 2. Payment Expiry Flow
+
 1. Create order via checkout
 2. Wait for countdown to reach 0 OR simulate webhook (expire):
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
   -H "Content-Type: application/json" \
@@ -633,12 +681,14 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
     "transaction_id": "payment-transaction-uuid"
   }'
 ```
+
 3. **Verify**: Countdown shows "Expired"
 4. **Verify**: Order status updates to "CANCELLED"
 5. **Verify**: Status message shows "This order has been cancelled"
 6. **Verify**: Reserved inventory released
 
 #### 3. Real Midtrans Payment (Sandbox)
+
 1. Create order
 2. Use Midtrans Sandbox Simulator app or real QR scanner
 3. Scan the displayed QR code
@@ -652,6 +702,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 ## File Changes Summary
 
 ### Backend Files Modified
+
 1. ✅ `backend/migrations/000020_add_qr_fields_to_payment_transactions.up.sql` - CREATED
 2. ✅ `backend/order-service/src/models/payment_transaction.go` - UPDATED
 3. ✅ `backend/order-service/src/config/midtrans.go` - UPDATED
@@ -660,6 +711,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 6. ✅ `backend/order-service/api/checkout_handler.go` - UPDATED
 
 ### Frontend Files Modified
+
 1. ✅ `frontend/src/types/cart.ts` - UPDATED
 2. ✅ `frontend/src/services/order.ts` - UPDATED
 3. ✅ `frontend/src/components/guest/OrderConfirmation.tsx` - UPDATED
@@ -692,24 +744,28 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 ## Troubleshooting
 
 ### QR Code Not Displaying
+
 - Check browser console for image load errors
 - Verify `qr_code_url` in API response is valid
 - Ensure Midtrans sandbox/production mode matches credentials
 - Check CORS if loading from different domain
 
 ### Countdown Not Working
+
 - Verify `expiry_time` is in ISO 8601 format
 - Check browser console for JavaScript errors
 - Ensure `paymentInfo` prop passed to OrderConfirmation
 - Verify order status is "PENDING"
 
 ### Webhook Not Received
+
 - Check `MIDTRANS_WEBHOOK_URL` is publicly accessible (use ngrok for local testing)
 - Verify webhook URL registered in Midtrans dashboard
 - Check firewall/security group rules
 - Review webhook logs in Midtrans dashboard
 
 ### Payment Status Not Updating
+
 - Verify webhook signature validation passes
 - Check order-service logs for webhook processing errors
 - Ensure database connection healthy
@@ -729,6 +785,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 ## Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] Run migration 000020 on staging database
 - [ ] Set production `MIDTRANS_WEBHOOK_URL` in environment
 - [ ] Switch to production Midtrans credentials
@@ -736,6 +793,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 - [ ] Review and update CORS settings if needed
 
 ### Post-Deployment
+
 - [ ] Monitor order-service logs for errors
 - [ ] Verify QR code generation succeeds
 - [ ] Test end-to-end flow in production
@@ -750,7 +808,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 **Type Safety**: ✅ No TypeScript/Go errors  
 **API Contracts**: ✅ Matches Midtrans specifications  
 **User Experience**: ✅ QR code display + countdown timer  
-**Webhook Handling**: ✅ Settlement and expiry flows covered  
+**Webhook Handling**: ✅ Settlement and expiry flows covered
 
 **Ready for Testing**: ⚠️ Requires migration execution and environment setup
 
@@ -759,6 +817,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/midtrans \
 ## Support Contacts
 
 For issues or questions:
+
 1. Check Midtrans documentation: https://docs.midtrans.com
 2. Review implementation contracts in `specs/003-guest-qris-ordering/`
 3. Check backend logs: `docker logs order-service`
@@ -766,5 +825,5 @@ For issues or questions:
 
 ---
 
-*Last Updated: 2025-01-07*
-*Implementation by: GitHub Copilot*
+_Last Updated: 2025-01-07_
+_Implementation by: GitHub Copilot_

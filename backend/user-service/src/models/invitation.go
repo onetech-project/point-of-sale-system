@@ -33,9 +33,10 @@ type InvitationRequest struct {
 }
 
 type InvitationAcceptRequest struct {
-	FirstName string `json:"firstName" validate:"required,min=2,max=50"`
-	LastName  string `json:"lastName" validate:"required,min=2,max=50"`
-	Password  string `json:"password" validate:"required,min=8"`
+	FirstName string   `json:"firstName" validate:"required,min=2,max=50"`
+	LastName  string   `json:"lastName" validate:"required,min=2,max=50"`
+	Password  string   `json:"password" validate:"required,min=8"`
+	Consents  []string `json:"consents"` // Optional consent codes granted by user
 }
 
 type InvitationResponse struct {

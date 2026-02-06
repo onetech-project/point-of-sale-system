@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:14.19-alpine3.21
@@ -17,10 +15,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
 
   redis:
     image: redis:8.0.5-alpine
     container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    environment:
+      REDIS_PASSWORD: pos_password
     ports:
       - "6379:6379"
     volumes:
@@ -30,6 +39,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -63,6 +80,14 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+        reservations:
+          memory: 1024M
 
   # MinIO Object Storage for Product Photos (Feature 005)
   minio:
@@ -84,6 +109,12 @@ services:
       retries: 5
     networks:
       - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 256M
   
   mailhog:
     image: mailhog/mailhog:latest
@@ -91,73 +122,391 @@ services:
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
 
   # T112: Order Service for QRIS Guest Ordering
-  # order-service:
-  #   build:
-  #     context: ./backend/order-service
-  #     dockerfile: Dockerfile
-  #   container_name: order-service
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   environment:
-  #     # Database
-  #     DATABASE_URL: postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable
-  #     DB_HOST: postgres
-  #     DB_PORT: 5432
-  #     DB_USER: pos_user
-  #     DB_PASSWORD: pos_password
-  #     DB_NAME: pos_db
-      
-  #     # Redis
-  #     REDIS_URL: redis://redis:6379
-  #     REDIS_HOST: redis
-  #     REDIS_PORT: 6379
-      
-  #     # Midtrans Payment Gateway
-  #     MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-your-server-key-here}
-  #     MIDTRANS_CLIENT_KEY: ${MIDTRANS_CLIENT_KEY:-your-client-key-here}
-  #     MIDTRANS_ENVIRONMENT: ${MIDTRANS_ENVIRONMENT:-sandbox}
-      
-  #     # Google Maps API for Geocoding
-  #     GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-your-google-maps-api-key}
-      
-  #     # Service URLs
-  #     TENANT_SERVICE_URL: ${TENANT_SERVICE_URL:-http://tenant-service:8001}
-  #     PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL:-http://product-service:8002}
-      
-  #     # Server Configuration
-  #     PORT: 8080
-  #     LOG_LEVEL: ${LOG_LEVEL:-info}
-  #     ENVIRONMENT: ${ENVIRONMENT:-development}
-      
-  #   ports:
-  #     - "8080:8080"
-  #   volumes:
-  #     - ./backend/order-service:/app
-  #     - order_service_cache:/go/pkg/mod
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
-  #   restart: unless-stopped
-  #   networks:
-  #     - pos-network
+  order-service:
+    build:
+      context: ./backend/order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/order-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8087:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "order-service"
+      env: "development"
+
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/auth-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "auth-service"
+      env: "development"
+
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/notification-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8085:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "notification-service"
+      env: "development"
+
+  product-service:
+    build:
+      context: ./backend/product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - ./backend/product-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8086:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "product-service"
+      env: "development"
+
+  tenant-service:
+    build:
+      context: ./backend/tenant-service
+      dockerfile: Dockerfile
+    container_name: tenant-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/tenant-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8084:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "tenant-service"
+      env: "development"
+
+  user-service:
+    build:
+      context: ./backend/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/user-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "user-service"
+      env: "development"
+  
+  audit-service:
+    build:
+      context: ./backend/audit-service
+      dockerfile: Dockerfile
+    container_name: audit-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./backend/audit-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8088:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "audit-service"
+      env: "development"
+
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: analytics-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./backend/analytics-service/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8089:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8089/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure:5
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8089"
+      service: "analytics-service"
+      env: "development"
+  
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./api-gateway/.env
+    volumes:
+      - ./vault/tls/ca.crt:/vault/tls/ca.crt:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "8080"
+      service: "api-gateway"
+      env: "development"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pos-frontend
+    env_file:
+      - ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 128M
+    labels:
+      prometheus.scrape: "true"
+      prometheus.port: "3000"
+      service: "frontend"
+      env: "development"
 
 volumes:
   postgres_data:
+    name: pos_postgres_data
   redis_data:
+    name: pos_redis_data
   kafka_data:
+    name: pos_kafka_data
   minio_data:
-  # order_service_cache:
+    name: pos_minio_data
 
 networks:
   pos-network:
-    driver: bridge
+    external: true
+      

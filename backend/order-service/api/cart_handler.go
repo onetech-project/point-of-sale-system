@@ -15,7 +15,7 @@ type CartHandler struct {
 }
 
 func NewCartHandler() *CartHandler {
-	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL", 86400)) * time.Second
+	ttl := time.Duration(config.GetEnvAsInt("CART_SESSION_TTL")) * time.Second
 	cartRepo := repository.NewCartRepository(config.GetRedis(), ttl)
 	reservationRepo := repository.NewReservationRepository(config.GetDB())
 	cartService := services.NewCartService(cartRepo, reservationRepo, config.GetDB())

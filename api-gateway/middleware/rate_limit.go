@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/pos/api-gateway/utils"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -17,16 +17,25 @@ type RateLimiter struct {
 }
 
 func NewRateLimiter() *RateLimiter {
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost:6379"
-	}
-
+	redisHost := utils.GetEnv("REDIS_HOST")
+	redisPass := utils.GetEnv("REDIS_PASSWORD")
 	client := redis.NewClient(&redis.Options{
-		Addr: redisHost,
+		Addr:         redisHost,
+		Password:     redisPass,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
 	})
 
 	return &RateLimiter{redis: client}
+}
+
+func (rl *RateLimiter) IsRedisConnected() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := rl.redis.Ping(ctx).Result()
+	return err == nil
 }
 
 func (rl *RateLimiter) RateLimit(maxAttempts int, window time.Duration) echo.MiddlewareFunc {

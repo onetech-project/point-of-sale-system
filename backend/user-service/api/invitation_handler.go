@@ -8,15 +8,20 @@ import (
 	"github.com/pos/user-service/src/models"
 	"github.com/pos/user-service/src/queue"
 	"github.com/pos/user-service/src/services"
+	"github.com/pos/user-service/src/utils"
 )
 
 type InvitationHandler struct {
 	invitationService *services.InvitationService
 }
 
-func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer) *InvitationHandler {
+func NewInvitationHandler(db *sql.DB, eventProducer *queue.KafkaProducer, auditPublisher utils.AuditPublisherInterface) *InvitationHandler {
+	invitationService, err := services.NewInvitationService(db, eventProducer, auditPublisher)
+	if err != nil {
+		panic("Failed to create invitation service: " + err.Error())
+	}
 	return &InvitationHandler{
-		invitationService: services.NewInvitationService(db, eventProducer),
+		invitationService: invitationService,
 	}
 }
 
@@ -162,7 +167,11 @@ func (h *InvitationHandler) AcceptInvitation(c echo.Context) error {
 		})
 	}
 
-	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password)
+	// Extract IP address and user agent for consent recording
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+
+	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password, req.Consents, ipAddress, userAgent)
 	if err != nil {
 		if err == services.ErrInvitationNotFound {
 			return c.JSON(http.StatusNotFound, map[string]string{

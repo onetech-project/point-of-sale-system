@@ -4,7 +4,8 @@
  * @param decimals - Number of decimal places (default: 2)
  * @returns Formatted string with thousand separators
  */
-export const formatNumber = (value: number, decimals: number = 2): string => {
+export const formatNumber = (value: number, decimals: number = 0): string => {
+  if (isNaN(value)) return '0';
   return value.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -17,7 +18,7 @@ export const formatNumber = (value: number, decimals: number = 2): string => {
  * @param decimals - Number of decimal places (default: 1)
  * @returns Formatted string (e.g., "1.2M", "3.5B")
  */
-export const formatCompactNumber = (value: number, decimals: number = 1): string => {
+export const formatCompactNumber = (value: number, decimals: number = 2): string => {
   if (value >= 1_000_000_000) {
     return (value / 1_000_000_000).toFixed(decimals) + 'B';
   }
@@ -64,12 +65,25 @@ export const parseFormattedNumber = (value: string): number => {
  * @param price - The price to format
  * @returns Formatted currency string
  */
-export const formatPrice = (price: number): string => {
+export const formatPrice = (price: number, compact: boolean = false, decimals: number = 2): string => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
-    minimumFractionDigits: 0,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    notation: compact ? 'compact' : 'standard',
+    compactDisplay: 'short'
   }).format(price);
+};
+
+/**
+ * Format currency (alias for formatPrice)
+ * @param amount - The amount to format
+ * @returns Formatted currency string
+ */
+export const formatCurrency = (amount: number, compact: boolean = false, decimals: number = 2): string => {
+  if (isNaN(amount)) return formatPrice(0);
+  return formatPrice(amount, compact, decimals);
 };
 
 /**
@@ -83,4 +97,15 @@ export const formatFileSize = (bytes: number): string => {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+};
+
+export const formatDate = (dateString: string) => {
+  const locale = localStorage.getItem('locale') === 'id' ? 'id-ID' : 'en-US';
+  return new Date(dateString).toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };

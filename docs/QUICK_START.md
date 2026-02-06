@@ -442,3 +442,199 @@ Once all tests pass, the system is ready for:
 1. Writing automated tests
 2. Implementing remaining user stories (US3, US4, US5, US6)
 3. Production deployment preparation
+
+---
+
+## Analytics Service Setup (Feature 007)
+
+### Prerequisites
+
+1. **Vault Integration**: Analytics service requires Vault for customer PII encryption
+2. **Redis**: Required for analytics caching (already in docker-compose.yml)
+3. **PostgreSQL**: Database must have completed migrations
+
+### Environment Configuration
+
+Create `/backend/analytics-service/.env`:
+
+```bash
+# Database
+DATABASE_URL=postgresql://pos_user:pos_password@localhost:5432/pos_db?sslmode=disable
+
+# Redis Cache
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# Vault (for customer PII encryption)
+VAULT_ADDR=http://localhost:8200
+VAULT_TOKEN=your_vault_token_here
+VAULT_TRANSIT_PATH=transit/pos-system
+
+# Server
+PORT=8087
+ENV=development
+
+# Logging
+LOG_LEVEL=info
+```
+
+### Start Analytics Service
+
+```bash
+# Option 1: Direct execution
+cd backend/analytics-service
+go run main.go
+
+# Option 2: Build and run
+cd backend/analytics-service
+go build -o analytics-service
+./analytics-service
+
+# Service will start on port 8087
+```
+
+### Verify Analytics Service
+
+```bash
+# Health check
+curl http://localhost:8087/health
+
+# Expected response:
+# {"status":"ok","service":"analytics-service"}
+
+# Test analytics endpoint (requires auth token)
+TOKEN="your_jwt_token_here"
+curl -X GET "http://localhost:8080/api/v1/analytics/overview?time_range=this_month" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Testing Analytics Dashboard
+
+1. **Login as Tenant Owner**:
+   ```
+   Navigate to: http://localhost:3000/login
+   Use tenant owner credentials
+   ```
+
+2. **Access Analytics Dashboard**:
+   ```
+   Navigate to: http://localhost:3000/analytics
+   ```
+
+3. **Verify Dashboard Components**:
+   - [ ] Sales metrics cards display (Revenue, Orders, AOV, Inventory Value)
+   - [ ] Time series chart renders with data
+   - [ ] Time range filter works (daily/weekly/monthly/quarterly/yearly)
+   - [ ] Date range picker functions correctly
+   - [ ] Quick actions show (Invite Team, Settings)
+   - [ ] Operational tasks display (delayed orders, low stock)
+   - [ ] Product rankings table populates
+   - [ ] Customer rankings show masked PII (****1234 format)
+
+4. **Performance Verification**:
+   ```bash
+   # Check Redis cache is working
+   redis-cli
+   > KEYS analytics:*
+   
+   # Should show cached analytics queries
+   ```
+
+5. **Log Monitoring**:
+   ```bash
+   # Check analytics service logs for query performance
+   tail -f backend/analytics-service/logs/analytics.log | grep query_time_ms
+   
+   # Expected: Most queries < 300ms
+   ```
+
+### Common Issues
+
+**Issue**: "Vault connection failed"
+```bash
+# Solution: Ensure Vault is running
+vault status
+
+# If not running:
+vault server -dev  # Development mode
+```
+
+**Issue**: "No data in dashboard"
+```bash
+# Solution: Seed test data
+cd backend/migrations
+psql -U pos_user -d pos_db -f seed_analytics_test_data.sql
+```
+
+**Issue**: "Customer PII not masked"
+```bash
+# Solution: Verify encryption keys in Vault
+vault read transit/pos-system/keys/customer-pii
+```
+
+### API Testing
+
+Use the comprehensive API documentation: `docs/ANALYTICS_API.md`
+
+Example test flow:
+
+```bash
+# 1. Get JWT token
+TOKEN=$(curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner@example.com","password":"password"}' \
+  | jq -r '.token')
+
+# 2. Test sales overview
+curl -X GET "http://localhost:8080/api/v1/analytics/overview?time_range=last_30_days" \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# 3. Test top products
+curl -X GET "http://localhost:8080/api/v1/analytics/top-products?limit=10" \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# 4. Test sales trend
+curl -X GET "http://localhost:8080/api/v1/analytics/sales-trend?granularity=daily&start_date=2026-01-01&end_date=2026-01-31" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+### Performance Benchmarking
+
+```bash
+# Install hey (HTTP load testing tool)
+go install github.com/rakyll/hey@latest
+
+# Benchmark analytics overview endpoint
+hey -n 1000 -c 50 -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/v1/analytics/overview?time_range=this_month"
+
+# Expected results:
+# - Average response time: < 100ms (cached)
+# - 95th percentile: < 200ms
+# - No errors
+```
+
+---
+
+## Analytics Feature Checklist
+
+After setup, verify:
+
+- [x] Analytics service starts without errors
+- [x] Health endpoint responds
+- [x] Vault connection successful (check logs)
+- [x] Redis caching working (check KEYS analytics:*)
+- [x] Dashboard loads in < 2 seconds
+- [x] All 5 API endpoints functional:
+  - [x] GET /analytics/overview
+  - [x] GET /analytics/top-products
+  - [x] GET /analytics/top-customers
+  - [x] GET /analytics/tasks
+  - [x] GET /analytics/sales-trend
+- [x] Customer PII properly masked in responses
+- [x] Charts render with 365 data points without lag
+- [x] Responsive design works on mobile/tablet
+- [x] Error boundaries catch and display errors gracefully
+- [x] Query performance logged (check query_time_ms in logs)
+

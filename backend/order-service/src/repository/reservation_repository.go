@@ -17,7 +17,7 @@ func NewReservationRepository(db *sql.DB) *ReservationRepository {
 }
 
 // CreateReservation creates a new inventory reservation
-func (r *ReservationRepository) CreateReservation(ctx context.Context, reservation *models.InventoryReservation) error {
+func (r *ReservationRepository) CreateReservation(ctx context.Context, tx *sql.Tx, reservation *models.InventoryReservation) error {
 	query := `
 INSERT INTO inventory_reservations (
 order_id, product_id, quantity, status, expires_at, released_at
@@ -25,7 +25,7 @@ order_id, product_id, quantity, status, expires_at, released_at
 RETURNING id, created_at
 `
 
-	return r.db.QueryRowContext(
+	return tx.QueryRowContext(
 		ctx,
 		query,
 		reservation.OrderID,

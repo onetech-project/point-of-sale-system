@@ -8,6 +8,7 @@ export interface RegisterTenantData {
     firstName?: string;
     lastName?: string;
   };
+  consents?: string[];
 }
 
 export interface LoginCredentials {
@@ -36,6 +37,7 @@ export const authService = {
         password: data.password,
         first_name: data.ownerProfile?.firstName || '',
         last_name: data.ownerProfile?.lastName || '',
+        consents: data.consents || [],
       });
 
       return response;
@@ -130,6 +132,17 @@ export const authService = {
       throw new Error('Failed to reset password. Please try again.');
     }
   },
-};
+
+  async verifyAccount(token: string): Promise<void> {
+    try {
+      await apiClient.post('/api/auth/verify-account', { token });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to verify account. Please try again.');
+    }
+  },
+}
 
 export default authService;

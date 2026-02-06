@@ -1,0 +1,29 @@
+{
+  "page": {
+    "title": "Privacy Settings",
+    "subtitle": "Manage your consent preferences and data privacy settings"
+  },
+  "info": {
+    "title": "About Consent Settings",
+    "description": "You can revoke optional consents at any time. Required consents for service operations cannot be revoked while your account is active."
+  },
+  "consents": {
+    "title": "Your Consents",
+    "description": "Manage your data collection and processing consents in accordance with UU PDP No.27 Tahun 2022.",
+    "required": "Required",
+    "cannot_revoke": "This consent is required for service operations and cannot be revoked while your account is active.",
+    "status": {
+      "granted": "Granted",
+      "revoked": "Revoked"
+    }
+  },
+  "compliance": {
+    "title": "UU PDP Compliance",
+    "description": "All consent changes are recorded in the audit trail for compliance with Article 21 of UU PDP No.27 Tahun 2022 (Right to revoke consent)."
+  },
+  "loading": "Loading...",
+  "error": {
+    "load_failed": "Failed to load consent data",
+    "update_failed": "Failed to update consent"
+  }
+}

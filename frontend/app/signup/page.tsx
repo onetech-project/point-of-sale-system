@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { authService } from '@/services/auth';
 import PublicLayout from '@/components/layout/PublicLayout';
+import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
 interface FormData {
   businessName: string;
@@ -26,7 +27,7 @@ interface FormErrors {
 }
 
 export default function SignupPage() {
-  const { t } = useTranslation(['auth', 'common']);
+  const { t } = useTranslation(['auth', 'common', 'consent']);
   const router = useRouter();
 
   const [formData, setFormData] = useState<FormData>({
@@ -40,6 +41,7 @@ export default function SignupPage() {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState<'success' | 'error' | null>(null);
   const [serverError, setServerError] = useState('');
   const [passwordStrength, setPasswordStrength] = useState({
     minLength: false,
@@ -47,6 +49,8 @@ export default function SignupPage() {
     hasUpperCase: false,
     hasSpecialChar: false,
   });
+  const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
+  const [consentError, setConsentError] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -107,6 +111,8 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError('');
+    setStatus(null);
+    setConsentError('');
 
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
@@ -114,20 +120,48 @@ export default function SignupPage() {
       return;
     }
 
+    // Validate required consents
+    const requiredConsents = Object.entries(consents).filter(([key, value]) => {
+      // Operational, third_party_midtrans are required for tenant registration
+      return ['operational', 'third_party_midtrans'].includes(key);
+    });
+
+    const hasAllRequiredConsents = requiredConsents.every(([, value]) => value === true);
+    if (!hasAllRequiredConsents) {
+      setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await authService.registerTenant({
+      // Get granted optional consents only (required consents are implicit on backend)
+      const grantedOptionalConsents = Object.entries(consents)
+        .filter(([key, granted]) => {
+          // Only include optional consents that were granted
+          // Required consents (operational, third_party_midtrans) are NOT sent (backend enforces)
+          const isOptional = !['operational', 'third_party_midtrans'].includes(key);
+          return isOptional && granted;
+        })
+        .map(([purpose_code]) => purpose_code); // Array of consent codes only
+
+      // Register tenant with consents in single request
+      const registrationResponse = await authService.registerTenant({
         businessName: formData.businessName,
         email: formData.email.toLowerCase(),
         password: formData.password,
         ownerProfile: {
           firstName: formData.firstName,
           lastName: formData.lastName
-        }
+        },
+        consents: grantedOptionalConsents, // Simplified payload
       });
 
-      router.push('/login?registered=true');
+      setStatus('success');
+
+      setTimeout(() => {
+        router.push('/login');
+      }, 5000);
     } catch (error) {
       setServerError(error instanceof Error ? error.message : t('auth.signup.errors.registrationFailed'));
     } finally {
@@ -140,205 +174,237 @@ export default function SignupPage() {
       <div className="min-h-[calc(100vh-128px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full">
           <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
-            {/* Header */}
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
+            {status === 'success' && (
+              <div className='text-center'>
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                  <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('auth.signup.successTitle')}</h2>
+                <p className="text-gray-600">{t('auth.signup.successMessage')}</p>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900">
-                {t('auth.signup.title')}
-              </h2>
-              <p className="mt-2 text-sm text-gray-600">
-                {t('auth.signup.subtitle')}
-              </p>
-            </div>
-
-            {/* Form */}
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              {serverError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-                  <div className="flex">
-                    <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            )}
+            {status === null && (
+              <>
+                {/* Header */}
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl mb-4">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-800">{serverError}</p>
-                    </div>
                   </div>
+                  <h2 className="text-3xl font-bold text-gray-900">
+                    {t('auth.signup.title')}
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-600">
+                    {t('auth.signup.subtitle')}
+                  </p>
                 </div>
-              )}
 
-              <div>
-                <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('auth.signup.businessName')} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="businessName"
-                  name="businessName"
-                  type="text"
-                  required
-                  className={`input-field ${errors.businessName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder={t('auth.signup.businessNamePlaceholder')}
-                  value={formData.businessName}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                />
-                {errors.businessName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.businessName}</p>
-                )}
-              </div>
+                {/* Form */}
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  {serverError && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+                      <div className="flex">
+                        <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <div className="ml-3">
+                          <p className="text-sm text-red-800">{serverError}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('auth.signup.email')} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className={`input-field ${errors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder={t('auth.signup.emailPlaceholder')}
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                />
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                )}
-              </div>
+                  <div>
+                    <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('auth.signup.businessName')} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="businessName"
+                      name="businessName"
+                      type="text"
+                      required
+                      className={`input-field ${errors.businessName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
+                      placeholder={t('auth.signup.businessNamePlaceholder')}
+                      value={formData.businessName}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.businessName && (
+                      <p className="mt-1 text-sm text-red-600">{errors.businessName}</p>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('auth.signup.firstName')}
-                  </label>
-                  <input
-                    id="firstName"
-                    name="firstName"
-                    type="text"
-                    className="input-field"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('auth.signup.lastName')}
-                  </label>
-                  <input
-                    id="lastName"
-                    name="lastName"
-                    type="text"
-                    className="input-field"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('auth.signup.email')} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      className={`input-field ${errors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
+                      placeholder={t('auth.signup.emailPlaceholder')}
+                      value={formData.email}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.email && (
+                      <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                    )}
+                  </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('auth.signup.password')} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  className={`input-field ${errors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                />
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                )}
-
-                {/* Password Strength Indicators */}
-                {formData.password && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs font-medium text-gray-700">
-                      {t('auth.signup.passwordRequirements')}
-                    </p>
-                    <div className="space-y-1.5">
-                      <PasswordRequirement
-                        met={passwordStrength.minLength}
-                        text={t('auth.signup.passwordMinLength')}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                        {t('auth.signup.firstName')}
+                      </label>
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        type="text"
+                        className="input-field"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
                       />
-                      <PasswordRequirement
-                        met={passwordStrength.hasLetterAndNumber}
-                        text={t('auth.signup.passwordLetterNumber')}
-                      />
-                      <PasswordRequirement
-                        met={passwordStrength.hasUpperCase}
-                        text={t('auth.signup.passwordUpperCase')}
-                      />
-                      <PasswordRequirement
-                        met={passwordStrength.hasSpecialChar}
-                        text={t('auth.signup.passwordSpecialChar')}
+                    </div>
+                    <div>
+                      <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                        {t('auth.signup.lastName')}
+                      </label>
+                      <input
+                        id="lastName"
+                        name="lastName"
+                        type="text"
+                        className="input-field"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
                       />
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('auth.signup.confirmPassword')} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  className={`input-field ${errors.confirmPassword ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                />
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('auth.signup.password')} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      className={`input-field ${errors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.password && (
+                      <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                    )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="btn-primary w-full flex items-center justify-center"
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {t('auth.signup.submitting')}
-                  </>
-                ) : (
-                  t('auth.signup.submit')
-                )}
-              </button>
-            </form>
+                    {/* Password Strength Indicators */}
+                    {formData.password && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs font-medium text-gray-700">
+                          {t('auth.signup.passwordRequirements')}
+                        </p>
+                        <div className="space-y-1.5">
+                          <PasswordRequirement
+                            met={passwordStrength.minLength}
+                            text={t('auth.signup.passwordMinLength')}
+                          />
+                          <PasswordRequirement
+                            met={passwordStrength.hasLetterAndNumber}
+                            text={t('auth.signup.passwordLetterNumber')}
+                          />
+                          <PasswordRequirement
+                            met={passwordStrength.hasUpperCase}
+                            text={t('auth.signup.passwordUpperCase')}
+                          />
+                          <PasswordRequirement
+                            met={passwordStrength.hasSpecialChar}
+                            text={t('auth.signup.passwordSpecialChar')}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-            {/* Footer */}
-            <div className="text-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                {t('auth.signup.haveAccount')}{' '}
-                <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500 transition-colors">
-                  {t('auth.signup.signIn')}
-                </Link>
-              </p>
-            </div>
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('auth.signup.confirmPassword')} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      className={`input-field ${errors.confirmPassword ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
+                      placeholder="••••••••"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.confirmPassword && (
+                      <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                    )}
+                  </div>
+
+                  {/* Consent Collection Section */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      {t('auth.signup.dataConsent', 'Data Privacy Consent')}
+                    </h3>
+                    <ConsentPurposeList
+                      context="tenant"
+                      onConsentChange={(newConsents) => {
+                        setConsents(newConsents);
+                        if (consentError) setConsentError('');
+                      }}
+                      initialConsents={consents}
+                      showError={!!consentError}
+                      errorMessage={consentError}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn-primary w-full flex items-center justify-center"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {t('auth.signup.submitting')}
+                      </>
+                    ) : (
+                      t('auth.signup.submit')
+                    )}
+                  </button>
+                </form>
+
+                {/* Footer */}
+                <div className="text-center pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    {t('auth.signup.haveAccount')}{' '}
+                    <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500 transition-colors">
+                      {t('auth.signup.signIn')}
+                    </Link>
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

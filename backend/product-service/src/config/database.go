@@ -4,18 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 
 	_ "github.com/lib/pq"
+	"github.com/pos/backend/product-service/src/utils"
 )
 
 var DB *sql.DB
 
 func InitDatabase() error {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return fmt.Errorf("DATABASE_URL environment variable not set")
-	}
+	dbURL := utils.GetEnv("DATABASE_URL")
 
 	var err error
 	DB, err = sql.Open("postgres", dbURL)

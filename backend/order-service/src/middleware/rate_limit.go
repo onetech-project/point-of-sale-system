@@ -23,8 +23,8 @@ var limiter *RateLimiter
 
 // InitRateLimiter initializes the rate limiter
 func InitRateLimiter() {
-	ratePerMinute := config.GetEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60)
-	burst := config.GetEnvAsInt("RATE_LIMIT_BURST", 10)
+	ratePerMinute := config.GetEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE")
+	burst := config.GetEnvAsInt("RATE_LIMIT_BURST")
 
 	limiter = &RateLimiter{
 		limiters: make(map[string]*rate.Limiter),

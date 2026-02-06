@@ -14,7 +14,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
   const { t } = useTranslation(['common']);
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
+    <div data-testid={`product-card`} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
       {product.image_url ? (
         <img
           src={productService.getPhotoUrl(product.id, tenantId, product.image_url)}
@@ -28,7 +28,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
       )}
 
       <div className="p-4 flex flex-col flex-grow">
-        <h3 className="text-lg font-semibold text-gray-800 mb-1 line-clamp-1">{product.name}</h3>
+        <h3 data-testid={`product-name`} className="text-lg font-semibold text-gray-800 mb-1 line-clamp-1">{product.name}</h3>
 
         {product.description && (
           <p className="text-sm text-gray-600 mb-2 line-clamp-2 h-10">{product.description}</p>
@@ -54,6 +54,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
           </div>
 
           <button
+            data-testid={`add-to-cart-button`}
             onClick={() => onAddToCart(product)}
             disabled={!product.is_available || product.available_stock <= 0}
             className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${product.is_available && product.available_stock > 0

@@ -4,6 +4,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 class APIClient {
   private axiosInstance: AxiosInstance;
+  private onAuthError?: () => void;
+  private isRefreshing = false;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor() {
     this.axiosInstance = axios.create({
@@ -16,6 +19,42 @@ class APIClient {
     });
 
     this.setupInterceptors();
+  }
+
+  // Set callback for authentication errors
+  public setAuthErrorHandler(handler: () => void): void {
+    this.onAuthError = handler;
+  }
+
+  // Attempt to refresh the session
+  private async refreshSession(): Promise<boolean> {
+    // If already refreshing, return the existing promise
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = (async () => {
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/api/auth/refresh`,
+          {},
+          {
+            withCredentials: true, // Send existing cookie
+          }
+        );
+        
+        return response.status === 200;
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        return false;
+      } finally {
+        this.isRefreshing = false;
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private setupInterceptors() {
@@ -31,14 +70,32 @@ class APIClient {
       }
     );
 
-    // Response interceptor - Handle errors without auto-redirect
+    // Response interceptor - Handle authentication errors with refresh attempt
     this.axiosInstance.interceptors.response.use(
       (response: AxiosResponse) => {
         return response;
       },
       async (error: AxiosError) => {
-        // Just pass through errors - let components handle 401s
-        // The auth context will handle redirects appropriately
+        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+        
+        // Handle 401 authentication errors
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          // Attempt to refresh the session
+          const refreshed = await this.refreshSession();
+          
+          if (refreshed) {
+            // Retry the original request with new token
+            return this.axiosInstance(originalRequest);
+          } else {
+            // Refresh failed, call auth error handler
+            if (this.onAuthError) {
+              this.onAuthError();
+            }
+          }
+        }
+        
         return Promise.reject(error);
       }
     );

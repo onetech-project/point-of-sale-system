@@ -49,6 +49,7 @@ func (h *NotificationPreferencesHandler) GetNotificationPreferences(c echo.Conte
 	// Get all users with their notification preferences
 	users, err := h.userService.GetUsersWithNotificationPreferences(tenantID)
 	if err != nil {
+		c.Logger().Errorf("Failed to get notification preferences: %v", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to fetch notification preferences",
 		})

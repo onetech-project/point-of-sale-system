@@ -4,35 +4,50 @@ import (
 	"context"
 	"database/sql"
 	"log"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/auth-service/api"
+	"github.com/pos/auth-service/middleware"
+	"github.com/pos/auth-service/src/observability"
 	"github.com/pos/auth-service/src/queue"
 	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/services"
 	"github.com/pos/auth-service/src/utils"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
 
 	// Enable debug mode for detailed logging
-	e.Debug = true
+	e.Debug = utils.GetEnvBool("DEBUG")
 
 	// Set validator
 	e.Validator = utils.NewValidator()
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	// Logging with PII masking (T061)
+	e.Use(middleware.LoggingMiddleware)
+
+	middleware.MetricsMiddleware(e)
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
+	dbURL := utils.GetEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -44,8 +59,8 @@ func main() {
 	}
 
 	// Redis connection
-	redisHost := getEnv("REDIS_HOST", "localhost:6379")
-	redisPassword := getEnv("REDIS_PASSWORD", "")
+	redisHost := utils.GetEnv("REDIS_HOST")
+	redisPassword := utils.GetEnv("REDIS_PASSWORD")
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisHost,
 		Password: redisPassword,
@@ -59,24 +74,42 @@ func main() {
 	}
 
 	// Initialize services
-	sessionTTL := getEnvInt("SESSION_TTL_MINUTES", 15)
+	sessionTTL := utils.GetEnvInt("SESSION_TTL_MINUTES")
 	sessionManager := services.NewSessionManager(redisClient, sessionTTL)
 
-	jwtSecret := getEnv("JWT_SECRET", "default-secret-change-in-production")
-	jwtExpiration := getEnvInt("JWT_EXPIRATION_MINUTES", 15)
+	jwtSecret := utils.GetEnv("JWT_SECRET")
+	jwtExpiration := utils.GetEnvInt("JWT_EXPIRATION_MINUTES")
 	jwtService := services.NewJWTService(jwtSecret, jwtExpiration)
 
-	rateLimitMax := getEnvInt("RATE_LIMIT_LOGIN_MAX", 5)
-	rateLimitWindow := getEnvInt("RATE_LIMIT_LOGIN_WINDOW", 900) // 15 minutes in seconds
+	rateLimitMax := utils.GetEnvInt("RATE_LIMIT_LOGIN_MAX")
+	rateLimitWindow := utils.GetEnvInt("RATE_LIMIT_LOGIN_WINDOW")
 	rateLimiter := services.NewRateLimiter(redisClient, rateLimitMax, rateLimitWindow)
 
 	// Initialize Kafka producer and event publisher
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+	kafkaBrokers := strings.Split(utils.GetEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := utils.GetEnv("KAFKA_TOPIC")
 	eventPublisher := queue.NewEventPublisher(kafkaBrokers, kafkaTopic)
 	defer eventPublisher.Close()
 
-	authService := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher)
+	// Initialize AuditPublisher for audit trail (T103, T104)
+	auditTopic := utils.GetEnv("KAFKA_AUDIT_TOPIC")
+	serviceName := utils.GetEnv("SERVICE_NAME")
+	auditPublisher, err := utils.NewAuditPublisher(serviceName, kafkaBrokers, auditTopic)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuditPublisher: %v", err)
+	}
+	defer auditPublisher.Close()
+
+	authService, err := services.NewAuthService(db, sessionManager, jwtService, rateLimiter, eventPublisher, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuthService: %v", err)
+	}
+
+	// Initialize VaultClient for password reset service
+	vaultClient, err := utils.NewVaultClient()
+	if err != nil {
+		log.Fatalf("Failed to initialize VaultClient for password reset: %v", err)
+	}
 
 	// Health checks
 	e.GET("/health", api.HealthCheck)
@@ -88,42 +121,27 @@ func main() {
 
 	sessionHandler := api.NewSessionHandler(authService, jwtService)
 	e.GET("/session", sessionHandler.GetSession)
+	e.POST("/refresh", sessionHandler.RefreshSession)
 
 	logoutHandler := api.NewLogoutHandler(authService, jwtService)
 	e.POST("/logout", logoutHandler.Logout)
 
+	// Account verification endpoints
+	accountVerificationHandler := api.NewAccountVerificationHandler(authService)
+	e.POST("/verify-account", accountVerificationHandler.VerifyAccount)
+
 	// Password reset endpoints
-	passwordResetRepo := repository.NewPasswordResetRepository(db)
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher)
+	passwordResetRepo, err := repository.NewPasswordResetRepositoryWithVault(db)
+	if err != nil {
+		log.Fatalf("Failed to initialize PasswordResetRepository: %v", err)
+	}
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, db, eventPublisher, vaultClient)
 	passwordResetHandler := api.NewPasswordResetHandler(passwordResetService)
 	e.POST("/password-reset/request", passwordResetHandler.RequestReset)
 	e.POST("/password-reset/reset", passwordResetHandler.ResetPassword)
 
 	// Start server
-	port := getEnv("PORT", "8082")
+	port := utils.GetEnv("PORT")
 	log.Printf("Auth service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
-}
-
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	intValue, err := strconv.Atoi(value)
-	if err != nil {
-		log.Printf("Warning: invalid integer value for %s, using default: %d", key, defaultValue)
-		return defaultValue
-	}
-
-	return intValue
 }

@@ -25,8 +25,14 @@ func NewResendNotificationHandler(notificationService interface {
 // ResendNotification handles POST /api/v1/notifications/:notification_id/resend
 func (h *ResendNotificationHandler) ResendNotification(c echo.Context) error {
 	// Get tenant ID from context (set by auth middleware)
-	tenantID, ok := c.Get("tenant_id").(string)
-	if !ok || tenantID == "" {
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		// Fallback to context
+		if tid := c.Get("tenant_id"); tid != nil {
+			tenantID = tid.(string)
+		}
+	}
+	if tenantID == "" {
 		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"success": false,
 			"error": map[string]string{

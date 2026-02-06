@@ -1,0 +1,105 @@
+{
+  "title": "Privacy Policy",
+  "version": "Version",
+  "effectiveDate": "Effective Date",
+  "loadError": "Failed to load privacy policy",
+  
+  "introduction": {
+    "title": "Introduction",
+    "text": "Welcome to our Point of Sale (POS) System. We are committed to protecting your personal data in accordance with Indonesian Law No. 27 of 2022 on Personal Data Protection (UU PDP). This privacy policy explains how we collect, use, store, and protect your personal information."
+  },
+  
+  "dataCollected": {
+    "title": "Data We Collect",
+    "accountData": "Account Data",
+    "email": "Email address",
+    "name": "Full name (first and last name)",
+    "businessName": "Business name",
+    "phone": "Phone number",
+    "orderData": "Order Information",
+    "customerName": "Customer name",
+    "customerPhone": "Customer phone number",
+    "customerEmail": "Customer email (optional)",
+    "deliveryAddress": "Delivery address",
+    "ipAddress": "IP address",
+    "technicalData": "Technical Data",
+    "cookies": "Session cookies",
+    "browserInfo": "Browser and device information",
+    "usageData": "Usage patterns and analytics"
+  },
+  
+  "dataUse": {
+    "title": "How We Use Your Data",
+    "serviceOperation": "To provide and maintain our POS services",
+    "orderProcessing": "To process and fulfill orders",
+    "communication": "To communicate with you about your account and orders",
+    "analytics": "To analyze and improve our services",
+    "payment": "To facilitate secure payment processing",
+    "compliance": "To comply with legal obligations"
+  },
+  
+  "legalBasis": {
+    "title": "Legal Basis for Processing",
+    "text": "We process your personal data based on:",
+    "consent": "Your explicit consent (Article 20, UU PDP)",
+    "contract": "Performance of a contract with you",
+    "legal": "Compliance with legal obligations",
+    "legitimate": "Our legitimate business interests"
+  },
+  
+  "retention": {
+    "title": "Data Retention",
+    "intro": "We retain your personal data for different periods based on the type of data and legal requirements:",
+    "activeAccounts": "Active accounts: retained while account is active",
+    "closedAccounts": "Closed accounts: 90 days grace period for recovery",
+    "guestOrders": "Guest orders: 5 years (Indonesian tax law requirement)",
+    "auditLogs": "Audit logs: 7 years for compliance investigations",
+    "temporary": "Temporary data (verification tokens): 48 hours"
+  },
+  
+  "security": {
+    "title": "Data Security",
+    "intro": "We implement comprehensive security measures to protect your data:",
+    "encryption": "Encryption at rest for all personal data",
+    "accessControl": "Strict access controls and authentication",
+    "auditTrail": "Complete audit trail of all data access",
+    "logMasking": "Automatic masking of sensitive data in logs",
+    "regularAudits": "Regular security audits and updates"
+  },
+  
+  "thirdParty": {
+    "title": "Third-Party Data Sharing",
+    "intro": "We share your payment information with:",
+    "midtrans": "Midtrans (Payment Processor)",
+    "midtransDesc": "We use Midtrans to process QRIS and other payment methods securely. Only payment-related information is shared.",
+    "viewPolicy": "View Midtrans Privacy Policy"
+  },
+  
+  "yourRights": {
+    "title": "Your Rights",
+    "intro": "Under UU PDP, you have the following rights:",
+    "access": "Right to Access",
+    "accessDesc": "View all your personal data we hold",
+    "correction": "Right to Correction",
+    "correctionDesc": "Update incorrect or incomplete data",
+    "deletion": "Right to Deletion",
+    "deletionDesc": "Request deletion of your personal data",
+    "revoke": "Right to Revoke Consent",
+    "revokeDesc": "Withdraw consent for optional data processing",
+    "complaint": "Right to Complaint",
+    "complaintDesc": "File a complaint with data protection authorities"
+  },
+  
+  "contact": {
+    "title": "Contact Us",
+    "intro": "For questions about this privacy policy or to exercise your rights:",
+    "emailLabel": "Email",
+    "responseTime": "Response Time",
+    "responseTimeValue": "Within 14 days as required by UU PDP Article 6"
+  },
+  
+  "updates": {
+    "title": "Policy Updates",
+    "text": "We may update this privacy policy periodically. Material changes will be communicated via email to registered users. The effective date at the top of this page indicates when the policy was last updated."
+  }
+}

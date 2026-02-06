@@ -95,26 +95,27 @@ export const GuestCart: React.FC<GuestCartProps> = ({
           return (
             <div
               key={item.product_id}
-              className={`flex gap-3 pb-4 border-b border-gray-200 ${isUpdating ? 'opacity-50' : ''
+              className={`flex gap-3 pb-4 border-gray-200 ${isUpdating ? 'opacity-50' : ''
                 }`}
             >
               {/* Item Image */}
-              <div className="w-16 h-16 bg-gray-200 rounded overflow-hidden">
-                <img
-                  src={productService.getPhotoUrl(item.product_id, tenantId, item.image_url)}
-                  alt={item.product_name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      parent.innerHTML = '<span class="text-xs text-gray-400 flex items-center justify-center h-full">No Image</span>';
-                    }
-                  }}
-                />
-              </div>
-
+              {item.image_url && (
+                <div className="w-16 h-16 bg-gray-200 rounded overflow-hidden">
+                  <img
+                    src={productService.getPhotoUrl(item.product_id, tenantId, item.image_url)}
+                    alt={item.product_name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = '<span class="text-xs text-gray-400 flex items-center justify-center h-full">No Image</span>';
+                      }
+                    }}
+                  />
+                </div>
+              )}
               {/* Item Details */}
               <div className="flex-1">
                 <h3 className="font-medium text-gray-800">{item.product_name}</h3>
@@ -140,9 +141,10 @@ export const GuestCart: React.FC<GuestCartProps> = ({
                   <button
                     onClick={() => handleRemoveItem(item.product_id)}
                     disabled={isUpdating}
-                    className="ml-auto text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+                    title={t('common.cart.remove')}
                   >
-                    {t('common.cart.remove')}
+                    {/* html emoji of trash 🗑️ */}
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -161,7 +163,7 @@ export const GuestCart: React.FC<GuestCartProps> = ({
       {/* Cart Summary */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between text-lg font-semibold border-t pt-4">
-          <span>{t('common.cart.total')}:</span>
+          <span data-testid="cart-total">{t('common.cart.total')}:</span>
           <span className="text-blue-600">
             {formatPrice(cart.items.reduce((sum, item) => sum + item.total_price, 0))}
           </span>
@@ -170,6 +172,7 @@ export const GuestCart: React.FC<GuestCartProps> = ({
 
       {/* Checkout Button */}
       <button
+        data-testid="proceed-to-checkout-button"
         onClick={onCheckout}
         className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
       >

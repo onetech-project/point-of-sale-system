@@ -81,6 +81,42 @@ else
     echo "✓ backend/order-service/.env already exists"
 fi
 
+# Audit Service
+if [ ! -f "backend/audit-service/.env" ]; then
+    echo "Creating backend/audit-service/.env file..."
+    cp backend/audit-service/.env.example backend/audit-service/.env
+    echo "✓ Created backend/audit-service/.env"
+else
+    echo "✓ backend/audit-service/.env already exists"
+fi
+
+# Analytics Service
+if [ ! -f "backend/analytics-service/.env" ]; then
+    echo "Creating backend/analytics-service/.env file..."
+    cp backend/analytics-service/.env.example backend/analytics-service/.env
+    echo "✓ Created backend/analytics-service/.env"
+else
+    echo "✓ backend/analytics-service/.env already exists"
+fi
+
+# Observability
+if [ ! -f "observability/.env" ]; then
+    echo "Creating observability/.env file..."
+    cp observability/.env.example observability/.env
+    echo "✓ Created observability/.env"
+else
+    echo "✓ observability/.env already exists"
+fi
+
+# Vault
+if [ ! -f "vault/.env" ]; then
+    echo "Creating vault/.env file..."
+    cp vault/.env.example vault/.env
+    echo "✓ Created vault/.env"
+else
+    echo "✓ vault/.env already exists"
+fi
+
 # Frontend
 if [ ! -f "frontend/.env.local" ]; then
     echo "Creating frontend/.env.local file..."
@@ -97,14 +133,18 @@ echo "========================================="
 echo ""
 echo "⚠️  IMPORTANT: Review and update the following files with your configuration:"
 echo ""
-echo "  - .env (database credentials, JWT secret)"
+echo "  - .env (database credentials, JWT secret, Vault token)"
 echo "  - api-gateway/.env (JWT secret must match)"
-echo "  - backend/auth-service/.env (JWT secret must match)"
-echo "  - backend/user-service/.env (email configuration)"
-echo "  - backend/tenant-service/.env"
-echo "  - backend/notification-service/.env (email, SMS, Kafka)"
-echo "  - backend/product-service/.env"
-echo "  - backend/order-service/.env (Midtrans, Google Maps)"
+echo "  - backend/auth-service/.env (JWT secret must match, Vault config)"
+echo "  - backend/user-service/.env (email configuration, Vault config)"
+echo "  - backend/tenant-service/.env (Vault config)"
+echo "  - backend/notification-service/.env (email, SMS, Kafka, Vault config)"
+echo "  - backend/product-service/.env (Vault config)"
+echo "  - backend/order-service/.env (Midtrans, Google Maps, Vault config)"
+echo "  - backend/audit-service/.env (Kafka, Vault config)"
+echo "  - backend/analytics-service/.env (analytics DB, Vault config)"
+echo "  - observability/.env (Grafana, MinIO credentials)"
+echo "  - vault/.env (Vault token)"
 echo "  - frontend/.env.local (API URL)"
 echo ""
 echo "📖 For detailed configuration instructions, see: docs/ENVIRONMENT.md"

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog/log"
 
 	"github.com/pos/tenant-service/src/services"
 )
@@ -18,17 +19,26 @@ func NewTenantConfigHandler(configService *services.TenantConfigService) *Tenant
 	}
 }
 
-// GetPublicTenantConfig handles GET /public/tenants/:tenant_id/config
+// GetPublicTenantConfig handles GET /public/tenants/:tenant_slug/config
 func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
-	tenantID := c.Param("tenant_id")
-	if tenantID == "" {
+	tenantSlug := c.Param("tenant_slug")
+	if tenantSlug == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "tenant_id is required",
+			"error": "tenant_slug is required",
 		})
 	}
 
-	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantID)
+	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantSlug)
+
+	if (err != nil) && (err.Error() == "tenant not found") {
+		log.Warn().Str("tenant_slug", tenantSlug).Msg("Tenant not found")
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error": "Tenant not found",
+		})
+	}
+
 	if err != nil {
+		log.Error().Err(err).Str("tenant_slug", tenantSlug).Msg("Failed to get tenant config")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to retrieve tenant configuration",
 		})
@@ -77,6 +87,7 @@ func (h *TenantConfigHandler) GetMidtransConfig(c echo.Context) error {
 
 	config, err := h.configService.GetMidtransConfig(c.Request().Context(), tenantID)
 	if err != nil {
+		c.Logger().Errorf("Failed to get Midtrans config for tenant %s: %v", tenantID, err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to retrieve Midtrans configuration",
 		})

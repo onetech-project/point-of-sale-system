@@ -1,0 +1,45 @@
+services:
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: pos-vault
+    entrypoint: ["/vault/scripts/vault-entrypoint.sh"]
+    environment:
+      VAULT_ENV: ${VAULT_ENV}
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault_data:/vault/data
+      - ${HCL_CONFIG}:/vault/config/vault-config.hcl:ro
+      - ./vault-init.sh:/vault/scripts/vault-init.sh:ro
+      - ./vault-entrypoint.sh:/vault/scripts/vault-entrypoint.sh:ro
+      - ./tls:/vault/tls
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "VAULT_ADDR=https://vault:8200 VAULT_CACERT=/vault/tls/ca.crt vault status"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pos-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+volumes:
+  vault_data:
+    name: pos_vault_data
+
+networks:
+  pos-network:
+    external: true

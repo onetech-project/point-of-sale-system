@@ -8,6 +8,34 @@ const SessionWarning: React.FC = () => {
   const router = useRouter();
   const [showWarning, setShowWarning] = useState(false);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(15 * 60); // 15 minutes in seconds
+  const [lastActivity, setLastActivity] = useState(Date.now());
+
+  // Reset session timer on user activity
+  useEffect(() => {
+    const handleActivity = () => {
+      const now = Date.now();
+      // Only reset if more than 1 second has passed (debounce)
+      if (now - lastActivity > 1000) {
+        setLastActivity(now);
+        setSessionTimeLeft(15 * 60); // Reset to 15 minutes
+        if (showWarning) {
+          setShowWarning(false);
+        }
+      }
+    };
+
+    // Listen to user activity events
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => {
+      document.addEventListener(event, handleActivity);
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [lastActivity, showWarning]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,10 +59,26 @@ const SessionWarning: React.FC = () => {
     return () => clearInterval(interval);
   }, [showWarning, router]);
 
-  const handleExtendSession = () => {
-    setShowWarning(false);
-    setSessionTimeLeft(15 * 60); // Reset to 15 minutes
-    // In a real app, you'd make an API call to refresh the session
+  const handleExtendSession = async () => {
+    try {
+      // Call the session endpoint to trigger renewal on backend
+      // This will renew both Redis TTL and the auth cookie
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include', // Include cookies
+      });
+
+      if (response.ok) {
+        setShowWarning(false);
+        setSessionTimeLeft(15 * 60); // Reset to 15 minutes
+      } else {
+        // Session couldn't be renewed, redirect to login
+        router.push('/login?session_expired=true');
+      }
+    } catch (error) {
+      console.error('Failed to extend session:', error);
+      router.push('/login?session_expired=true');
+    }
   };
 
   return (

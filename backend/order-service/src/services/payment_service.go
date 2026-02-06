@@ -1,16 +1,14 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha512"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,23 +54,18 @@ func NewPaymentService(
 	}
 }
 
-// QRISChargeResponse represents Midtrans QRIS charge API response
-type QRISChargeResponse struct {
-	StatusCode        string   `json:"status_code"`
-	StatusMessage     string   `json:"status_message"`
-	TransactionID     string   `json:"transaction_id"`
-	OrderID           string   `json:"order_id"`
-	MerchantID        string   `json:"merchant_id"`
-	GrossAmount       string   `json:"gross_amount"`
-	Currency          string   `json:"currency"`
-	PaymentType       string   `json:"payment_type"`
-	TransactionTime   string   `json:"transaction_time"`
-	TransactionStatus string   `json:"transaction_status"`
-	FraudStatus       string   `json:"fraud_status"`
-	Actions           []Action `json:"actions"`
-	Acquirer          string   `json:"acquirer"`
-	QRString          string   `json:"qr_string"`
-	ExpiryTime        string   `json:"expiry_time"`
+// convertCartItemsToMidtransItems converts []models.CartItem to *[]midtrans.ItemDetails
+func convertCartItemsToMidtransItems(items []models.CartItem) *[]midtrans.ItemDetails {
+	midtransItems := make([]midtrans.ItemDetails, 0, len(items))
+	for _, item := range items {
+		midtransItems = append(midtransItems, midtrans.ItemDetails{
+			ID:    item.ProductID,
+			Price: int64(item.UnitPrice),
+			Qty:   int32(item.Quantity),
+			Name:  item.ProductName,
+		})
+	}
+	return &midtransItems
 }
 
 // Action represents available actions for the transaction
@@ -84,7 +77,7 @@ type Action struct {
 
 // CreateQRISCharge creates a QRIS payment charge using Midtrans Core API
 // Implements integration with /v2/charge endpoint for QRIS generation
-func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.GuestOrder) (*QRISChargeResponse, error) {
+func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.GuestOrder, items []models.CartItem) (*coreapi.ChargeResponse, error) {
 	// Fetch tenant-specific Midtrans configuration
 	midtransConfig, err := config.GetMidtransConfigForTenant(ctx, order.TenantID)
 	if err != nil {
@@ -97,105 +90,79 @@ func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.Gue
 		return nil, fmt.Errorf("Midtrans is not configured for this tenant")
 	}
 
+	customerEmail := ""
+	if customerEmailPtr := order.CustomerEmail; customerEmailPtr != nil {
+		customerEmail = *customerEmailPtr
+	}
+
 	// Build charge request payload
-	chargeReq := map[string]interface{}{
-		"payment_type": "qris",
-		"transaction_details": map[string]interface{}{
-			"order_id":     order.OrderReference,
-			"gross_amount": order.TotalAmount,
+	chargeReq := coreapi.ChargeReq{
+		PaymentType: coreapi.PaymentTypeQris,
+		TransactionDetails: midtrans.TransactionDetails{
+			OrderID:  order.OrderReference,
+			GrossAmt: int64(order.TotalAmount),
 		},
+		CustomerDetails: &midtrans.CustomerDetails{
+			FName: order.CustomerName,
+			Phone: order.CustomerPhone,
+			Email: customerEmail,
+		},
+		Items: convertCartItemsToMidtransItems(items),
 	}
 
-	// Marshal request to JSON
-	requestBody, err := json.Marshal(chargeReq)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal QRIS charge request")
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	midtransCoreAPI, coreAPIClientErr := config.GetCoreAPIClientForTenant(ctx, order.TenantID)
+	if coreAPIClientErr != nil {
+		log.Error().Err(coreAPIClientErr).Str("tenant_id", order.TenantID).Msg("Failed to get Core API client for tenant")
+		return nil, fmt.Errorf("failed to get Core API client: %w", coreAPIClientErr)
 	}
-
-	// Determine API base URL based on environment
-	apiBaseURL := "https://api.sandbox.midtrans.com"
-	if midtransConfig.Environment == "production" {
-		apiBaseURL = "https://api.midtrans.com"
-	}
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", apiBaseURL+"/v2/charge", bytes.NewBuffer(requestBody))
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to create HTTP request")
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers with tenant-specific server key
-	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(midtransConfig.ServerKey+":"))
-	req.Header.Set("Authorization", authHeader)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	// Add webhook URL to header
-	webhookURL := config.GetWebhookURL()
-	req.Header.Set("X-Override-Notification", webhookURL)
 
 	// Execute request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to execute QRIS charge request")
-		return nil, fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to read response body")
-		return nil, fmt.Errorf("failed to read response: %w", err)
+	resp, chargeErr := midtransCoreAPI.ChargeTransaction(&chargeReq)
+	if chargeErr != nil {
+		log.Error().Err(chargeErr).Msg("Failed to execute QRIS charge request")
+		return nil, fmt.Errorf("failed to execute request: %w", chargeErr)
 	}
 
 	// Check HTTP status
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != strconv.Itoa(http.StatusCreated) && resp.StatusCode != strconv.Itoa(http.StatusOK) {
 		log.Error().
-			Int("status_code", resp.StatusCode).
-			Str("response_body", string(body)).
+			Str("status_code", resp.StatusCode).
+			Str("status_message", resp.StatusMessage).
+			Str("transaction_id", resp.TransactionID).
+			Str("order_id", resp.OrderID).
 			Msg("QRIS charge request failed")
-		return nil, fmt.Errorf("charge request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var chargeResp QRISChargeResponse
-	if err := json.Unmarshal(body, &chargeResp); err != nil {
-		log.Error().
-			Err(err).
-			Str("response_body", string(body)).
-			Msg("Failed to unmarshal QRIS charge response")
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, fmt.Errorf("charge request failed with status %s: %s", resp.StatusCode, resp.StatusMessage)
 	}
 
 	log.Info().
 		Str("tenant_id", order.TenantID).
 		Str("order_id", order.ID).
 		Str("order_reference", order.OrderReference).
-		Str("transaction_id", chargeResp.TransactionID).
-		Str("qr_code_url", chargeResp.Actions[0].URL).
-		Str("expiry_time", chargeResp.ExpiryTime).
+		Str("transaction_id", resp.TransactionID).
+		Str("qr_code_url", resp.Actions[0].URL).
+		Str("expiry_time", resp.ExpiryTime).
 		Msg("QRIS charge created successfully with tenant-specific credentials")
 
-	return &chargeResp, nil
+	return resp, nil
 }
 
 // SaveQRISPaymentInfo saves QRIS payment information to database
-func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, orderID string, amount int, chargeResp *QRISChargeResponse) error {
+func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, tx *sql.Tx, orderID string, amount int, chargeResp *coreapi.ChargeResponse) error {
 	// Parse expiry time - Midtrans returns time in Asia/Jakarta timezone (WIB)
 	// Since our database column is TIMESTAMP WITHOUT TIME ZONE, we need to convert to UTC
-	loc, _ := time.LoadLocation("Asia/Jakarta")
-	expiryTimeWIB, err := time.ParseInLocation("2006-01-02 15:04:05", chargeResp.ExpiryTime, loc)
-	if err != nil {
-		log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time")
-		// Continue with nil expiry time rather than failing
-	}
+	// loc, err := time.LoadLocation("Asia/Jakarta")
+	// if err != nil {
+	// 	log.Error().Err(err).Msg("Failed to load Asia/Jakarta location, using UTC fallback")
+	// 	loc = time.UTC
+	// }
+	// expiryTimeWIB, err := time.ParseInLocation("2006-01-02 15:04:05", chargeResp.ExpiryTime, loc)
+	// if err != nil {
+	// 	log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time")
+	// 	// Continue with nil expiry time rather than failing
+	// }
 
 	// Convert to UTC for storage (since DB column is WITHOUT TIME ZONE, it stores as-is)
-	expiryTime := expiryTimeWIB.UTC()
+	// expiryTime := expiryTimeWIB.UTC()
 
 	// Get QR code URL from actions array (first action)
 	var qrCodeURL string
@@ -216,9 +183,22 @@ func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, orderID string
 		chargeJSON = json.RawMessage(`{}`) // Use empty JSON object as fallback
 	}
 
+	// Parse expiry time string to *time.Time default is 15 minutes from now with RFC3339 format
+	expiryTimePtr := time.Now().Add(15 * time.Minute)
+	if chargeResp.ExpiryTime != "" {
+		// Try parsing with common Midtrans format: "2006-01-02 15:04:05"
+		expiryTime, err := time.Parse("2006-01-02 15:04:05", chargeResp.ExpiryTime)
+		if err != nil {
+			log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time, storing as nil")
+		} else {
+			expiryTimePtr = expiryTime
+		}
+	}
+
 	// Generate idempotency key for initial pending status
 	idempotencyKey := transactionID + ":" + strings.ToLower(transactionStatus)
 
+	// Use expiryTimePtr as *time.Time for ExpiryTime
 	payment := &models.PaymentTransaction{
 		OrderID:               orderID,
 		MidtransTransactionID: &transactionID,
@@ -230,12 +210,12 @@ func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, orderID string
 		NotificationPayload:   chargeJSON,
 		QRCodeURL:             &qrCodeURL,
 		QRString:              &chargeResp.QRString,
-		ExpiryTime:            &expiryTime,
+		ExpiryTime:            &expiryTimePtr,
 		SignatureVerified:     false, // Will be verified on webhook
 		IdempotencyKey:        &idempotencyKey,
 	}
 
-	err = s.paymentRepo.CreatePaymentTransaction(ctx, payment)
+	err = s.paymentRepo.CreatePaymentTransaction(ctx, tx, payment)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -422,10 +402,10 @@ func (s *PaymentService) ProcessNotification(ctx context.Context, notification *
 	// Store notification payload as JSON
 	notificationJSON, _ := json.Marshal(notification)
 
-	// Create or update payment transaction record
-	err = s.createOrUpdatePaymentTransaction(ctx, order.ID, notification, notificationJSON, idempotencyKey)
+	// Update payment transaction record
+	err = s.updatePaymentTransaction(ctx, notification, notificationJSON, idempotencyKey)
 	if err != nil {
-		return fmt.Errorf("failed to save payment transaction: %w", err)
+		return fmt.Errorf("failed to update payment transaction: %w", err)
 	}
 
 	// Process based on transaction status
@@ -550,66 +530,32 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 	return nil
 }
 
-// createOrUpdatePaymentTransaction creates or updates payment transaction record
-func (s *PaymentService) createOrUpdatePaymentTransaction(
+// updatePaymentTransaction creates or updates payment transaction record
+func (s *PaymentService) updatePaymentTransaction(
 	ctx context.Context,
-	orderID string,
 	notification *MidtransNotification,
 	notificationJSON []byte,
 	idempotencyKey string,
 ) error {
-	// Check if payment transaction exists for this order
-	existing, err := s.paymentRepo.GetPaymentByOrderID(ctx, orderID)
-	if err != nil {
-		return fmt.Errorf("failed to check existing payment: %w", err)
-	}
-
 	transactionID := notification.TransactionID
-	paymentType := notification.PaymentType
 	transactionStatus := notification.TransactionStatus
-	fraudStatus := notification.FraudStatus
 	signatureKey := notification.SignatureKey
 
-	if existing == nil {
-		// Create new payment transaction record
-		payment := &models.PaymentTransaction{
-			OrderID:               orderID,
-			MidtransTransactionID: &transactionID,
-			MidtransOrderID:       notification.OrderID,
-			Amount:                0, // Will be set from order
-			PaymentType:           &paymentType,
-			TransactionStatus:     &transactionStatus,
-			FraudStatus:           &fraudStatus,
-			SignatureKey:          &signatureKey,
-			SignatureVerified:     true,
-			NotificationPayload:   notificationJSON,
-			IdempotencyKey:        &idempotencyKey,
-		}
+	// Update existing payment transaction with new status and idempotency key
+	now := time.Now()
+	var settledAt *time.Time
+	if strings.ToLower(notification.TransactionStatus) == "settlement" || strings.ToLower(notification.TransactionStatus) == "capture" {
+		settledAt = &now
+	}
 
-		err = s.paymentRepo.CreatePaymentTransaction(ctx, payment)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("order_id", orderID).
-				Msg("Failed to create payment transaction")
-			return fmt.Errorf("failed to create payment transaction: %w", err)
-		}
-	} else {
-		// Update existing payment transaction with new status and idempotency key
-		now := time.Now()
-		var settledAt *time.Time
-		if strings.ToLower(notification.TransactionStatus) == "settlement" || strings.ToLower(notification.TransactionStatus) == "capture" {
-			settledAt = &now
-		}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-
-		// Update payment status and idempotency key
-		updateQuery := `
+	// Update payment status and idempotency key
+	updateQuery := `
 			UPDATE payment_transactions
 			SET transaction_status = $2,
 			    settled_at = $3,
@@ -620,18 +566,17 @@ func (s *PaymentService) createOrUpdatePaymentTransaction(
 			    signature_verified = true
 			WHERE midtrans_transaction_id = $1
 		`
-		_, err = tx.ExecContext(ctx, updateQuery, transactionID, transactionStatus, settledAt, notificationJSON, idempotencyKey, signatureKey)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("transaction_id", transactionID).
-				Msg("Failed to update payment transaction")
-			return fmt.Errorf("failed to update payment transaction: %w", err)
-		}
+	_, err = tx.ExecContext(ctx, updateQuery, transactionID, transactionStatus, settledAt, notificationJSON, idempotencyKey, signatureKey)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("transaction_id", transactionID).
+			Msg("Failed to update payment transaction")
+		return fmt.Errorf("failed to update payment transaction: %w", err)
+	}
 
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit payment update: %w", err)
-		}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit payment update: %w", err)
 	}
 
 	return nil

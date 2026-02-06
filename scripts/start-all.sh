@@ -13,6 +13,9 @@
 #   ./start-all.sh notification        # Start only Notification Service
 #   ./start-all.sh frontend            # Start only Frontend
 #   ./start-all.sh auth user tenant    # Start multiple services
+#   ./start-all.sh all with-vault          # Start all services with Vault
+#   ./start-all.sh all with-observability  # Start all services with Observability
+#   ./start-all.sh all with-vault with-observability # Start all services with Vault and Observability
 
 set -e
 
@@ -22,6 +25,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse arguments
 TARGET_SERVICES=()
 START_ALL=false
+WITH_VAULT=false
+WITH_OBSERVABILITY=false
 
 if [ $# -eq 0 ]; then
     START_ALL=true
@@ -49,11 +54,23 @@ else
             order|order-service)
                 TARGET_SERVICES+=("order")
                 ;;
+            audit|audit-service)
+                TARGET_SERVICES+=("audit")
+                ;;
+            analytics|analytics-service)
+                TARGET_SERVICES+=("analytics")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
             all)
                 START_ALL=true
+                ;;
+            with-vault)
+                WITH_VAULT=true
+                ;;
+            with-observability)
+                WITH_OBSERVABILITY=true
                 ;;
             *)
                 echo "❌ Unknown service: $arg"
@@ -66,6 +83,8 @@ else
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
                 echo "  order            - Order Service"
+                echo "  audit            - Audit Service"
+                echo "  analytics        - Analytics Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -99,6 +118,22 @@ else
 fi
 echo ""
 
+if [ "$WITH_VAULT" = true ]; then
+    echo "🔐 Vault integration: Enabled"
+else
+    echo "🔐 Vault integration: Disabled"
+fi
+echo ""
+
+if [ "$WITH_OBSERVABILITY" = true ]; then
+    echo "📊 Observability stack: Enabled"
+else
+    echo "📊 Observability stack: Disabled"
+fi
+echo ""
+
+sleep 1
+
 # Load environment variables from root .env if it exists
 if [ -f "$PROJECT_ROOT/.env" ]; then
     echo "📋 Loading environment variables from .env"
@@ -112,7 +147,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -133,6 +168,12 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "product"; then
         services_to_check+=("backend/product-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "audit"; then
+        services_to_check+=("backend/audit-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+        services_to_check+=("backend/analytics-service/.env")
     fi
 
     missing_files=false
@@ -157,25 +198,42 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
         echo ""
     fi
 
+    # Start vault from directory /vault if available
+    if [ "$WITH_VAULT" = true ] && [ -d "$PROJECT_ROOT/vault" ]; then
+        echo "🔐 Starting Vault server..."
+        cd "$PROJECT_ROOT/vault"
+        docker compose up -d &
+        echo "✅ Vault server started"
+        echo ""
+    fi
+
+    if [ "$WITH_OBSERVABILITY" = true ] && [ -d "$PROJECT_ROOT/observability" ]; then
+        echo "📊 Starting Observability stack (Prometheus & Grafana)..."
+        cd "$PROJECT_ROOT/observability"
+        docker compose up -d &
+        echo "✅ Observability stack started"
+        echo ""
+    fi
+
     # Start Docker services if available
     if docker info > /dev/null 2>&1; then
-        echo "📦 Starting Docker services (PostgreSQL & Redis)..."
+        echo "📦 Starting Docker services (PostgreSQL, Redis, Kafka, Minio, Mailhog)..."
         cd "$PROJECT_ROOT"
-        docker-compose up -d
+        docker compose up -d
         echo "✅ Docker services started"
         echo ""
         
         # Wait for PostgreSQL to be ready
         echo "⏳ Waiting for PostgreSQL to be ready..."
         for i in {1..30}; do
-            if docker-compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
                 echo "✅ PostgreSQL is ready"
                 break
             fi
@@ -190,7 +248,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then
@@ -213,6 +271,12 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "order"; then
         cd "$PROJECT_ROOT/backend/order-service" && go build -o order-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "audit"; then
+        cd "$PROJECT_ROOT/backend/audit-service" && go build -o audit-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+        cd "$PROJECT_ROOT/backend/analytics-service" && go build -o analytics-service.bin main.go &
     fi
     
     wait
@@ -277,6 +341,14 @@ if [ "$START_ALL" = true ] || should_start_service "order"; then
     start_service_with_env "Order Service" "$PROJECT_ROOT/backend/order-service" "order-service" "/tmp/order-service.log"
 fi
 
+if [ "$START_ALL" = true ] || should_start_service "audit"; then
+    start_service_with_env "Audit Service" "$PROJECT_ROOT/backend/audit-service" "audit-service" "/tmp/audit-service.log"
+fi
+
+if [ "$START_ALL" = true ] || should_start_service "analytics"; then
+    start_service_with_env "Analytics Service" "$PROJECT_ROOT/backend/analytics-service" "analytics-service" "/tmp/analytics-service.log"
+fi
+
 # Wait a moment for services to start
 sleep 2
 
@@ -312,6 +384,8 @@ echo "   Tenant Service:       http://localhost:${TENANT_SERVICE_PORT:-8084}"
 echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}"
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
 echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
+echo "   Audit Service:        http://localhost:${AUDIT_SERVICE_PORT:-8088}"
+echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"
 echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
@@ -322,6 +396,8 @@ echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
 echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
 echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
 echo "   curl http://localhost:${ORDER_SERVICE_PORT:-8087}/health"
+echo "   curl http://localhost:${AUDIT_SERVICE_PORT:-8088}/health"
+echo "   curl http://localhost:${ANALYTICS_SERVICE_PORT:-8089}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
@@ -331,6 +407,8 @@ echo "   tail -f /tmp/tenant-service.log"
 echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
 echo "   tail -f /tmp/order-service.log"
+echo "   tail -f /tmp/audit-service.log"
+echo "   tail -f /tmp/analytics-service.log"
 echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"

@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -19,12 +19,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notification-serv
 # Runtime stage
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
-# Copy the binary from builder
+# Copy the binary and templates from builder
 COPY --from=builder /app/notification-service .
+COPY --from=builder /app/templates ./templates
 
 # Expose port
 EXPOSE 8085

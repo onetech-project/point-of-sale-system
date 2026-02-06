@@ -1,0 +1,657 @@
+openapi: 3.0.3
+info:
+  title: Consent Management API
+  description: |
+    API for managing user consents (tenant and guest) according to UU PDP No.27 Tahun 2022 requirements.
+
+    Supports:
+    - Consent collection during registration and checkout
+    - Consent status queries
+    - Consent revocation for optional purposes
+    - Consent history for audit trails
+  version: 1.0.0
+  contact:
+    name: POS System API Support
+    email: api@possystem.example.com
+
+servers:
+  - url: https://api.possystem.example.com/v1
+    description: Production API
+  - url: http://localhost:8080/v1
+    description: Local development
+
+tags:
+  - name: Consent
+    description: Consent management operations
+  - name: Privacy Policy
+    description: Privacy policy version management
+
+paths:
+  /consent/purposes:
+    get:
+      tags:
+        - Consent
+      summary: List available consent purposes
+      description: |
+        Retrieve all consent purposes (operational, analytics, advertising, third_party)
+        with their required/optional status and descriptions in Indonesian and English.
+      operationId: listConsentPurposes
+      parameters:
+        - name: Accept-Language
+          in: header
+          description: Preferred language (id for Indonesian, en for English)
+          required: false
+          schema:
+            type: string
+            enum: [id, en]
+            default: id
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConsentPurpose"
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 4
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consent/grant:
+    post:
+      tags:
+        - Consent
+      summary: Grant consent
+      description: |
+        Record user consent for specified purposes. Used during registration (tenant) and checkout (guest).
+
+        **Validation**:
+        - All required purposes must be granted (operational, third_party_midtrans)
+        - Optional purposes can be granted or denied (analytics, advertising)
+        - IP address and user agent captured automatically by API gateway
+      operationId: grantConsent
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentGrantRequest"
+      responses:
+        "201":
+          description: Consent recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConsentRecord"
+                  meta:
+                    type: object
+                    properties:
+                      consent_count:
+                        type: integer
+                        example: 4
+                      policy_version:
+                        type: string
+                        example: "1.0.0"
+        "400":
+          description: Validation error (missing required consent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingRequired:
+                  summary: Missing required consent
+                  value:
+                    error:
+                      code: CONSENT_REQUIRED
+                      message: "Required consent missing: operational, third_party_midtrans"
+                      details:
+                        missing_purposes:
+                          ["operational", "third_party_midtrans"]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consent/status:
+    get:
+      tags:
+        - Consent
+      summary: Check consent status
+      description: |
+        Retrieve current consent status for authenticated user (tenant) or guest order.
+
+        Returns active consents with grant timestamps and revocation status.
+      operationId: getConsentStatus
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: guest_order_id
+          in: query
+          description: Guest order ID (for guest consent queries)
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Consent status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      subject_type:
+                        type: string
+                        enum: [tenant, guest]
+                        example: tenant
+                      consents:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ConsentStatus"
+                      policy_version:
+                        type: string
+                        example: "1.0.0"
+                      requires_reconsent:
+                        type: boolean
+                        description: Whether user needs to re-consent to updated policy
+                        example: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Guest order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consent/revoke:
+    post:
+      tags:
+        - Consent
+      summary: Revoke optional consent
+      description: |
+        Revoke optional consent (analytics, advertising) for authenticated user.
+
+        **Restrictions**:
+        - Cannot revoke required purposes (operational, third_party_midtrans)
+        - Revocation is immediate (data processing stops)
+        - Cannot revoke if account is being deleted (complete data deletion instead)
+      operationId: revokeConsent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - purpose_code
+              properties:
+                purpose_code:
+                  type: string
+                  description: Purpose code to revoke
+                  example: "advertising"
+      responses:
+        "200":
+          description: Consent revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      purpose_code:
+                        type: string
+                        example: "advertising"
+                      revoked_at:
+                        type: string
+                        format: date-time
+                        example: "2026-01-02T10:30:00Z"
+                      message:
+                        type: string
+                        example: "Consent for advertising revoked. We will no longer send promotional emails."
+        "400":
+          description: Cannot revoke required consent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                requiredPurpose:
+                  summary: Attempted to revoke required purpose
+                  value:
+                    error:
+                      code: CONSENT_REQUIRED
+                      message: "Cannot revoke required consent: operational"
+                      details:
+                        purpose_code: "operational"
+                        is_required: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No active consent found for purpose
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consent/history:
+    get:
+      tags:
+        - Consent
+      summary: Get consent history
+      description: |
+        Retrieve full consent history for authenticated user, including grants and revocations.
+
+        Useful for compliance audits and user transparency.
+      operationId: getConsentHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Records per page
+          required: false
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Consent history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConsentRecord"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /privacy-policy:
+    get:
+      tags:
+        - Privacy Policy
+      summary: Get current privacy policy
+      description: |
+        Retrieve current privacy policy version with full text in Indonesian.
+
+        Used by frontend to display privacy policy page and consent forms.
+      operationId: getCurrentPrivacyPolicy
+      parameters:
+        - name: Accept-Language
+          in: header
+          description: Preferred language (id for Indonesian, en for English)
+          required: false
+          schema:
+            type: string
+            enum: [id, en]
+            default: id
+      responses:
+        "200":
+          description: Current privacy policy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/PrivacyPolicy"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /privacy-policy/versions:
+    get:
+      tags:
+        - Privacy Policy
+      summary: List privacy policy versions
+      description: |
+        Retrieve all privacy policy versions with effective dates and change summaries.
+
+        Used for compliance audits and user transparency (policy changelog).
+      operationId: listPrivacyPolicyVersions
+      responses:
+        "200":
+          description: Privacy policy versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PrivacyPolicyVersion"
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 3
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication endpoint
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for guest checkout (no user account)
+
+  schemas:
+    ConsentPurpose:
+      type: object
+      required:
+        - id
+        - purpose_code
+        - name
+        - description
+        - is_required
+        - display_order
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a3bb189e-8bf9-3888-9912-ace4e6543002"
+        purpose_code:
+          type: string
+          description: Machine-readable purpose code
+          example: "analytics"
+        name:
+          type: string
+          description: Display name (localized)
+          example: "Analisis dan peningkatan layanan"
+        description:
+          type: string
+          description: Purpose description (localized)
+          example: "Kami menganalisis penggunaan sistem untuk meningkatkan fitur dan kinerja."
+        is_required:
+          type: boolean
+          description: Whether consent is mandatory
+          example: true
+        display_order:
+          type: integer
+          description: UI display order
+          example: 2
+
+    ConsentGrantRequest:
+      type: object
+      required:
+        - consents
+      properties:
+        consents:
+          type: array
+          description: List of consent grants
+          items:
+            type: object
+            required:
+              - purpose_code
+              - granted
+            properties:
+              purpose_code:
+                type: string
+                example: "analytics"
+              granted:
+                type: boolean
+                example: true
+        guest_order_id:
+          type: string
+          format: uuid
+          description: Guest order ID (for guest checkout consents)
+          nullable: true
+          example: null
+        consent_method:
+          type: string
+          enum: [registration, checkout, settings_update]
+          description: How consent was collected
+          example: "registration"
+
+    ConsentRecord:
+      type: object
+      required:
+        - id
+        - purpose_code
+        - granted
+        - granted_at
+        - policy_version
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b5cc290f-9cga-4999-aa23-bdf5f7654113"
+        purpose_code:
+          type: string
+          example: "analytics"
+        purpose_name:
+          type: string
+          description: Display name (localized)
+          example: "Analisis dan peningkatan layanan"
+        granted:
+          type: boolean
+          example: true
+        granted_at:
+          type: string
+          format: date-time
+          example: "2026-01-02T08:15:30Z"
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        policy_version:
+          type: string
+          description: Privacy policy version when consent was granted
+          example: "1.0.0"
+        ip_address:
+          type: string
+          description: IP address (masked for privacy)
+          example: "192.168.*.*"
+        consent_method:
+          type: string
+          example: "registration"
+
+    ConsentStatus:
+      type: object
+      required:
+        - purpose_code
+        - is_required
+        - is_granted
+      properties:
+        purpose_code:
+          type: string
+          example: "advertising"
+        purpose_name:
+          type: string
+          example: "Promosi dan iklan"
+        is_required:
+          type: boolean
+          example: false
+        is_granted:
+          type: boolean
+          description: Whether user has active consent for this purpose
+          example: false
+        granted_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-02T08:15:30Z"
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-10T14:20:00Z"
+        can_revoke:
+          type: boolean
+          description: Whether user can revoke this consent
+          example: true
+
+    PrivacyPolicy:
+      type: object
+      required:
+        - version
+        - policy_text
+        - effective_date
+        - is_current
+      properties:
+        version:
+          type: string
+          description: Semantic version
+          example: "1.0.0"
+        policy_text:
+          type: string
+          description: Full policy text (Markdown format, localized)
+          example: "# Kebijakan Privasi\n\n## 1. Data yang Dikumpulkan\n..."
+        effective_date:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00Z"
+        is_current:
+          type: boolean
+          example: true
+
+    PrivacyPolicyVersion:
+      type: object
+      required:
+        - version
+        - effective_date
+        - is_major_update
+        - is_current
+      properties:
+        version:
+          type: string
+          example: "1.1.0"
+        effective_date:
+          type: string
+          format: date-time
+          example: "2026-06-01T00:00:00Z"
+        change_summary:
+          type: string
+          description: Summary of changes from previous version (localized)
+          example: "Penambahan pihak ketiga baru untuk integrasi pembayaran"
+        is_major_update:
+          type: boolean
+          description: Whether update requires re-consent
+          example: false
+        is_current:
+          type: boolean
+          example: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "CONSENT_REQUIRED"
+            message:
+              type: string
+              description: Human-readable error message (localized)
+              example: "Required consent missing: operational"
+            details:
+              type: object
+              description: Additional error context
+              additionalProperties: true
+              example:
+                missing_purposes: ["operational"]
+
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          description: Total number of records
+          example: 45
+        total_pages:
+          type: integer
+          example: 3
+
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: "Authentication required. Please provide valid JWT token."
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: "An unexpected error occurred. Please try again later."
+              details:
+                request_id: "req_abc123xyz"

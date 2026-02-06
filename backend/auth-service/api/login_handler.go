@@ -96,7 +96,7 @@ func (h *LoginHandler) Login(c echo.Context) error {
 		HttpOnly: true,
 		Secure:   isProduction,
 		SameSite: http.SameSiteLaxMode, // Lax allows cookie on redirects
-		MaxAge:   15 * 60,               // 15 minutes
+		MaxAge:   15 * 60,              // 15 minutes
 	}
 	c.SetCookie(cookie)
 
@@ -138,6 +138,7 @@ func getLocalizedMessage(locale, key string) string {
 			"auth.session.invalid":         "Invalid session",
 			"auth.session.expired":         "Session expired",
 			"errors.internalServer":        "An error occurred. Please try again later.",
+			"verification.success":         "Account verified successfully.",
 		},
 		"id": {
 			"validation.invalidRequest":    "Format permintaan tidak valid",
@@ -150,6 +151,7 @@ func getLocalizedMessage(locale, key string) string {
 			"auth.session.invalid":         "Sesi tidak valid",
 			"auth.session.expired":         "Sesi kedaluwarsa",
 			"errors.internalServer":        "Terjadi kesalahan. Silakan coba lagi nanti.",
+			"verification.success":         "Akun berhasil diverifikasi.",
 		},
 	}
 

@@ -35,14 +35,18 @@ type DeliveryConfig struct {
 	ChargeDeliveryFee    bool                   `json:"charge_delivery_fee"`
 }
 
-func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantID string) (*DeliveryConfig, error) {
+func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug string) (*DeliveryConfig, error) {
 	// Fetch tenant information
-	var tenantName sql.NullString
-	query := `SELECT business_name FROM tenants WHERE id = $1`
-	err := s.db.QueryRowContext(ctx, query, tenantID).Scan(&tenantName)
+	var tenantID, tenantName sql.NullString
+	query := `SELECT id, business_name FROM tenants WHERE slug = $1`
+	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(&tenantID, &tenantName)
 	if err != nil && err != sql.ErrNoRows {
 		// Log error but continue with config data
 		fmt.Printf("Warning: failed to fetch tenant info: %v\n", err)
+	}
+
+	if !tenantID.Valid {
+		return nil, fmt.Errorf("tenant not found")
 	}
 
 	// Fetch order settings from order_settings table
@@ -56,7 +60,7 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantID st
 		FROM order_settings 
 		WHERE tenant_id = $1`
 
-	err = s.db.QueryRowContext(ctx, orderSettingsQuery, tenantID).Scan(
+	err = s.db.QueryRowContext(ctx, orderSettingsQuery, tenantID.String).Scan(
 		&deliveryEnabled, &pickupEnabled, &dineInEnabled,
 		&defaultDeliveryFee, &minOrderAmount, &estimatedPrepTime,
 		&chargeDeliveryFee,
@@ -84,7 +88,7 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantID st
 	}
 
 	return &DeliveryConfig{
-		TenantID:             tenantID,
+		TenantID:             tenantID.String,
 		TenantName:           tenantName.String,
 		EnabledDeliveryTypes: enabledTypes,
 		ServiceArea:          map[string]interface{}{},

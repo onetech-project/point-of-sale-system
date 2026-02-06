@@ -1,0 +1,94 @@
+# Prometheus Alert Rules for Audit Trail (T117)
+# Purpose: Monitor audit trail health for UU PDP compliance
+# Feature: 006-uu-pdp-compliance
+
+groups:
+  - name: audit_trail_alerts
+    interval: 30s
+    rules:
+      # Alert when audit event persistence fails repeatedly
+      - alert: AuditEventPersistErrors
+        expr: rate(audit_events_persist_errors_total[5m]) > 2
+        for: 5m
+        labels:
+          severity: critical
+          component: audit-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'High rate of audit event persistence errors'
+          description: 'Audit events are failing to persist at {{ $value | humanize }} errors/sec over the last 5 minutes. This violates UU PDP Article 56 (immutable audit trail requirement). Error type: {{ $labels.error_type }}'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-persistence-errors'
+
+      # Alert when Kafka consumer lag is too high
+      - alert: AuditKafkaConsumerLag
+        expr: audit_kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: audit-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'High Kafka consumer lag for audit events'
+          description: 'Audit consumer is {{ $value }} messages behind. Events are not being persisted in real-time. This may delay compliance investigations.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-kafka-lag'
+
+      # Alert when no audit events are being persisted (service down)
+      - alert: AuditEventsPersistenceStalled
+        expr: rate(audit_events_persisted_total{status="success"}[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: audit-service
+          compliance: uu-pdp
+        annotations:
+          summary: 'Audit events persistence has stalled'
+          description: 'No audit events have been successfully persisted in the last 10 minutes. UU PDP compliance at risk - data access is not being logged.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-stalled'
+
+      # Alert when processing duration is too slow
+      - alert: AuditEventsProcessingSlow
+        expr: histogram_quantile(0.95, rate(audit_events_processing_duration_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: audit-service
+        annotations:
+          summary: 'Audit event processing is slow'
+          description: '95th percentile processing duration is {{ $value | humanize }}s. This may cause consumer lag to increase.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-processing-slow'
+
+      # Alert when audit database partitions are missing (next month)
+      - alert: AuditPartitionMissing
+        expr: audit_partitions_total < 3
+        for: 1h
+        labels:
+          severity: warning
+          component: audit-service
+        annotations:
+          summary: 'Insufficient audit event partitions'
+          description: 'Only {{ $value }} partitions exist. Expected at least 3 (current + next 2 months). Partition creation job may have failed.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-partition-missing'
+
+      # Alert on high error rate for specific error types
+      - alert: AuditDatabaseErrors
+        expr: rate(audit_events_persist_errors_total{error_type="database_error"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: audit-service
+        annotations:
+          summary: 'High rate of audit database errors'
+          description: 'Database errors at {{ $value | humanize }} errors/sec. Check PostgreSQL health and connectivity.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-database-errors'
+
+      # Alert on data validation errors (may indicate client bugs)
+      - alert: AuditValidationErrors
+        expr: rate(audit_events_persist_errors_total{error_type="validation_error"}[15m]) > 1.0
+        for: 15m
+        labels:
+          severity: warning
+          component: audit-service
+        annotations:
+          summary: 'High rate of audit validation errors'
+          description: 'Validation errors at {{ $value | humanize }} errors/sec. Services may be publishing malformed audit events.'
+          runbook_url: 'https://wiki.company.com/runbooks/audit-validation-errors'

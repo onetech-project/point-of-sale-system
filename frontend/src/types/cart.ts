@@ -77,6 +77,8 @@ export interface PaymentInfo {
   transaction_status: string;
   qr_code_url?: string;
   expiry_time?: string;
+  server_time?: string;
+  remaining_time?: number;
   payment_type: string;
 }
 
@@ -89,6 +91,7 @@ export interface Order {
   order_reference: string;
   customer_name: string;
   customer_phone: string;
+  customer_email?: string;
   delivery_type: 'DINE_IN' | 'DELIVERY' | 'TAKEAWAY';
   delivery_address?: string;
   table_number?: string;
@@ -103,6 +106,7 @@ export interface Order {
   updated_at: string;
   payment?: PaymentInfo;
   notes?: string;
+  tenant_slug: string;
 }
 
 /**

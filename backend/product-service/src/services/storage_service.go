@@ -30,6 +30,7 @@ func NewStorageService(cfg *config.StorageConfig) (*StorageService, error) {
 		Secure: cfg.UseSSL,
 		Region: cfg.Region,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
 	}
@@ -99,6 +100,7 @@ func (s *StorageService) GetPhotoURL(ctx context.Context, storageKey string) (st
 		}
 
 		url = urlObj.String()
+
 		return nil
 	})
 

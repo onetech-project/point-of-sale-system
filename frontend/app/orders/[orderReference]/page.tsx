@@ -7,7 +7,6 @@ import PublicLayout from '../../../src/components/layout/PublicLayout';
 import OrderConfirmation from '../../../src/components/guest/OrderConfirmation';
 import { order as orderService } from '../../../src/services/order';
 import { OrderData } from '../../../src/types/cart';
-import { formatCurrency } from '../../../src/utils/text';
 
 export default function OrderStatusPage() {
   const router = useRouter();
@@ -154,7 +153,7 @@ export default function OrderStatusPage() {
           <div className="py-4">
             <div className="flex items-center justify-between">
               <button
-                onClick={() => router.push(`/menu/${orderData.order.tenant_id}`)}
+                onClick={() => router.push(`/menu/${orderData.order.tenant_slug}`)}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <svg
@@ -201,6 +200,7 @@ export default function OrderStatusPage() {
             deliveryType={orderData.order.delivery_type}
             customerName={orderData.order.customer_name}
             customerPhone={orderData.order.customer_phone}
+            customerEmail={orderData.order.customer_email}
             deliveryAddress={orderData.order.delivery_address}
             tableNumber={orderData.order.table_number}
             subtotal={orderData.order.subtotal_amount}
@@ -212,6 +212,7 @@ export default function OrderStatusPage() {
             paymentInfo={orderData.payment}
             notes={orderData.notes && orderData.notes.length > 0 ? orderData.notes[0].note : undefined}
             items={orderData.items}
+            customerNotes={orderData.order.notes}
           />
 
           {/* Auto-refresh Indicator */}

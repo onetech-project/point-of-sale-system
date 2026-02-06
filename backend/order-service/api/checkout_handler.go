@@ -10,14 +10,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"github.com/point-of-sale-system/order-service/src/events"
 	"github.com/point-of-sale-system/order-service/src/models"
 	"github.com/point-of-sale-system/order-service/src/repository"
 	"github.com/point-of-sale-system/order-service/src/services"
 	"github.com/point-of-sale-system/order-service/src/utils"
+	"github.com/point-of-sale-system/order-service/src/validators"
 )
 
 type CheckoutHandler struct {
@@ -30,7 +33,11 @@ type CheckoutHandler struct {
 	deliveryFeeService *services.DeliveryFeeService
 	addressRepo        *repository.AddressRepository
 	settingsRepo       *repository.OrderSettingsRepository
+	guestOrderRepo     *repository.GuestOrderRepository
 	kafkaProducer      interface { // Interface for Kafka producer
+		Publish(ctx context.Context, key string, value interface{}) error
+	}
+	consentProducer interface {
 		Publish(ctx context.Context, key string, value interface{}) error
 	}
 }
@@ -45,7 +52,11 @@ func NewCheckoutHandler(
 	deliveryFeeService *services.DeliveryFeeService,
 	addressRepo *repository.AddressRepository,
 	settingsRepo *repository.OrderSettingsRepository,
+	guestOrderRepo *repository.GuestOrderRepository,
 	kafkaProducer interface {
+		Publish(ctx context.Context, key string, value interface{}) error
+	},
+	consentProducer interface {
 		Publish(ctx context.Context, key string, value interface{}) error
 	},
 ) *CheckoutHandler {
@@ -59,18 +70,21 @@ func NewCheckoutHandler(
 		deliveryFeeService: deliveryFeeService,
 		addressRepo:        addressRepo,
 		settingsRepo:       settingsRepo,
+		guestOrderRepo:     guestOrderRepo,
 		kafkaProducer:      kafkaProducer,
+		consentProducer:    consentProducer,
 	}
 }
 
 type CheckoutRequest struct {
-	DeliveryType    string  `json:"delivery_type"`
-	CustomerName    string  `json:"customer_name"`
-	CustomerPhone   string  `json:"customer_phone"`
-	CustomerEmail   *string `json:"customer_email,omitempty"`
-	DeliveryAddress *string `json:"delivery_address,omitempty"`
-	TableNumber     *string `json:"table_number,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
+	DeliveryType    string   `json:"delivery_type"`
+	CustomerName    string   `json:"customer_name"`
+	CustomerPhone   string   `json:"customer_phone"`
+	CustomerEmail   *string  `json:"customer_email,omitempty"`
+	DeliveryAddress *string  `json:"delivery_address,omitempty"`
+	TableNumber     *string  `json:"table_number,omitempty"`
+	Notes           *string  `json:"notes,omitempty"`
+	Consents        []string `json:"consents"` // Optional consents granted (required consents implicit)
 }
 
 type CheckoutResponse struct {
@@ -123,6 +137,14 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error":   "invalid_delivery_type",
 			"message": "Invalid delivery type. Must be: pickup, delivery, or dine_in",
+		})
+	}
+
+	// Validate optional consent codes (required consents are implicit)
+	if err := validators.ValidateGuestConsents(req.Consents); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error":   "invalid_consent",
+			"message": fmt.Sprintf("Invalid consent codes: %v", err),
 		})
 	}
 
@@ -240,7 +262,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	// Create order
 	order := &models.GuestOrder{
 		TenantID:       tenantID,
-		SessionID:      &sessionID,
+		SessionID:      sessionID,
 		OrderReference: orderReference,
 		Status:         models.OrderStatusPending,
 		DeliveryType:   models.DeliveryType(req.DeliveryType),
@@ -287,16 +309,8 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		}
 	}
 
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		log.Error().Err(err).Msg("Failed to commit transaction")
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to create order",
-		})
-	}
-
 	// Create inventory reservations with 15min TTL
-	if err := h.inventoryService.CreateReservations(ctx, orderID, cart.Items); err != nil {
+	if err := h.inventoryService.CreateReservations(ctx, tx, orderID, cart.Items); err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
 			Str("order_reference", orderReference).
@@ -321,7 +335,7 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	order.CreatedAt = time.Now()
 	// TotalAmount already set correctly with delivery fee
 
-	qrisResp, err := h.paymentService.CreateQRISCharge(ctx, order)
+	qrisResp, err := h.paymentService.CreateQRISCharge(ctx, order, cart.Items)
 	if err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
@@ -334,12 +348,20 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	}
 
 	// Save QRIS payment info to database
-	if err := h.paymentService.SaveQRISPaymentInfo(ctx, orderID, order.TotalAmount, qrisResp); err != nil {
+	if err := h.paymentService.SaveQRISPaymentInfo(ctx, tx, orderID, order.TotalAmount, qrisResp); err != nil {
 		log.Error().Err(err).
 			Str("order_id", orderID).
 			Str("transaction_id", qrisResp.TransactionID).
 			Msg("Failed to save QRIS payment info")
 		// Continue - payment was created, info will be saved via webhook
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		log.Error().Err(err).Msg("Failed to commit transaction")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to create order",
+		})
 	}
 
 	// Get QR code URL from actions array
@@ -360,6 +382,40 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 	// Publish invoice notification event if customer provided email
 	if req.CustomerEmail != nil && *req.CustomerEmail != "" {
 		h.publishInvoiceEvent(ctx, orderID, orderReference, tenantID, order, cart.Items, req.CustomerEmail)
+	}
+
+	// Publish ConsentGrantedEvent to Kafka (async, after transaction committed)
+	// This ensures we have the real order_id and prevents consent recording failures from blocking checkout
+	// Uses dedicated consent-events topic for audit-service consumption
+	if h.consentProducer != nil {
+		go func() {
+			consentEvent := events.ConsentGrantedEvent{
+				EventID:          uuid.New().String(),
+				EventType:        "consent.granted",
+				TenantID:         tenantID,
+				SubjectType:      "guest",
+				SubjectID:        orderID, // Real order_id from database
+				ConsentMethod:    "checkout",
+				PolicyVersion:    "1.0.0", // TODO: Get from database
+				Consents:         req.Consents, // Only optional consents provided by user
+				RequiredConsents: validators.GetRequiredGuestConsents(), // Required consents (implicit)
+				Metadata: events.ConsentMetadata{
+					IPAddress: c.RealIP(),
+					UserAgent: c.Request().UserAgent(),
+					SessionID: &sessionID,
+					RequestID: c.Response().Header().Get("X-Request-ID"),
+				},
+				Timestamp: time.Now(),
+			}
+
+			if err := h.consentProducer.Publish(context.Background(), tenantID, consentEvent); err != nil {
+				log.Error().Err(err).
+					Str("order_id", orderID).
+					Str("tenant_id", tenantID).
+					Msg("Failed to publish consent event")
+				// TODO: Add to retry queue or alert for manual intervention
+			}
+		}()
 	}
 
 	return c.JSON(http.StatusCreated, CheckoutResponse{
@@ -457,36 +513,7 @@ func (h *CheckoutHandler) getCartFromRedis(ctx context.Context, tenantID, sessio
 }
 
 func (h *CheckoutHandler) insertOrder(ctx context.Context, tx *sql.Tx, order *models.GuestOrder) (string, error) {
-	query := `
-		INSERT INTO guest_orders (
-			tenant_id, session_id, order_reference, status,
-			delivery_type, customer_name, customer_phone, customer_email,
-			table_number, notes,
-			subtotal_amount, delivery_fee, total_amount
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		RETURNING id
-	`
-
-	var orderID string
-	err := tx.QueryRowContext(
-		ctx,
-		query,
-		order.TenantID,
-		order.SessionID,
-		order.OrderReference,
-		order.Status,
-		order.DeliveryType,
-		order.CustomerName,
-		order.CustomerPhone,
-		order.CustomerEmail,
-		order.TableNumber,
-		order.Notes,
-		order.SubtotalAmount,
-		order.DeliveryFee,
-		order.TotalAmount,
-	).Scan(&orderID)
-
-	return orderID, err
+	return h.guestOrderRepo.Create(ctx, tx, order)
 }
 
 func (h *CheckoutHandler) insertOrderItem(ctx context.Context, tx *sql.Tx, item *models.OrderItem) error {
@@ -604,7 +631,13 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 	}
 
 	// Get order from database
-	orderRepo := repository.NewOrderRepository(h.db)
+	orderRepo, err := repository.NewOrderRepositoryWithVault(h.db)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to initialize OrderRepository")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "internal server error",
+		})
+	}
 	order, err := orderRepo.GetOrderByReference(ctx, orderReference)
 	if err != nil {
 		log.Error().Err(err).Str("order_reference", orderReference).Msg("Failed to fetch order")
@@ -652,8 +685,18 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 	}
 
 	if payment != nil {
+		now := time.Now()
+		log.Debug().Str("server_time", now.Format(time.RFC3339)).Msg("Current server time for payment expiry calculation")
+
 		var expiryTimeStr *string
+		remainingTime := int64(0)
 		if payment.ExpiryTime != nil {
+			expiryTime := payment.ExpiryTime
+			log.Debug().Str("expiry_time", expiryTime.Format(time.RFC3339)).Msg("the payment expiry time for payment expiry calculation")
+
+			remainingTime = max(int64(expiryTime.Add(-7*time.Hour).Sub(now).Seconds()), 0)
+			log.Debug().Str("remaining_time", fmt.Sprintf("%d", remainingTime)).Msg("the remaining time for payment expiry")
+
 			// Format as RFC3339 to ensure timezone is preserved
 			formatted := payment.ExpiryTime.Format(time.RFC3339)
 			expiryTimeStr = &formatted
@@ -664,6 +707,8 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 			"transaction_status": payment.TransactionStatus,
 			"qr_code_url":        payment.QRCodeURL,
 			"expiry_time":        expiryTimeStr,
+			"server_time":        now.Format(time.RFC3339),
+			"remaining_time":     remainingTime,
 			"payment_type":       payment.PaymentType,
 		}
 	}

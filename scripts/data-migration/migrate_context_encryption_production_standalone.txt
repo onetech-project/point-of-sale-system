@@ -1,0 +1,599 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/tls"
+	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	_ "github.com/lib/pq"
+)
+
+// VaultClient handles encryption/decryption via HashiCorp Vault Transit Engine
+type VaultClient struct {
+	address    string
+	token      string
+	keyName    string
+	httpClient *http.Client
+	hmacSecret string
+}
+
+func NewVaultClient(address, token, keyName, hmacSecret string) *VaultClient {
+	return &VaultClient{
+		address: address,
+		token:   token,
+		keyName: keyName,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
+		hmacSecret: hmacSecret,
+	}
+}
+
+func (v *VaultClient) Decrypt(ctx context.Context, ciphertext string) (string, error) {
+	return v.DecryptWithContext(ctx, ciphertext, "")
+}
+
+func (v *VaultClient) DecryptWithContext(ctx context.Context, ciphertext, encryptionContext string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+
+	// Split HMAC if present (HMAC is after the last colon)
+	// Format: vault:v1:base64data:hmac (4 parts) or vault:v1:base64data (3 parts)
+	actualCiphertext := ciphertext
+	var expectedHMAC string
+
+	lastColonIdx := strings.LastIndex(ciphertext, ":")
+	if lastColonIdx > 0 {
+		// Check if this looks like an HMAC (hex string, 64 chars for SHA256)
+		potentialHMAC := ciphertext[lastColonIdx+1:]
+		if len(potentialHMAC) == 64 && isHexString(potentialHMAC) {
+			actualCiphertext = ciphertext[:lastColonIdx]
+			expectedHMAC = potentialHMAC
+		}
+	}
+
+	// Prepare request
+	data := map[string]interface{}{
+		"ciphertext": actualCiphertext,
+	}
+
+	if encryptionContext != "" {
+		data["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContext))
+	}
+
+	reqBody, _ := json.Marshal(data)
+	url := fmt.Sprintf("%s/v1/transit/decrypt/%s", v.address, v.keyName)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("X-Vault-Token", v.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("vault decrypt request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("vault decrypt failed: %s", string(body))
+	}
+
+	var result struct {
+		Data struct {
+			Plaintext string `json:"plaintext"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+
+	plaintextBytes, err := base64.StdEncoding.DecodeString(result.Data.Plaintext)
+	if err != nil {
+		return "", err
+	}
+
+	plaintext := string(plaintextBytes)
+
+	// Verify HMAC if present
+	if expectedHMAC != "" && v.hmacSecret != "" {
+		if !v.verifyHMAC(plaintext, expectedHMAC) {
+			return "", fmt.Errorf("HMAC verification failed")
+		}
+	}
+
+	return plaintext, nil
+}
+
+func (v *VaultClient) EncryptWithContext(ctx context.Context, plaintext, encryptionContext string) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+
+	data := map[string]interface{}{
+		"plaintext": base64.StdEncoding.EncodeToString([]byte(plaintext)),
+	}
+
+	if encryptionContext != "" {
+		data["context"] = base64.StdEncoding.EncodeToString([]byte(encryptionContext))
+	}
+
+	reqBody, _ := json.Marshal(data)
+	url := fmt.Sprintf("%s/v1/transit/encrypt/%s", v.address, v.keyName)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("X-Vault-Token", v.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("vault encrypt request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("vault encrypt failed: %s", string(body))
+	}
+
+	var result struct {
+		Data struct {
+			Ciphertext string `json:"ciphertext"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+
+	ciphertext := result.Data.Ciphertext
+
+	// Append HMAC
+	if v.hmacSecret != "" {
+		hmacValue := v.generateHMAC(plaintext)
+		ciphertext = fmt.Sprintf("%s:%s", ciphertext, hmacValue)
+	}
+
+	return ciphertext, nil
+}
+
+func (v *VaultClient) generateHMAC(plaintext string) string {
+	h := hmac.New(sha256.New, []byte(v.hmacSecret))
+	h.Write([]byte(plaintext))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (v *VaultClient) verifyHMAC(plaintext, expectedHMAC string) bool {
+	actualHMAC := v.generateHMAC(plaintext)
+	return hmac.Equal([]byte(actualHMAC), []byte(expectedHMAC))
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+// Migration types
+type MigrationConfig struct {
+	DBURL         string
+	VaultAddr     string
+	VaultToken    string
+	VaultKeyName  string
+	HMACSecret    string
+	Tables        []string
+	DryRun        bool
+	BatchSize     int
+	SkipDecrypted bool
+}
+
+type TableMigration struct {
+	TableName      string
+	IDColumn       string
+	EncryptedCols  []ColumnConfig
+	WhereCondition string
+}
+
+type ColumnConfig struct {
+	Name    string
+	Context string
+}
+
+var tableMigrations = []TableMigration{
+	{
+		TableName: "users",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "email", Context: "user:email"},
+			{Name: "first_name", Context: "user:first_name"},
+			{Name: "last_name", Context: "user:last_name"},
+		},
+		WhereCondition: "",
+	},
+	{
+		TableName: "invitations",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "email", Context: "invitation:email"},
+			{Name: "token", Context: "invitation:token"},
+		},
+		WhereCondition: "",
+	},
+	{
+		TableName: "guest_orders",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "customer_name", Context: "guest_order:customer_name"},
+			{Name: "customer_phone", Context: "guest_order:customer_phone"},
+			{Name: "customer_email", Context: "guest_order:customer_email"},
+			{Name: "ip_address", Context: "guest_order:ip_address"},
+			{Name: "user_agent", Context: "guest_order:user_agent"},
+		},
+		WhereCondition: "is_anonymized = false",
+	},
+	{
+		TableName: "delivery_addresses",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "full_address", Context: "delivery_address:full_address"},
+			{Name: "geocoding_result", Context: "delivery_address:geocoding_result"},
+		},
+		WhereCondition: "",
+	},
+	{
+		TableName: "notifications",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "recipient", Context: "notification:recipient"},
+			{Name: "body", Context: "notification:body"},
+		},
+		WhereCondition: "",
+	},
+	{
+		TableName: "sessions",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "session_id", Context: "session:session_id"},
+			{Name: "ip_address", Context: "session:ip_address"},
+		},
+		WhereCondition: "expired_at > NOW()",
+	},
+	{
+		TableName: "consent_records",
+		IDColumn:  "id",
+		EncryptedCols: []ColumnConfig{
+			{Name: "ip_address", Context: "consent_record:ip_address"},
+		},
+		WhereCondition: "",
+	},
+}
+
+func main() {
+	var (
+		dbURL        = flag.String("db", os.Getenv("DATABASE_URL"), "Database connection URL")
+		vaultAddr    = flag.String("vault-addr", os.Getenv("VAULT_ADDR"), "Vault address")
+		vaultToken   = flag.String("vault-token", os.Getenv("VAULT_TOKEN"), "Vault token")
+		vaultKeyName = flag.String("vault-key", "pos-encryption-key", "Vault transit key name")
+		hmacSecret   = flag.String("hmac-secret", os.Getenv("ENCRYPTION_HMAC_SECRET"), "HMAC secret for integrity")
+		tables       = flag.String("tables", "all", "Comma-separated list of tables to migrate (or 'all')")
+		dryRun       = flag.Bool("dry-run", true, "Dry run mode - show what would be done without making changes")
+		batchSize    = flag.Int("batch-size", 100, "Number of records to process in each batch")
+	)
+	flag.Parse()
+
+	// Validate required flags
+	if *dbURL == "" {
+		log.Fatal("Database URL is required (--db or DATABASE_URL env var)")
+	}
+	if *vaultAddr == "" {
+		*vaultAddr = "http://localhost:8200"
+		log.Printf("Using default Vault address: %s", *vaultAddr)
+	}
+	if *vaultToken == "" {
+		log.Fatal("Vault token is required (--vault-token or VAULT_TOKEN env var)")
+	}
+	if *hmacSecret == "" {
+		log.Println("⚠️  WARNING: No HMAC secret provided - HMAC verification will be skipped")
+	}
+
+	config := &MigrationConfig{
+		DBURL:        *dbURL,
+		VaultAddr:    *vaultAddr,
+		VaultToken:   *vaultToken,
+		VaultKeyName: *vaultKeyName,
+		HMACSecret:   *hmacSecret,
+		DryRun:       *dryRun,
+		BatchSize:    *batchSize,
+	}
+
+	// Parse tables to migrate
+	if *tables == "all" {
+		for _, tm := range tableMigrations {
+			config.Tables = append(config.Tables, tm.TableName)
+		}
+	} else {
+		config.Tables = strings.Split(*tables, ",")
+	}
+
+	log.Printf("=== Context-Based Encryption Migration ===")
+	log.Printf("Mode: %s", map[bool]string{true: "🔍 DRY RUN (no changes)", false: "🔴 LIVE (will modify data)"}[*dryRun])
+	log.Printf("Database: %s", strings.Split(*dbURL, "@")[len(strings.Split(*dbURL, "@"))-1])
+	log.Printf("Vault: %s", *vaultAddr)
+	log.Printf("Tables: %v", config.Tables)
+	log.Printf("Batch size: %d", *batchSize)
+	log.Println()
+
+	if !*dryRun {
+		log.Println("⚠️  WARNING: Running in LIVE mode - data will be modified!")
+		log.Println("Press Ctrl+C within 5 seconds to cancel...")
+		time.Sleep(5 * time.Second)
+	}
+
+	if err := runMigration(config); err != nil {
+		log.Fatalf("❌ Migration failed: %v", err)
+	}
+
+	log.Println("\n✅ Migration completed successfully!")
+}
+
+func runMigration(config *MigrationConfig) error {
+	// Connect to database
+	db, err := sql.Open("postgres", config.DBURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Println("✅ Database connection established")
+
+	// Initialize Vault client
+	vaultClient := NewVaultClient(config.VaultAddr, config.VaultToken, config.VaultKeyName, config.HMACSecret)
+	log.Println("✅ Vault client initialized")
+
+	ctx := context.Background()
+
+	// Test Vault connection (test full encrypt/decrypt cycle)
+	testPlaintext := "test"
+	testEncrypted, err := vaultClient.EncryptWithContext(ctx, testPlaintext, "test:connection")
+	if err != nil {
+		return fmt.Errorf("failed to test Vault encryption: %w", err)
+	}
+	log.Printf("Test encrypted: %s", testEncrypted[:50]+"...")
+
+	testDecrypted, err := vaultClient.DecryptWithContext(ctx, testEncrypted, "test:connection")
+	if err != nil {
+		return fmt.Errorf("failed to test Vault decryption: %w", err)
+	}
+	if testDecrypted != testPlaintext {
+		return fmt.Errorf("vault encryption test failed: expected '%s', got '%s'", testPlaintext, testDecrypted)
+	}
+	log.Println("✅ Vault encryption/decryption test passed")
+	log.Println()
+
+	// Migrate each table
+	totalStats := MigrationStats{}
+
+	for _, tableName := range config.Tables {
+		var tm *TableMigration
+		for i := range tableMigrations {
+			if tableMigrations[i].TableName == tableName {
+				tm = &tableMigrations[i]
+				break
+			}
+		}
+
+		if tm == nil {
+			log.Printf("⚠️  Table '%s' not found in migration config, skipping", tableName)
+			continue
+		}
+
+		log.Printf("=== Migrating table: %s ===", tm.TableName)
+
+		stats, err := migrateTable(ctx, db, vaultClient, tm, config)
+		if err != nil {
+			return fmt.Errorf("failed to migrate table %s: %w", tm.TableName, err)
+		}
+
+		totalStats.Processed += stats.Processed
+		totalStats.Updated += stats.Updated
+		totalStats.Skipped += stats.Skipped
+		totalStats.Errors += stats.Errors
+
+		log.Printf("✅ Table %s: processed=%d, updated=%d, skipped=%d, errors=%d\n",
+			tm.TableName, stats.Processed, stats.Updated, stats.Skipped, stats.Errors)
+	}
+
+	log.Printf("\n=== Total Statistics ===")
+	log.Printf("Processed: %d", totalStats.Processed)
+	log.Printf("Updated: %d", totalStats.Updated)
+	log.Printf("Skipped: %d", totalStats.Skipped)
+	log.Printf("Errors: %d", totalStats.Errors)
+
+	return nil
+}
+
+type MigrationStats struct {
+	Processed int
+	Updated   int
+	Skipped   int
+	Errors    int
+}
+
+func migrateTable(ctx context.Context, db *sql.DB, vault *VaultClient, tm *TableMigration, config *MigrationConfig) (*MigrationStats, error) {
+	stats := &MigrationStats{}
+
+	// Build column list
+	var columns []string
+	columns = append(columns, tm.IDColumn)
+	for _, col := range tm.EncryptedCols {
+		columns = append(columns, col.Name)
+	}
+
+	// Build query
+	query := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columns, ", "), tm.TableName)
+	if tm.WhereCondition != "" {
+		query += " WHERE " + tm.WhereCondition
+	}
+
+	// Count total records
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tm.TableName)
+	if tm.WhereCondition != "" {
+		countQuery += " WHERE " + tm.WhereCondition
+	}
+
+	var totalCount int
+	if err := db.QueryRowContext(ctx, countQuery).Scan(&totalCount); err != nil {
+		return stats, fmt.Errorf("failed to count records: %w", err)
+	}
+
+	log.Printf("Found %d records to migrate", totalCount)
+
+	if totalCount == 0 {
+		return stats, nil
+	}
+
+	// Execute query
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return stats, fmt.Errorf("failed to query table: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		// Scan row
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return stats, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// First value is ID
+		id := values[0]
+
+		// Process encrypted columns
+		updateCols := []string{}
+		updateVals := []interface{}{}
+
+		for i, colConfig := range tm.EncryptedCols {
+			colIdx := i + 1 // Skip ID column
+			encryptedValue := values[colIdx]
+
+			// Handle NULL values
+			if encryptedValue == nil {
+				continue
+			}
+
+			encryptedStr, ok := encryptedValue.(string)
+			if !ok || encryptedStr == "" {
+				continue
+			}
+
+			// Decrypt with old method (no context)
+			plaintext, err := vault.Decrypt(ctx, encryptedStr)
+			if err != nil {
+				log.Printf("❌ Failed to decrypt %s.%s (ID: %v): %v", tm.TableName, colConfig.Name, id, err)
+				stats.Errors++
+				continue
+			}
+
+			// Re-encrypt with context
+			newCiphertext, err := vault.EncryptWithContext(ctx, plaintext, colConfig.Context)
+			if err != nil {
+				log.Printf("❌ Failed to encrypt %s.%s (ID: %v): %v", tm.TableName, colConfig.Name, id, err)
+				stats.Errors++
+				continue
+			}
+
+			// Check if value changed (deterministic encryption should produce same output for same context)
+			if newCiphertext == encryptedStr {
+				// Already migrated, skip
+				continue
+			}
+
+			updateCols = append(updateCols, colConfig.Name)
+			updateVals = append(updateVals, newCiphertext)
+		}
+
+		stats.Processed++
+
+		if len(updateCols) == 0 {
+			stats.Skipped++
+			continue
+		}
+
+		if config.DryRun {
+			log.Printf("Would update %s (ID: %v) - columns: %v", tm.TableName, id, updateCols)
+			stats.Updated++
+		} else {
+			// Build and execute UPDATE query
+			updateQuery := fmt.Sprintf("UPDATE %s SET ", tm.TableName)
+			for i, col := range updateCols {
+				if i > 0 {
+					updateQuery += ", "
+				}
+				updateQuery += fmt.Sprintf("%s = $%d", col, i+1)
+			}
+			updateQuery += fmt.Sprintf(" WHERE %s = $%d", tm.IDColumn, len(updateCols)+1)
+			updateVals = append(updateVals, id)
+
+			if _, err := db.ExecContext(ctx, updateQuery, updateVals...); err != nil {
+				log.Printf("❌ Failed to update record %v: %v", id, err)
+				stats.Errors++
+				continue
+			}
+
+			stats.Updated++
+		}
+
+		if stats.Processed%config.BatchSize == 0 {
+			log.Printf("Progress: %d/%d records processed (%d updated, %d skipped, %d errors)",
+				stats.Processed, totalCount, stats.Updated, stats.Skipped, stats.Errors)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return stats, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return stats, nil
+}

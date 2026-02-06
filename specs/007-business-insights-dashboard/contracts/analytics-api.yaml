@@ -1,0 +1,626 @@
+openapi: 3.0.3
+info:
+  title: Analytics Service API
+  description: Business Insights Dashboard analytics endpoints for tenant owners
+  version: 1.0.0
+  contact:
+    name: POS System Team
+
+servers:
+  - url: http://localhost:8086/api/v1
+    description: Local development
+  - url: https://api.pos-system.com/api/v1
+    description: Production
+
+tags:
+  - name: Analytics
+    description: Dashboard analytics and metrics
+  - name: Tasks
+    description: Operational task alerts
+  - name: Health
+    description: Service health checks
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: analytics-service
+
+  /analytics/overview:
+    get:
+      summary: Get dashboard overview metrics
+      description: Returns aggregated sales, profit, inventory value, and order count for specified time range
+      tags: [Analytics]
+      parameters:
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, quarterly, yearly]
+            default: monthly
+        - name: start
+          in: query
+          required: false
+          description: Start date (YYYY-MM-DD for daily, YYYY-MM for monthly, etc.)
+          schema:
+            type: string
+            example: "2026-01-01"
+        - name: end
+          in: query
+          required: false
+          description: End date (same format as start)
+          schema:
+            type: string
+            example: "2026-01-31"
+        - name: period
+          in: query
+          required: false
+          description: Preset period (overrides start/end if provided)
+          schema:
+            type: string
+            enum: [current-month, last-30-days, last-3-months, last-12-months]
+            default: current-month
+      responses:
+        '200':
+          description: Successfully retrieved overview metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /analytics/sales-trend:
+    get:
+      summary: Get sales trend time series data
+      description: Returns time-series data points for sales, orders, and profit over specified period
+      tags: [Analytics]
+      parameters:
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, quarterly, yearly]
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved sales trend data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesTrendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /analytics/top-products:
+    get:
+      summary: Get top and bottom performing products
+      description: Returns ranked list of products by sales or quantity
+      tags: [Analytics]
+      parameters:
+        - name: metric
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [quantity, sales]
+            default: quantity
+          description: Ranking metric (quantity sold or total sales value)
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [top, bottom]
+            default: top
+          description: Top performers or bottom performers
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [current-month, last-30-days, last-3-months]
+            default: current-month
+      responses:
+        '200':
+          description: Successfully retrieved product rankings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductRankingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /analytics/top-customers:
+    get:
+      summary: Get top spending customers
+      description: Returns ranked list of customers by total spending
+      tags: [Analytics]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [current-month, last-30-days, last-3-months, last-12-months]
+            default: current-month
+      responses:
+        '200':
+          description: Successfully retrieved customer rankings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerRankingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /analytics/tasks:
+    get:
+      summary: Get operational task alerts
+      description: Returns delayed orders and low stock alerts requiring immediate attention
+      tags: [Tasks]
+      parameters:
+        - name: types
+          in: query
+          required: false
+          description: Comma-separated list of task types
+          schema:
+            type: string
+            example: "delayed-orders,low-stock"
+          default: "delayed-orders,low-stock"
+      responses:
+        '200':
+          description: Successfully retrieved task alerts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAlertsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            error:
+              code: INVALID_PARAMETER
+              message: "Invalid date format: start date must be YYYY-MM-DD"
+
+    Unauthorized:
+      description: Unauthorized access
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            error:
+              code: UNAUTHORIZED
+              message: "Missing or invalid authentication token"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            error:
+              code: INTERNAL_ERROR
+              message: "An unexpected error occurred"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [status, error]
+      properties:
+        status:
+          type: string
+          enum: [error]
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    OverviewResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [period, metrics]
+          properties:
+            period:
+              $ref: '#/components/schemas/TimePeriod'
+            metrics:
+              $ref: '#/components/schemas/SalesMetrics'
+        cache_hit:
+          type: boolean
+        query_time_ms:
+          type: integer
+          example: 45
+
+    SalesTrendResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [period, granularity, time_series]
+          properties:
+            period:
+              $ref: '#/components/schemas/TimePeriod'
+            granularity:
+              type: string
+              enum: [daily, weekly, monthly, quarterly, yearly]
+            time_series:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeSeriesDataPoint'
+        cache_hit:
+          type: boolean
+        query_time_ms:
+          type: integer
+
+    ProductRankingResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [period, ranking_metric, ranking_type, products]
+          properties:
+            period:
+              $ref: '#/components/schemas/TimePeriod'
+            ranking_metric:
+              type: string
+              enum: [quantity, sales]
+            ranking_type:
+              type: string
+              enum: [top, bottom]
+            products:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductRanking'
+        cache_hit:
+          type: boolean
+        query_time_ms:
+          type: integer
+
+    CustomerRankingResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          required: [period, customers]
+          properties:
+            period:
+              $ref: '#/components/schemas/TimePeriod'
+            customers:
+              type: array
+              items:
+                $ref: '#/components/schemas/CustomerRanking'
+        cache_hit:
+          type: boolean
+        query_time_ms:
+          type: integer
+
+    TaskAlertsResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        data:
+          type: object
+          properties:
+            delayed_orders:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 0
+                orders:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DelayedOrder'
+            low_stock:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 0
+                products:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RestockAlert'
+        query_time_ms:
+          type: integer
+
+    TimePeriod:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          example: "2026-01-01"
+        end:
+          type: string
+          example: "2026-01-31"
+
+    SalesMetrics:
+      type: object
+      required: [total_sales, order_count, net_profit, inventory_value, avg_order_value]
+      properties:
+        total_sales:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 125000.50
+        order_count:
+          type: integer
+          minimum: 0
+          example: 450
+        net_profit:
+          type: number
+          format: decimal
+          example: 35000.25
+        inventory_value:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 48500.00
+        avg_order_value:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 277.78
+        calculated_at:
+          type: string
+          format: date-time
+
+    TimeSeriesDataPoint:
+      type: object
+      required: [date, sales, orders, profit]
+      properties:
+        date:
+          type: string
+          description: Date format varies by granularity
+          example: "2026-01-15"
+        sales:
+          type: number
+          format: decimal
+          minimum: 0
+        orders:
+          type: integer
+          minimum: 0
+        profit:
+          type: number
+          format: decimal
+        customers:
+          type: integer
+          minimum: 0
+
+    ProductRanking:
+      type: object
+      required: [product_id, product_name, quantity_sold, total_sales, rank]
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        category_name:
+          type: string
+        quantity_sold:
+          type: integer
+          minimum: 0
+        total_sales:
+          type: number
+          format: decimal
+          minimum: 0
+        order_count:
+          type: integer
+          minimum: 0
+        rank:
+          type: integer
+          minimum: 1
+
+    CustomerRanking:
+      type: object
+      required: [customer_phone, total_spent, order_count, rank]
+      properties:
+        customer_phone:
+          type: string
+          description: Masked phone number for display
+          example: "(123) ***-7890"
+        customer_name:
+          type: string
+        total_spent:
+          type: number
+          format: decimal
+          minimum: 0
+        order_count:
+          type: integer
+          minimum: 1
+        avg_order_value:
+          type: number
+          format: decimal
+        first_order_date:
+          type: string
+          format: date
+        last_order_date:
+          type: string
+          format: date
+        rank:
+          type: integer
+          minimum: 1
+          maximum: 5
+
+    DelayedOrder:
+      type: object
+      required: [order_id, order_number, customer_phone, status, created_at, elapsed_minutes]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        order_number:
+          type: string
+        customer_phone:
+          type: string
+          description: Masked phone number
+        customer_name:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing]
+        created_at:
+          type: string
+          format: date-time
+        elapsed_minutes:
+          type: integer
+          minimum: 16
+        total_amount:
+          type: number
+          format: decimal
+
+    RestockAlert:
+      type: object
+      required: [product_id, product_name, current_quantity, low_stock_threshold, units_needed]
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        current_quantity:
+          type: integer
+          minimum: 0
+        low_stock_threshold:
+          type: integer
+          minimum: 0
+        units_needed:
+          type: integer
+          minimum: 1
+        category_name:
+          type: string
+        last_restock_date:
+          type: string
+          format: date

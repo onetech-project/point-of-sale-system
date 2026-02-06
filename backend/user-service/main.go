@@ -3,25 +3,44 @@ package main
 import (
 	"database/sql"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	emw "github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/pos/user-service/api"
+	"github.com/pos/user-service/middleware"
+	"github.com/pos/user-service/src/observability"
 	"github.com/pos/user-service/src/queue"
+	"github.com/pos/user-service/src/repository"
+	"github.com/pos/user-service/src/scheduler"
 	"github.com/pos/user-service/src/services"
+	"github.com/pos/user-service/src/utils"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 func main() {
+	observability.InitLogger()
+	shutdown := observability.InitTracer()
+	defer shutdown(nil)
+
 	e := echo.New()
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(emw.Recover())
+
+	// OTEL
+	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+
+	// Trace → Log bridge
+	e.Use(middleware.TraceLogger)
+
+	// Logging with PII masking (T060)
+	e.Use(middleware.LoggingMiddleware)
+
+	middleware.MetricsMiddleware(e)
 
 	// Database connection
-	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pos_db?sslmode=disable")
+	dbURL := utils.GetEnv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -33,8 +52,8 @@ func main() {
 	}
 
 	// Kafka configuration
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "notification-events")
+	kafkaBrokers := strings.Split(utils.GetEnv("KAFKA_BROKERS"), ",")
+	kafkaTopic := utils.GetEnv("KAFKA_TOPIC")
 
 	// Initialize Kafka producer
 	eventProducer := queue.NewKafkaProducer(kafkaBrokers, kafkaTopic)
@@ -42,33 +61,56 @@ func main() {
 
 	log.Printf("Kafka producer initialized: brokers=%v, topic=%s", kafkaBrokers, kafkaTopic)
 
+	// Initialize AuditPublisher for audit trail (T098-T100)
+	auditTopic := utils.GetEnv("KAFKA_AUDIT_TOPIC")
+	serviceName := utils.GetEnv("SERVICE_NAME")
+	auditPublisher, err := utils.NewAuditPublisher(serviceName, kafkaBrokers, auditTopic)
+	if err != nil {
+		log.Fatalf("Failed to initialize AuditPublisher: %v", err)
+	}
+	defer auditPublisher.Close()
+
 	// Health checks
 	e.GET("/health", api.HealthCheck)
 	e.GET("/ready", api.ReadyCheck)
 
 	// Invitation endpoints
-	invitationHandler := api.NewInvitationHandler(db, eventProducer)
+	invitationHandler := api.NewInvitationHandler(db, eventProducer, auditPublisher)
 	e.POST("/invitations", invitationHandler.CreateInvitation)
 	e.GET("/invitations", invitationHandler.ListInvitations)
 	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)
 	e.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
 
 	// Notification preferences endpoints
-	userService := services.NewUserService(db)
+	userService, err := services.NewUserService(db, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to create user service: %v", err)
+	}
 	notificationPrefsHandler := api.NewNotificationPreferencesHandler(userService)
 	e.GET("/api/v1/users/notification-preferences", notificationPrefsHandler.GetNotificationPreferences)
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
 
+	// User deletion endpoints - UU PDP compliance (owner only via API Gateway RBAC)
+	userDeletionHandler, err := api.NewUserDeletionHandler(db, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to create user deletion handler: %v", err)
+	}
+	e.DELETE("/api/v1/users/:user_id", userDeletionHandler.DeleteUser)
+
+	// Initialize cleanup job scheduler (T135-T138)
+	userRepo, err := repository.NewUserRepositoryWithVault(db, auditPublisher)
+	if err != nil {
+		log.Fatalf("Failed to create user repository: %v", err)
+	}
+	deletionService := services.NewUserDeletionService(userRepo, auditPublisher, db)
+	cleanupJob := services.NewCleanupJob(deletionService, eventProducer)
+	cleanupScheduler := scheduler.NewUserDeletionScheduler(cleanupJob)
+	if err := cleanupScheduler.Start(); err != nil {
+		log.Fatalf("Failed to start cleanup scheduler: %v", err)
+	}
+
 	// Start server
-	port := getEnv("PORT", "8083")
+	port := utils.GetEnv("PORT")
 	log.Printf("User service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
-}
-
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }

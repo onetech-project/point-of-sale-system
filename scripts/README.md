@@ -26,10 +26,11 @@ Verifies environment configuration is correct.
 ```
 
 **What it checks:**
-- All `.env` files exist
+- All `.env` files exist (including audit-service, observability, vault)
 - JWT_SECRET is consistent across services
 - Database configuration is set
 - Redis configuration is set
+- Vault configuration is set
 - Frontend API URL is configured
 
 ### `start-all.sh`
@@ -49,6 +50,10 @@ Starts all backend services using their `.env` configuration files.
    - Auth Service (port 8082)
    - User Service (port 8083)
    - Tenant Service (port 8084)
+   - Notification Service (port 8085)
+   - Product Service (port 8086)
+   - Order Service (port 8087)
+   - Audit Service (port 8088)
 5. Stores PIDs in `/tmp/pos-services.pid`
 6. Creates log files in `/tmp/`
 
@@ -62,6 +67,11 @@ Starts all backend services using their `.env` configuration files.
 - `/tmp/auth-service.log`
 - `/tmp/user-service.log`
 - `/tmp/tenant-service.log`
+- `/tmp/notification-service.log`
+- `/tmp/product-service.log`
+- `/tmp/order-service.log`
+- `/tmp/audit-service.log`
+- `/tmp/frontend.log`
 
 ### `stop-all.sh`
 Stops all running services and optionally cleans up log files.
@@ -86,6 +96,9 @@ Stops all running services and optionally cleans up log files.
 - User Service: `${USER_SERVICE_PORT:-8083}`
 - Tenant Service: `${TENANT_SERVICE_PORT:-8084}`
 - Notification Service: `${NOTIFICATION_SERVICE_PORT:-8085}`
+- Product Service: `${PRODUCT_SERVICE_PORT:-8086}`
+- Order Service: `${ORDER_SERVICE_PORT:-8087}`
+- Audit Service: `${AUDIT_SERVICE_PORT:-8088}`
 - Frontend: `${FRONTEND_PORT:-3000}`
 
 **Log files managed:**
@@ -94,6 +107,9 @@ Stops all running services and optionally cleans up log files.
 - `/tmp/user-service.log`
 - `/tmp/tenant-service.log`
 - `/tmp/notification-service.log`
+- `/tmp/product-service.log`
+- `/tmp/order-service.log`
+- `/tmp/audit-service.log`
 - `/tmp/frontend.log`
 
 ## Typical Workflow
@@ -107,7 +123,15 @@ Stops all running services and optionally cleans up log files.
 vim .env
 vim api-gateway/.env
 vim backend/auth-service/.env
-# ... update other services
+vim backend/user-service/.env
+vim backend/tenant-service/.env
+vim backend/notification-service/.env
+vim backend/product-service/.env
+vim backend/order-service/.env
+vim backend/audit-service/.env
+vim observability/.env
+vim vault/.env
+vim frontend/.env.local
 
 # 3. Verify configuration
 ./scripts/verify-env.sh
@@ -195,6 +219,13 @@ Before running `start-all.sh`, ensure these exist:
 - ✅ `backend/auth-service/.env`
 - ✅ `backend/user-service/.env`
 - ✅ `backend/tenant-service/.env`
+- ✅ `backend/notification-service/.env`
+- ✅ `backend/product-service/.env`
+- ✅ `backend/order-service/.env`
+- ✅ `backend/audit-service/.env`
+- ✅ `observability/.env`
+- ✅ `vault/.env`
+- ✅ `frontend/.env.local`
 
 Run `./scripts/setup-env.sh` to create all files.
 

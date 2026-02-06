@@ -20,18 +20,16 @@ const (
 )
 
 type InventoryService struct {
-	db                    *sql.DB
-	redisClient           *redis.Client
-	reservationRepo       *repository.ReservationRepository
-	productServiceBaseURL string
+	db              *sql.DB
+	redisClient     *redis.Client
+	reservationRepo *repository.ReservationRepository
 }
 
-func NewInventoryService(db *sql.DB, redisClient *redis.Client, productServiceURL string) *InventoryService {
+func NewInventoryService(db *sql.DB, redisClient *redis.Client) *InventoryService {
 	return &InventoryService{
-		db:                    db,
-		redisClient:           redisClient,
-		reservationRepo:       repository.NewReservationRepository(db),
-		productServiceBaseURL: productServiceURL,
+		db:              db,
+		redisClient:     redisClient,
+		reservationRepo: repository.NewReservationRepository(db),
 	}
 }
 
@@ -73,7 +71,7 @@ FOR UPDATE
 }
 
 // CreateReservations creates inventory reservations for cart items
-func (s *InventoryService) CreateReservations(ctx context.Context, orderID string, items []models.CartItem) error {
+func (s *InventoryService) CreateReservations(ctx context.Context, tx *sql.Tx, orderID string, items []models.CartItem) error {
 	expiresAt := time.Now().Add(ReservationTTL)
 
 	for _, item := range items {
@@ -85,7 +83,7 @@ func (s *InventoryService) CreateReservations(ctx context.Context, orderID strin
 			ExpiresAt: expiresAt,
 		}
 
-		err := s.reservationRepo.CreateReservation(ctx, reservation)
+		err := s.reservationRepo.CreateReservation(ctx, tx, reservation)
 		if err != nil {
 			log.Error().Err(err).
 				Str("order_id", orderID).

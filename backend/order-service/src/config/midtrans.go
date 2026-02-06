@@ -11,7 +11,6 @@ import (
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/coreapi"
 	"github.com/midtrans/midtrans-go/snap"
-	"github.com/rs/zerolog/log"
 )
 
 type MidtransConfig struct {
@@ -31,21 +30,7 @@ type TenantMidtransConfig struct {
 	IsConfigured bool   `json:"is_configured"`
 }
 
-var tenantServiceURL string
-
-// InitMidtrans initializes the connection to tenant-service
-func InitMidtrans() error {
-	tenantServiceURL = os.Getenv("TENANT_SERVICE_URL")
-	if tenantServiceURL == "" {
-		tenantServiceURL = "http://localhost:8084" // Default for development
-	}
-
-	log.Info().
-		Str("tenant_service_url", tenantServiceURL).
-		Msg("Midtrans config initialized - will fetch per-tenant configuration from tenant-service")
-
-	return nil
-}
+var tenantServiceURL string = GetEnvAsString("TENANT_SERVICE_URL")
 
 // GetSnapClientForTenant creates a Snap client for a specific tenant
 func GetSnapClientForTenant(ctx context.Context, tenantID string) (*snap.Client, error) {
@@ -87,6 +72,7 @@ func GetCoreAPIClientForTenant(ctx context.Context, tenantID string) (*coreapi.C
 
 	var coreAPIClient coreapi.Client
 	coreAPIClient.New(config.ServerKey, env)
+	coreAPIClient.Options.SetPaymentOverrideNotification(GetWebhookURL())
 
 	return &coreAPIClient, nil
 }
@@ -112,11 +98,7 @@ func GetMidtransConfigForTenant(ctx context.Context, tenantID string) (*TenantMi
 
 // GetWebhookURL returns the webhook URL for payment notifications
 func GetWebhookURL() string {
-	webhookURL := os.Getenv("MIDTRANS_WEBHOOK_URL")
-	if webhookURL == "" {
-		// Default to API gateway for development
-		webhookURL = "http://localhost:8080/api/v1/webhooks/payments/midtrans/notification"
-	}
+	webhookURL := GetEnvAsString("MIDTRANS_WEBHOOK_URL")
 	return webhookURL
 }
 
