@@ -118,17 +118,22 @@ jobs:
     steps:
       - name: Deploy via SSH and Docker Compose
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_ENV: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           envs: DEPLOY_ENV
-        env:
-          DEPLOY_ENV: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
           script: |
-            echo "Deploy env: $DEPLOY_ENV"
+            set -e
+
+            echo "🚀 Deploy environment: $DEPLOY_ENV"
 
             cd /srv/posku/$DEPLOY_ENV/app
+
             docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose up -d
+
+            docker image prune -f
