@@ -3,8 +3,6 @@ package config
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -69,32 +67,14 @@ func BeginTx() (*sql.Tx, error) {
 }
 
 func loadDatabaseConfig() DatabaseConfig {
-	maxOpenConns := getEnvAsInt("DB_MAX_OPEN_CONNS", 25)
-	maxIdleConns := getEnvAsInt("DB_MAX_IDLE_CONNS", 5)
-	connMaxLifetime := getEnvAsDuration("DB_CONN_MAX_LIFETIME", 300*time.Second)
+	maxOpenConns := GetEnvAsInt("DB_MAX_OPEN_CONNS")
+	maxIdleConns := GetEnvAsInt("DB_MAX_IDLE_CONNS")
+	connMaxLifetime := GetEnvAsDuration("DB_CONN_MAX_LIFETIME")
 
 	return DatabaseConfig{
-		URL:             os.Getenv("DATABASE_URL"),
+		URL:             GetEnvAsString("DATABASE_URL"),
 		MaxOpenConns:    maxOpenConns,
 		MaxIdleConns:    maxIdleConns,
 		ConnMaxLifetime: connMaxLifetime,
 	}
-}
-
-func getEnvAsInt(key string, defaultVal int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultVal
-}
-
-func getEnvAsDuration(key string, defaultVal time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultVal
 }

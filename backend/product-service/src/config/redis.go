@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/pos/backend/product-service/src/utils"
 	"github.com/redis/go-redis/v9"
 )
 
 var RedisClient *redis.Client
 
 func InitRedis() error {
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost:6379"
-	}
+	redisHost := utils.GetEnv("REDIS_HOST")
 
-	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisPassword := utils.GetEnv("REDIS_PASSWORD")
 
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     redisHost,

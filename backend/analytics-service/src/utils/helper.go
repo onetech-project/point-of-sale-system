@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 func GetEnv(key string) string {
@@ -86,4 +87,13 @@ func SplitEmail(email string) []string {
 		}
 	}
 	return []string{email}
+}
+
+func GetEnvAsDuration(key string) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
+		}
+	}
+	panic(key + " environment variable is not set or invalid")
 }

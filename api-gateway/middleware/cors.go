@@ -1,19 +1,15 @@
 package middleware
 
 import (
-	"os"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/pos/api-gateway/utils"
 )
 
 func CORS() echo.MiddlewareFunc {
-	allowOrigins := os.Getenv("ALLOWED_ORIGINS")
-	if allowOrigins == "" {
-		// throw error: no allowed origins specified
-		panic("ALLOWED_ORIGINS environment variable is not set")
-	}
+	allowOrigins := utils.GetEnv("ALLOWED_ORIGINS")
 
 	origins := strings.Split(allowOrigins, ",")
 

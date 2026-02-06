@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -46,7 +45,7 @@ func NewNotificationService(db *sql.DB) (*NotificationService, error) {
 		emailProvider: providers.NewSMTPEmailProvider(),
 		pushProvider:  providers.NewMockPushProvider(),
 		templates:     make(map[string]*template.Template),
-		frontendURL:   getEnv("FRONTEND_DOMAIN"),
+		frontendURL:   utils.GetEnv("FRONTEND_DOMAIN"),
 		db:            db,
 		encryptor:     encryptor,
 	}
@@ -59,17 +58,8 @@ func NewNotificationService(db *sql.DB) (*NotificationService, error) {
 	return service, nil
 }
 
-func getEnv(key string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-
-	//thow error: missing environment variable
-	panic("Environment variable " + key + " is not set")
-}
-
 func (s *NotificationService) loadTemplates() error {
-	templateDir := getEnv("TEMPLATE_DIR")
+	templateDir := utils.GetEnv("TEMPLATE_DIR")
 
 	templateFiles := []string{
 		"registration.html",

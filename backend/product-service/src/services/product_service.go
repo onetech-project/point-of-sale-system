@@ -24,10 +24,7 @@ type ProductService struct {
 }
 
 func NewProductService(repo repository.ProductRepository) *ProductService {
-	uploadDir := os.Getenv("UPLOAD_DIR")
-	if uploadDir == "" {
-		uploadDir = "./uploads"
-	}
+	uploadDir := utils.GetEnv("UPLOAD_DIR")
 
 	return &ProductService{
 		repo:           repo,

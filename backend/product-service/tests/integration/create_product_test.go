@@ -1,14 +1,11 @@
 //go:build skip_broken_tests
 // +build skip_broken_tests
 
-
-
 package integration
 
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,7 +28,7 @@ type CreateProductIntegrationTestSuite struct {
 // SetupSuite runs once before all tests
 func (suite *CreateProductIntegrationTestSuite) SetupSuite() {
 	// Get database connection from environment
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := utils.GetEnv("DATABASE_URL")
 	if dbURL == "" {
 		suite.T().Skip("DATABASE_URL not set, skipping integration tests")
 	}

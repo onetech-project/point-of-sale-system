@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pos/analytics-service/src/utils"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
@@ -59,9 +60,9 @@ func GetRedis() *redis.Client {
 
 func loadRedisConfig() RedisConfig {
 	return RedisConfig{
-		Host:     getEnv("REDIS_HOST", "localhost"),
-		Port:     getEnv("REDIS_PORT", "6379"),
-		Password: getEnv("REDIS_PASSWORD", ""),
-		DB:       getEnvAsInt("REDIS_DB", 0),
+		Host:     utils.GetEnv("REDIS_HOST"),
+		Port:     utils.GetEnv("REDIS_PORT"),
+		Password: utils.GetEnv("REDIS_PASSWORD"),
+		DB:       utils.GetEnvInt("REDIS_DB"),
 	}
 }

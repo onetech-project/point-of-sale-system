@@ -3,11 +3,10 @@ package config
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/pos/analytics-service/src/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -75,39 +74,14 @@ func GetDB() *sql.DB {
 
 func loadDatabaseConfig() DatabaseConfig {
 	return DatabaseConfig{
-		Host:            getEnv("DB_HOST", "localhost"),
-		Port:            getEnv("DB_PORT", "5432"),
-		User:            getEnv("DB_USER", "postgres"),
-		Password:        getEnv("DB_PASSWORD", "postgres"),
-		DBName:          getEnv("DB_NAME", "pos_db"),
-		SSLMode:         getEnv("DB_SSLMODE", "disable"),
-		MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
-		MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
-		ConnMaxLifetime: getEnvAsDuration("DB_CONN_MAX_LIFETIME", 300*time.Second),
+		Host:            utils.GetEnv("DB_HOST"),
+		Port:            utils.GetEnv("DB_PORT"),
+		User:            utils.GetEnv("DB_USER"),
+		Password:        utils.GetEnv("DB_PASSWORD"),
+		DBName:          utils.GetEnv("DB_NAME"),
+		SSLMode:         utils.GetEnv("DB_SSLMODE"),
+		MaxOpenConns:    utils.GetEnvInt("DB_MAX_OPEN_CONNS"),
+		MaxIdleConns:    utils.GetEnvInt("DB_MAX_IDLE_CONNS"),
+		ConnMaxLifetime: utils.GetEnvAsDuration("DB_CONN_MAX_LIFETIME"),
 	}
-}
-
-func getEnv(key, defaultVal string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultVal
-}
-
-func getEnvAsInt(key string, defaultVal int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultVal
-}
-
-func getEnvAsDuration(key string, defaultVal time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultVal
 }

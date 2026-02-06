@@ -35,7 +35,7 @@ func NewGuestDataService(db *sql.DB, encryptor utils.Encryptor) *GuestDataServic
 // GuestDataResponse represents all personal data associated with a guest order
 type GuestDataResponse struct {
 	OrderReference  string                  `json:"order_reference"`
-	TenantID        string                  `json:"tenant_id"`          // Added for notification purposes
+	TenantID        string                  `json:"tenant_id"` // Added for notification purposes
 	CustomerInfo    *CustomerInfo           `json:"customer_info"`
 	OrderDetails    *OrderDetails           `json:"order_details"`
 	DeliveryAddress *models.DeliveryAddress `json:"delivery_address,omitempty"`

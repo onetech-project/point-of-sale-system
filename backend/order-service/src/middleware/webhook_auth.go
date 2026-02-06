@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/labstack/echo/v4"
+	"github.com/point-of-sale-system/order-service/src/config"
 )
 
 // WebhookAuth validates Midtrans webhook signature
@@ -47,7 +47,7 @@ func WebhookAuth() echo.MiddlewareFunc {
 // verifyMidtransSignature verifies the Midtrans webhook signature
 // Signature format: SHA512(order_id+status_code+gross_amount+ServerKey)
 func verifyMidtransSignature(payload, signature string) bool {
-	serverKey := os.Getenv("MIDTRANS_SERVER_KEY")
+	serverKey := config.GetEnvAsString("MIDTRANS_SERVER_KEY")
 	if serverKey == "" {
 		return false
 	}

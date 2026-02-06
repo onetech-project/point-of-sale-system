@@ -3,10 +3,10 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/pos/audit-service/src/utils"
 )
 
 // JWTClaims represents JWT token claims structure
@@ -36,10 +36,7 @@ func JWTAuth() echo.MiddlewareFunc {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
-				secret := os.Getenv("JWT_SECRET")
-				if secret == "" {
-					secret = "default-secret-change-in-production"
-				}
+				secret := utils.GetEnv("JWT_SECRET")
 				return []byte(secret), nil
 			})
 

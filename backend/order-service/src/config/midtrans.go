@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/midtrans/midtrans-go"
@@ -154,5 +153,5 @@ func GetCoreAPIClient() *coreapi.Client {
 // GetMidtransServerKey returns a deprecated global server key
 // Deprecated: Use GetMidtransServerKeyForTenant instead
 func GetMidtransServerKey() string {
-	return os.Getenv("MIDTRANS_SERVER_KEY")
+	return GetEnvAsString("MIDTRANS_SERVER_KEY")
 }

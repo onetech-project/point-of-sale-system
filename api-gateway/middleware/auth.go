@@ -3,10 +3,10 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/pos/api-gateway/utils"
 )
 
 type JWTClaims struct {
@@ -32,10 +32,7 @@ func JWTAuth() echo.MiddlewareFunc {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
-				secret := os.Getenv("JWT_SECRET")
-				if secret == "" {
-					secret = "default-secret-change-in-production"
-				}
+				secret := utils.GetEnv("JWT_SECRET")
 				return []byte(secret), nil
 			})
 
@@ -45,7 +42,7 @@ func JWTAuth() echo.MiddlewareFunc {
 					"error": "Invalid authentication token",
 				})
 			}
-			
+
 			if !token.Valid {
 				c.Logger().Warn("JWT token is not valid")
 				return c.JSON(http.StatusUnauthorized, map[string]string{

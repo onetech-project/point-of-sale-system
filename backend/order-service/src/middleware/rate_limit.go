@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -44,7 +43,7 @@ func InitRateLimiter() {
 
 // RateLimit middleware limits requests per IP
 func RateLimit() echo.MiddlewareFunc {
-	if os.Getenv("RATE_LIMIT_ENABLED") == "false" {
+	if config.GetEnvAsString("RATE_LIMIT_ENABLED") == "false" {
 		// Rate limiting disabled, pass through
 		return func(next echo.HandlerFunc) echo.HandlerFunc {
 			return next

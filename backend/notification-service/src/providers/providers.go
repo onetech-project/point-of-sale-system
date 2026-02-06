@@ -3,11 +3,11 @@ package providers
 import (
 	"fmt"
 	"net/smtp"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/jordan-wright/email"
+	"github.com/pos/notification-service/src/utils"
 )
 
 // EmailError represents different types of email sending errors
@@ -67,18 +67,18 @@ type SMTPEmailProvider struct {
 
 func NewSMTPEmailProvider() *SMTPEmailProvider {
 	retryAttempts := 3
-	if attempts := getEnv("SMTP_RETRY_ATTEMPTS"); attempts != "" {
+	if attempts := utils.GetEnv("SMTP_RETRY_ATTEMPTS"); attempts != "" {
 		fmt.Sscanf(attempts, "%d", &retryAttempts)
 	}
 
 	return &SMTPEmailProvider{
-		host:          getEnv("SMTP_HOST"),
-		port:          getEnv("SMTP_PORT"),
-		username:      getEnv("SMTP_USERNAME"),
-		password:      getEnv("SMTP_PASSWORD"),
-		from:          getEnv("SMTP_FROM"),
-		enableTLS:     getEnv("SMTP_TLS") == "true",
-		enable:        getEnv("SMTP_ENABLE") == "true",
+		host:          utils.GetEnv("SMTP_HOST"),
+		port:          utils.GetEnv("SMTP_PORT"),
+		username:      utils.GetEnv("SMTP_USERNAME"),
+		password:      utils.GetEnv("SMTP_PASSWORD"),
+		from:          utils.GetEnv("SMTP_FROM"),
+		enableTLS:     utils.GetEnv("SMTP_TLS") == "true",
+		enable:        utils.GetEnv("SMTP_ENABLE") == "true",
 		retryAttempts: retryAttempts,
 		retryDelay:    2 * time.Second,
 	}
@@ -199,12 +199,4 @@ func NewMockPushProvider() *MockPushProvider {
 func (p *MockPushProvider) Send(token, title, body string, data map[string]string) error {
 	fmt.Printf("[PUSH] Token: %s, Title: %s, Body: %s, Data: %v\n", token, title, body, data)
 	return nil
-}
-
-func getEnv(key string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	// throw error: missing environment variable
-	panic("Environment variable " + key + " is not set")
 }

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/rs/zerolog/log"
 	"googlemaps.github.io/maps"
@@ -47,6 +46,6 @@ func CloseGoogleMaps() {
 
 func loadGoogleMapsConfig() GoogleMapsConfig {
 	return GoogleMapsConfig{
-		APIKey: os.Getenv("GOOGLE_MAPS_API_KEY"),
+		APIKey: GetEnvAsString("GOOGLE_MAPS_API_KEY"),
 	}
 }
