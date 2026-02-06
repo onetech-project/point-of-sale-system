@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/pos/analytics-service/src/models"
@@ -14,19 +15,21 @@ import (
 type CustomerRepository struct {
 	db        *sql.DB
 	encryptor utils.Encryptor
+	timezone  string
 }
 
 // NewCustomerRepository creates a new customer repository
-func NewCustomerRepository(db *sql.DB, encryptor utils.Encryptor) *CustomerRepository {
+func NewCustomerRepository(db *sql.DB, encryptor utils.Encryptor, timezone string) *CustomerRepository {
 	return &CustomerRepository{
 		db:        db,
 		encryptor: encryptor,
+		timezone:  timezone,
 	}
 }
 
 // GetTopCustomersBySpending returns top N customers by total spending
 func (r *CustomerRepository) GetTopCustomersBySpending(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.CustomerRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			customer_name,
 			customer_phone,
@@ -37,18 +40,18 @@ func (r *CustomerRepository) GetTopCustomersBySpending(ctx context.Context, tena
 		FROM guest_orders
 		WHERE tenant_id = $1 
 			AND status = 'COMPLETE'
-			AND created_at BETWEEN $2 AND $3
+			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		GROUP BY customer_name, customer_phone, customer_email
 		ORDER BY total_spent DESC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryCustomers(ctx, query, tenantID, start, end, limit)
 }
 
 // GetTopCustomersByOrders returns top N customers by order count
 func (r *CustomerRepository) GetTopCustomersByOrders(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.CustomerRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			customer_name,
 			customer_phone,
@@ -59,11 +62,11 @@ func (r *CustomerRepository) GetTopCustomersByOrders(ctx context.Context, tenant
 		FROM guest_orders
 		WHERE tenant_id = $1 
 			AND status = 'COMPLETE'
-			AND created_at BETWEEN $2 AND $3
+			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		GROUP BY customer_name, customer_phone, customer_email
 		ORDER BY order_count DESC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryCustomers(ctx, query, tenantID, start, end, limit)
 }

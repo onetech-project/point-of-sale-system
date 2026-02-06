@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/pos/analytics-service/src/models"
@@ -11,12 +12,16 @@ import (
 
 // SalesRepository handles sales data queries
 type SalesRepository struct {
-	db *sql.DB
+	db       *sql.DB
+	timezone string
 }
 
 // NewSalesRepository creates a new sales repository
-func NewSalesRepository(db *sql.DB) *SalesRepository {
-	return &SalesRepository{db: db}
+func NewSalesRepository(db *sql.DB, timezone string) *SalesRepository {
+	return &SalesRepository{
+		db:       db,
+		timezone: timezone,
+	}
 }
 
 // GetSalesMetrics calculates sales metrics for a time range with comparison to previous period
@@ -27,7 +32,7 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		Time("end", end).
 		Msg("Calculating sales metrics")
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			COALESCE(SUM(total_amount), 0) as total_revenue,
 			COUNT(*) as total_orders,
@@ -35,8 +40,8 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		FROM guest_orders
 		WHERE tenant_id = $1 
 			AND status = 'COMPLETE'
-			AND created_at BETWEEN $2 AND $3
-	`
+			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+	`, r.timezone)
 
 	metrics := &models.SalesMetrics{
 		StartDate: start,
@@ -105,18 +110,18 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 
 // GetDailySales returns daily sales data for charting
 func (r *SalesRepository) GetDailySales(ctx context.Context, tenantID string, start, end time.Time) ([]models.DailySalesData, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
-			DATE(created_at) as date,
+			DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s') as date,
 			COALESCE(SUM(total_amount), 0) as revenue,
 			COUNT(*) as orders
 		FROM guest_orders
 		WHERE tenant_id = $1 
 			AND status = 'COMPLETE'
-			AND created_at BETWEEN $2 AND $3
-		GROUP BY DATE(created_at)
+			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+		GROUP BY DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s')
 		ORDER BY date ASC
-	`
+	`, r.timezone, r.timezone, r.timezone)
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end)
 	if err != nil {
@@ -140,7 +145,7 @@ func (r *SalesRepository) GetDailySales(ctx context.Context, tenantID string, st
 
 // GetCategoryBreakdown returns sales breakdown by category
 func (r *SalesRepository) GetCategoryBreakdown(ctx context.Context, tenantID string, start, end time.Time) ([]models.CategorySales, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			c.id as category_id,
 			c.name as category_name,
@@ -152,12 +157,12 @@ func (r *SalesRepository) GetCategoryBreakdown(ctx context.Context, tenantID str
 		LEFT JOIN guest_orders go ON go.id = oi.order_id 
 			AND go.tenant_id = $1 
 			AND go.status = 'COMPLETE'
-			AND go.created_at BETWEEN $2 AND $3
+			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		WHERE c.tenant_id = $1
 		GROUP BY c.id, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue DESC
-	`
+	`, r.timezone)
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end)
 	if err != nil {
@@ -217,7 +222,7 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 	}
 
 	// Query with generate_series to fill gaps
-	query := `
+	query := fmt.Sprintf(`
 		WITH date_series AS (
 			SELECT generate_series(
 				date_trunc($4, $2::timestamp),
@@ -231,13 +236,13 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 			COUNT(go.id) as orders
 		FROM date_series ds
 		LEFT JOIN guest_orders go ON 
-			date_trunc($4, go.created_at) = ds.date
+			date_trunc($4, (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s') = ds.date
 			AND go.tenant_id = $1
 			AND go.status = 'COMPLETE'
-			AND go.created_at BETWEEN $2 AND $3
+			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		GROUP BY ds.date
 		ORDER BY ds.date ASC
-	`
+	`, r.timezone, r.timezone)
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end, dateTrunc, interval)
 	if err != nil {

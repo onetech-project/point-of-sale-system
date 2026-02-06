@@ -14,20 +14,22 @@ import (
 type TaskRepository struct {
 	db          *sql.DB
 	vaultClient *utils.VaultClient
+	timezone    string
 }
 
 // NewTaskRepository creates a new task repository instance
-func NewTaskRepository(db *sql.DB, vaultClient *utils.VaultClient) *TaskRepository {
+func NewTaskRepository(db *sql.DB, vaultClient *utils.VaultClient, timezone string) *TaskRepository {
 	return &TaskRepository{
 		db:          db,
 		vaultClient: vaultClient,
+		timezone:    timezone,
 	}
 }
 
 // GetDelayedOrders retrieves orders that have been pending for more than 15 minutes
 // Returns orders with decrypted and masked customer PII
 func (r *TaskRepository) GetDelayedOrders(ctx context.Context, tenantID string) ([]models.DelayedOrder, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			o.id AS order_id,
 			o.order_reference,
@@ -36,15 +38,15 @@ func (r *TaskRepository) GetDelayedOrders(ctx context.Context, tenantID string) 
 			o.customer_email,
 			o.total_amount,
 			o.status,
-			o.created_at,
-			EXTRACT(EPOCH FROM (NOW() - o.created_at)) / 60 AS elapsed_minutes
+			(o.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' AS created_at,
+			EXTRACT(EPOCH FROM (NOW() - ((o.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s'))) / 60 AS elapsed_minutes
 		FROM guest_orders o
 		WHERE o.tenant_id = $1
 		  AND o.status = 'PAID'
-		  AND o.created_at < NOW() - INTERVAL '15 minutes'
+		  AND (o.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' < NOW() - INTERVAL '15 minutes'
 		ORDER BY o.created_at ASC
 		LIMIT 50
-	`
+	`, r.timezone, r.timezone, r.timezone)
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog/log"
 
 	"github.com/pos/tenant-service/src/services"
 )
@@ -28,7 +29,16 @@ func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
 	}
 
 	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantSlug)
+
+	if (err != nil) && (err.Error() == "tenant not found") {
+		log.Warn().Str("tenant_slug", tenantSlug).Msg("Tenant not found")
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error": "Tenant not found",
+		})
+	}
+
 	if err != nil {
+		log.Error().Err(err).Str("tenant_slug", tenantSlug).Msg("Failed to get tenant config")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to retrieve tenant configuration",
 		})

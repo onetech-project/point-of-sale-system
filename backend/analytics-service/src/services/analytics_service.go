@@ -23,11 +23,11 @@ type AnalyticsService struct {
 }
 
 // NewAnalyticsService creates a new analytics service
-func NewAnalyticsService(db *sql.DB, redisClient *redis.Client, encryptor utils.Encryptor, currentTTL, historicalTTL time.Duration) *AnalyticsService {
+func NewAnalyticsService(db *sql.DB, redisClient *redis.Client, encryptor utils.Encryptor, currentTTL, historicalTTL time.Duration, timezone string) *AnalyticsService {
 	return &AnalyticsService{
-		salesRepo:     repository.NewSalesRepository(db),
-		productRepo:   repository.NewProductRepository(db),
-		customerRepo:  repository.NewCustomerRepository(db, encryptor),
+		salesRepo:     repository.NewSalesRepository(db, timezone),
+		productRepo:   repository.NewProductRepository(db, timezone),
+		customerRepo:  repository.NewCustomerRepository(db, encryptor, timezone),
 		cache:         NewCacheService(redisClient),
 		currentTTL:    currentTTL,
 		historicalTTL: historicalTTL,

@@ -60,11 +60,12 @@ func main() {
 	// Initialize services
 	currentTTL := time.Duration(utils.GetEnvInt("CACHE_TTL_CURRENT_MONTH")) * time.Second
 	historicalTTL := time.Duration(utils.GetEnvInt("CACHE_TTL_HISTORICAL")) * time.Second
-	analyticsService := services.NewAnalyticsService(config.GetDB(), config.GetRedis(), encryptor, currentTTL, historicalTTL)
+	timezone := utils.GetEnv("TZ") // Get timezone from environment
+	analyticsService := services.NewAnalyticsService(config.GetDB(), config.GetRedis(), encryptor, currentTTL, historicalTTL, timezone)
 	analyticsHandler := api.NewAnalyticsHandler(analyticsService)
 
 	// Initialize task repository and handler
-	taskRepo := repository.NewTaskRepository(config.GetDB(), encryptor)
+	taskRepo := repository.NewTaskRepository(config.GetDB(), encryptor, timezone)
 	tasksHandler := api.NewTasksHandler(taskRepo)
 
 	// Routes

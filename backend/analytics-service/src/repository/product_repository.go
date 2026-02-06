@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/pos/analytics-service/src/models"
@@ -11,17 +12,21 @@ import (
 
 // ProductRepository handles product analytics queries
 type ProductRepository struct {
-	db *sql.DB
+	db       *sql.DB
+	timezone string
 }
 
 // NewProductRepository creates a new product repository
-func NewProductRepository(db *sql.DB) *ProductRepository {
-	return &ProductRepository{db: db}
+func NewProductRepository(db *sql.DB, timezone string) *ProductRepository {
+	return &ProductRepository{
+		db:       db,
+		timezone: timezone,
+	}
 }
 
 // GetTopProductsByRevenue returns top N products by revenue
 func (r *ProductRepository) GetTopProductsByRevenue(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.ProductRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			p.id as product_id,
 			p.name,
@@ -34,21 +39,21 @@ func (r *ProductRepository) GetTopProductsByRevenue(ctx context.Context, tenantI
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
 			AND od.status = 'COMPLETE'
-			AND od.created_at BETWEEN $2 AND $3
+			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
 		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.status = 'COMPLETE'
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue DESC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
 
 // GetTopProductsByQuantity returns top N products by quantity sold
 func (r *ProductRepository) GetTopProductsByQuantity(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.ProductRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			p.id as product_id,
 			p.name,
@@ -61,21 +66,21 @@ func (r *ProductRepository) GetTopProductsByQuantity(ctx context.Context, tenant
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
 			AND od.status = 'COMPLETE'
-			AND od.created_at BETWEEN $2 AND $3
+			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
 		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.status = 'COMPLETE'
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.quantity) > 0
 		ORDER BY quantity_sold DESC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
 
 // GetBottomProductsByRevenue returns bottom N products by revenue (excluding zero sales)
 func (r *ProductRepository) GetBottomProductsByRevenue(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.ProductRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			p.id as product_id,
 			p.name,
@@ -88,21 +93,21 @@ func (r *ProductRepository) GetBottomProductsByRevenue(ctx context.Context, tena
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
 			AND od.status = 'COMPLETE'
-			AND od.created_at BETWEEN $2 AND $3
+			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
 		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.status = 'COMPLETE'
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue ASC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
 
 // GetBottomProductsByQuantity returns bottom N products by quantity (excluding zero sales)
 func (r *ProductRepository) GetBottomProductsByQuantity(ctx context.Context, tenantID string, start, end time.Time, limit int) ([]models.ProductRanking, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT 
 			p.id as product_id,
 			p.name,
@@ -115,14 +120,14 @@ func (r *ProductRepository) GetBottomProductsByQuantity(ctx context.Context, ten
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
 			AND od.status = 'COMPLETE'
-			AND od.created_at BETWEEN $2 AND $3
+			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
 		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.status = 'COMPLETE'
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.quantity) > 0
 		ORDER BY quantity_sold ASC
 		LIMIT $4
-	`
+	`, r.timezone)
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }

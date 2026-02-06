@@ -9,6 +9,8 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'POS';
+  const appInitial = appName.charAt(0).toUpperCase();
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -41,9 +43,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
           <div className="flex items-center space-x-2 ml-4">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">P</span>
+              <span className="text-white font-bold text-xl">{appInitial}</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">POS</span>
+            <span className="text-xl font-bold text-gray-900">{appName}</span>
           </div>
         </header>
 

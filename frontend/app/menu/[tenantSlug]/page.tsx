@@ -280,16 +280,6 @@ export default function PublicMenuPage() {
     router.push(`/checkout/${tenantSlug}`);
   };
 
-  if (!tenantId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   // T105: Invalid tenant error page
   if (tenantError) {
     return (

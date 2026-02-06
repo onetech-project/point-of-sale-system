@@ -45,6 +45,10 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug 
 		fmt.Printf("Warning: failed to fetch tenant info: %v\n", err)
 	}
 
+	if !tenantID.Valid {
+		return nil, fmt.Errorf("tenant not found")
+	}
+
 	// Fetch order settings from order_settings table
 	var deliveryEnabled, pickupEnabled, dineInEnabled, chargeDeliveryFee bool
 	var defaultDeliveryFee, minOrderAmount, estimatedPrepTime sql.NullInt64
