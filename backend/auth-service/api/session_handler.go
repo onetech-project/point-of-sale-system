@@ -69,6 +69,7 @@ func (h *SessionHandler) GetSession(c echo.Context) error {
 			TenantID:  sessionData.TenantID,
 			Role:      sessionData.Role,
 			FirstName: sessionData.FirstName,
+			LastName:  sessionData.LastName,
 		},
 		TenantID: sessionData.TenantID,
 	}
@@ -152,6 +153,7 @@ func (h *SessionHandler) RefreshSession(c echo.Context) error {
 			TenantID:  sessionData.TenantID,
 			Role:      sessionData.Role,
 			FirstName: sessionData.FirstName,
+			LastName:  sessionData.LastName,
 		},
 		TenantID: sessionData.TenantID,
 	}
