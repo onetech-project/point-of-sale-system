@@ -9,6 +9,7 @@ import (
 	"github.com/pos/auth-service/src/models"
 	"github.com/pos/auth-service/src/repository"
 	"github.com/pos/auth-service/src/utils"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -65,19 +66,19 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	// Mask email for privacy
 	masker := utils.NewLogMasker()
 	maskedEmail := masker.MaskEmail(req.Email)
-	fmt.Printf("DEBUG: Login attempt for email: %s\n", maskedEmail)
+	log.Debug().Msgf("DEBUG: Login attempt for email: %s\n", maskedEmail)
 
 	// First, find the tenant for this email
 	tenantID, err := s.getTenantIDByEmail(ctx, req.Email)
 	if err != nil {
-		fmt.Printf("DEBUG: Failed to get tenant ID: %v\n", err)
+		log.Debug().Msgf("DEBUG: Failed to get tenant ID: %v\n", err)
 		return nil, "", fmt.Errorf("failed to lookup tenant: %w", err)
 	}
 
-	fmt.Printf("DEBUG: Found tenant ID: %s\n", tenantID)
+	log.Debug().Msgf("DEBUG: Found tenant ID: %s\n", tenantID)
 
 	if tenantID == "" {
-		fmt.Printf("DEBUG: No tenant found for email\n")
+		log.Debug().Msgf("DEBUG: No tenant found for email\n")
 		return nil, "", ErrInvalidCredentials
 	}
 
@@ -95,20 +96,20 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	}
 
 	// Query user from database
-	fmt.Printf("DEBUG: Querying user with email=%s, tenant_id=%s\n", req.Email, tenantID)
+	log.Debug().Msgf("DEBUG: Querying user with email=%s, tenant_id=%s\n", req.Email, tenantID)
 	user, err := s.getUserByEmailAndTenant(ctx, req.Email, tenantID)
 	if err != nil {
-		fmt.Printf("DEBUG: Error querying user: %v\n", err)
+		log.Debug().Msgf("DEBUG: Error querying user: %v\n", err)
 		// Increment failed attempts
 		s.rateLimiter.IncrementLoginAttempts(ctx, req.Email, tenantID)
 		return nil, "", fmt.Errorf("authentication failed: %w", err)
 	}
 
 	if user == nil {
-		fmt.Printf("DEBUG: User not found\n")
+		log.Debug().Msgf("DEBUG: User not found\n")
 		// Increment failed attempts
 		s.rateLimiter.IncrementLoginAttempts(ctx, req.Email, tenantID)
-		
+
 		// T103: Publish LoginFailureEvent
 		if s.auditPublisher != nil {
 			encEmail, _ := s.encryptor.EncryptWithContext(ctx, req.Email, "user:email")
@@ -116,7 +117,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 			auditEvent := &utils.AuditEvent{
 				TenantID:     tenantID,
 				ActorType:    "user",
-				Action:       "LOGIN_FAILURE",
+				Action:       "LOGIN",
 				ResourceType: "authentication",
 				ResourceID:   req.Email,
 				IPAddress:    &ipAddress,
@@ -128,23 +129,23 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 				},
 			}
 			if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
-				fmt.Printf("Failed to publish login failure audit event: %v\n", err)
+				log.Debug().Msgf("Failed to publish login failure audit event: %v\n", err)
 			}
 		}
-		
+
 		return nil, "", ErrInvalidCredentials
 	}
 
-	fmt.Printf("DEBUG: User found - ID: %s, Status: %s, Hash length: %d\n", user.ID, user.Status, len(user.PasswordHash))
+	log.Debug().Msgf("DEBUG: User found - ID: %s, Status: %s, Hash length: %d\n", user.ID, user.Status, len(user.PasswordHash))
 
 	// Verify password
-	fmt.Printf("DEBUG: Comparing password (input length: %d)\n", len(req.Password))
+	log.Debug().Msgf("DEBUG: Comparing password (input length: %d)\n", len(req.Password))
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		fmt.Printf("DEBUG: Password comparison failed: %v\n", err)
+		log.Debug().Msgf("DEBUG: Password comparison failed: %v\n", err)
 		// Increment failed attempts
 		s.rateLimiter.IncrementLoginAttempts(ctx, req.Email, tenantID)
-		
+
 		// T103: Publish LoginFailureEvent
 		if s.auditPublisher != nil {
 			encEmail, _ := s.encryptor.EncryptWithContext(ctx, user.Email, "user:email")
@@ -154,7 +155,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 				TenantID:     tenantID,
 				ActorType:    "user",
 				ActorID:      &userIDStr,
-				Action:       "LOGIN_FAILURE",
+				Action:       "LOGIN",
 				ResourceType: "authentication",
 				ResourceID:   user.ID,
 				IPAddress:    &ipAddress,
@@ -166,14 +167,14 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 				},
 			}
 			if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
-				fmt.Printf("Failed to publish login failure audit event: %v\n", err)
+				log.Debug().Msgf("Failed to publish login failure audit event: %v\n", err)
 			}
 		}
-		
+
 		return nil, "", ErrInvalidCredentials
 	}
 
-	fmt.Printf("DEBUG: Password verification successful!\n")
+	log.Debug().Msgf("DEBUG: Password verification successful!\n")
 
 	// Check user status
 	if user.Status != "active" {
@@ -184,7 +185,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	s.rateLimiter.ResetLoginAttempts(ctx, req.Email, tenantID)
 
 	// Create session in Redis
-	sessionID, err := s.sessionManager.Create(ctx, user.ID, user.TenantID, user.Email, user.Role, user.FirstName)
+	sessionID, err := s.sessionManager.Create(ctx, user)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create session: %w", err)
 	}
@@ -196,7 +197,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		UserID:    user.ID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
-		ExpiresAt: time.Now().Add(15 * time.Minute),
+		ExpiresAt: time.Now().Add(s.sessionManager.ttl),
 		CreatedAt: time.Now(),
 	}
 
@@ -204,7 +205,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	if err != nil {
 		// Non-fatal error - session still works from Redis
 		// Log error but don't fail the login
-		fmt.Printf("Warning: failed to create session audit record: %v\n", err)
+		log.Debug().Msgf("Warning: failed to create session audit record: %v\n", err)
 	}
 
 	// Generate JWT token
@@ -227,7 +228,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 			ActorType:    "user",
 			ActorID:      &userIDStr,
 			SessionID:    &sessionID,
-			Action:       "LOGIN_SUCCESS",
+			Action:       "LOGIN",
 			ResourceType: "authentication",
 			ResourceID:   user.ID,
 			IPAddress:    &ipAddress,
@@ -238,7 +239,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 			},
 		}
 		if err := s.auditPublisher.Publish(ctx, auditEvent); err != nil {
-			fmt.Printf("Failed to publish login success audit event: %v\n", err)
+			log.Debug().Msgf("Failed to publish login success audit event: %v\n", err)
 		}
 	}
 
@@ -250,7 +251,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		}
 		go func() {
 			if err := s.eventPublisher.PublishUserLogin(context.Background(), user.TenantID, user.ID, user.Email, name, ipAddress, userAgent); err != nil {
-				fmt.Printf("Warning: failed to publish login event: %v\n", err)
+				log.Debug().Msgf("Warning: failed to publish login event: %v\n", err)
 			}
 		}()
 	}
@@ -284,11 +285,11 @@ func (s *AuthService) ValidateSession(ctx context.Context, sessionID string) (*m
 	}
 
 	// Renew session TTL (sliding window)
-	err = s.sessionManager.Renew(ctx, sessionID)
-	if err != nil {
-		// Non-fatal error - session still valid
-		fmt.Printf("Warning: failed to renew session TTL: %v\n", err)
-	}
+	// err = s.sessionManager.Renew(ctx, sessionID)
+	// if err != nil {
+	// 	// Non-fatal error - session still valid
+	// 	log.Debug().Msgf("Warning: failed to renew session TTL: %v\n", err)
+	// }
 
 	return sessionData, nil
 }
@@ -305,7 +306,7 @@ func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
 	err = s.sessionRepo.Delete(ctx, sessionID)
 	if err != nil {
 		// Non-fatal error - session already deleted from Redis
-		fmt.Printf("Warning: failed to mark session as terminated in database: %v\n", err)
+		log.Debug().Msgf("Warning: failed to mark session as terminated in database: %v\n", err)
 	}
 
 	return nil
@@ -327,29 +328,17 @@ func (s *AuthService) VerifyAccount(ctx context.Context, token string) error {
 
 // Internal helper methods
 
-type User struct {
-	ID           string
-	TenantID     string
-	Email        string
-	PasswordHash string
-	Role         string
-	Status       string
-	FirstName    string
-	LastName     string
-	Locale       string
-}
-
-func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenantID string) (*User, error) {
+func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenantID string) (*models.User, error) {
 	masker := utils.NewLogMasker()
 	maskedEmail := masker.MaskEmail(email)
-	fmt.Printf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", maskedEmail, tenantID)
+	log.Debug().Msgf("DEBUG: getUserByEmailAndTenant called - email=%s, tenant_id=%s\n", maskedEmail, tenantID)
 
 	// Set tenant context for RLS policy
 	setContextSQL := fmt.Sprintf("SET LOCAL app.current_tenant_id = '%s'", tenantID)
-	fmt.Printf("DEBUG: Setting tenant context: %s\n", setContextSQL)
+	log.Debug().Msgf("DEBUG: Setting tenant context: %s\n", setContextSQL)
 	_, err := s.db.ExecContext(ctx, setContextSQL)
 	if err != nil {
-		fmt.Printf("DEBUG: Failed to set tenant context: %v\n", err)
+		log.Debug().Msgf("DEBUG: Failed to set tenant context: %v\n", err)
 		return nil, fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
@@ -366,8 +355,8 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 		LIMIT 1
 	`
 
-	fmt.Printf("DEBUG: Executing query with encrypted email...\n")
-	user := &User{}
+	log.Debug().Msgf("DEBUG: Executing query with encrypted email...\n")
+	user := &models.User{}
 	var firstName, lastName sql.NullString
 	var encryptedEmail string
 
@@ -384,19 +373,19 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 	)
 
 	if err == sql.ErrNoRows {
-		fmt.Printf("DEBUG: No user found with email hash\n")
+		log.Debug().Msgf("DEBUG: No user found with email hash\n")
 		return nil, nil
 	}
 
 	if err != nil {
-		fmt.Printf("DEBUG: Query failed: %v\n", err)
+		log.Debug().Msgf("DEBUG: Query failed: %v\n", err)
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	// Decrypt email
 	user.Email, err = s.encryptor.DecryptWithContext(ctx, encryptedEmail, "user:email")
 	if err != nil {
-		fmt.Printf("DEBUG: Failed to decrypt email: %v\n", err)
+		log.Debug().Msgf("DEBUG: Failed to decrypt email: %v\n", err)
 		return nil, fmt.Errorf("failed to decrypt email: %w", err)
 	}
 
@@ -404,7 +393,7 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 	if firstName.Valid {
 		decryptedFirstName, err := s.encryptor.DecryptWithContext(ctx, firstName.String, "user:first_name")
 		if err != nil {
-			fmt.Printf("DEBUG: Failed to decrypt first_name: %v\n", err)
+			log.Debug().Msgf("DEBUG: Failed to decrypt first_name: %v\n", err)
 			user.FirstName = ""
 		} else {
 			user.FirstName = decryptedFirstName
@@ -415,14 +404,14 @@ func (s *AuthService) getUserByEmailAndTenant(ctx context.Context, email, tenant
 	if lastName.Valid {
 		decryptedLastName, err := s.encryptor.DecryptWithContext(ctx, lastName.String, "user:last_name")
 		if err != nil {
-			fmt.Printf("DEBUG: Failed to decrypt last_name: %v\n", err)
+			log.Debug().Msgf("DEBUG: Failed to decrypt last_name: %v\n", err)
 			user.LastName = ""
 		} else {
 			user.LastName = decryptedLastName
 		}
 	}
 
-	fmt.Printf("DEBUG: User found and verified\n")
+	log.Debug().Msgf("DEBUG: User found and verified\n")
 	return user, nil
 }
 
@@ -457,7 +446,7 @@ func (s *AuthService) updateLastLogin(ctx context.Context, userID string) {
 	_, err := s.db.ExecContext(ctx, query, time.Now(), userID)
 	if err != nil {
 		// Non-fatal error
-		fmt.Printf("Warning: failed to update last login time: %v\n", err)
+		log.Debug().Msgf("Warning: failed to update last login time: %v\n", err)
 	}
 }
 

@@ -54,19 +54,6 @@ func main() {
 
 	e := echo.New()
 
-	// CORS configuration
-	// allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	// if allowedOrigins == "" {
-	// 	allowedOrigins = "http://localhost:3000,http://localhost:3001"
-	// }
-	// e.Use(emw.CORSWithConfig(emw.CORSConfig{
-	// 	AllowOrigins:     []string{allowedOrigins},
-	// 	AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE},
-	// 	AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-Tenant-ID"},
-	// 	AllowCredentials: true,
-	// 	MaxAge:           3600,
-	// }))
-
 	e.Use(emw.Logger())
 	e.Use(emw.Recover())
 

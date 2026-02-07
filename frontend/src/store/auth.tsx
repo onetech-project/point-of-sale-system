@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import apiClient from '@/services/api';
 import { AxiosError } from 'axios';
 import { type Role } from '@/constants/roles';
+import { PUBLIC_PAGES } from '../utils/general';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface User {
   id: string;
@@ -30,13 +32,6 @@ interface AuthContextType {
   checkAuth: () => Promise<void>;
 }
 
-// Public pages that don't require authentication
-const PUBLIC_PAGES = {
-  AUTH: ['/login', '/register'],
-  GUEST_ORDER_PATTERN: /^\/orders\/[A-Z0-9-]+$/, // Matches /orders/{orderReference}
-  GUEST_PATHS: ['/menu/', '/checkout/'],
-};
-
 const isPublicPage = (pathname: string): boolean => {
   // Check exact auth pages
   if (PUBLIC_PAGES.AUTH.includes(pathname)) return true;
@@ -45,7 +40,10 @@ const isPublicPage = (pathname: string): boolean => {
   if (PUBLIC_PAGES.GUEST_ORDER_PATTERN.test(pathname)) return true;
 
   // Check guest ordering paths
-  if (PUBLIC_PAGES.GUEST_PATHS.some(path => pathname.includes(path))) return true;
+  if (PUBLIC_PAGES.GUEST_PATHS.some(path => pathname?.includes?.(path))) return true;
+
+  // Check other public pages
+  if (PUBLIC_PAGES.OTHERS.includes(pathname)) return true;
 
   return false;
 };
@@ -56,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Handle authentication errors globally
   const handleAuthError = useCallback(() => {
@@ -72,15 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     // Skip auth check for public routes (but don't clear auth state if already authenticated)
-    if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname;
-
-      if (isPublicPage(pathname)) {
-        // Don't clear existing auth state on public pages
-        // This allows proper redirect after login
-        setIsLoading(false);
-        return;
-      }
+    if (isPublicPage(pathname)) {
+      // Don't clear existing auth state on public pages
+      // This allows proper redirect after login
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -99,13 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If 401, no valid session exists
       if (axiosError.response?.status === 401) {
         handleAuthError();
-        
+
         // Redirect to login if not on a public page
-        if (typeof window !== 'undefined') {
-          const pathname = window.location.pathname;
-          if (!isPublicPage(pathname)) {
-            window.location.href = '/login?session_expired=true';
-          }
+        if (!isPublicPage(pathname)) {
+          router.replace('/login?session_expired=true');
         }
       } else {
         // For network errors or other issues, default to not authenticated
@@ -120,18 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     checkAuth();
-
     // Set up periodic session validation (every 5 minutes) to trigger renewal
     // This ensures the session stays alive as long as the user has the app open
-    const interval = setInterval(() => {
-      // Only check auth if not on a public page
-      if (typeof window !== 'undefined' && !isPublicPage(window.location.pathname)) {
-        checkAuth();
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+    const interval = setInterval(checkAuth, 5 * 60 * 1000); // 5 minutes
 
     return () => clearInterval(interval);
-  }, [checkAuth]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {

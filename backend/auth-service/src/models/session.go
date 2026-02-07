@@ -6,15 +6,15 @@ import (
 
 // Session represents an authenticated user session
 type Session struct {
-	ID           string    `json:"id"`
-	SessionID    string    `json:"sessionId"`
-	TenantID     string    `json:"tenantId"`
-	UserID       string    `json:"userId"`
-	IPAddress    string    `json:"ipAddress,omitempty"`
-	UserAgent    string    `json:"userAgent,omitempty"`
-	ExpiresAt    time.Time `json:"expiresAt"`
+	ID           string     `json:"id"`
+	SessionID    string     `json:"sessionId"`
+	TenantID     string     `json:"tenantId"`
+	UserID       string     `json:"userId"`
+	IPAddress    string     `json:"ipAddress,omitempty"`
+	UserAgent    string     `json:"userAgent,omitempty"`
+	ExpiresAt    time.Time  `json:"expiresAt"`
 	TerminatedAt *time.Time `json:"terminatedAt,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	CreatedAt    time.Time  `json:"createdAt"`
 }
 
 // SessionData represents the session data stored in Redis
@@ -24,6 +24,7 @@ type SessionData struct {
 	Email     string `json:"email"`
 	Role      string `json:"role"`
 	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
 	CreatedAt int64  `json:"createdAt"`
 }
 
@@ -52,7 +53,7 @@ type UserInfo struct {
 
 // SessionResponse represents session validation response
 type SessionResponse struct {
-	Valid  bool     `json:"valid"`
-	User   *UserInfo `json:"user,omitempty"`
-	TenantID string  `json:"tenantId,omitempty"`
+	Valid    bool      `json:"valid"`
+	User     *UserInfo `json:"user,omitempty"`
+	TenantID string    `json:"tenantId,omitempty"`
 }

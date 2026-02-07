@@ -59,10 +59,18 @@ func NewKafkaProducerWithConfig(config KafkaProducerConfig) *KafkaProducer {
 
 // Publish publishes a single message to Kafka
 func (p *KafkaProducer) Publish(ctx context.Context, key string, value interface{}) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		log.Printf("ERROR: Failed to marshal Kafka message: %v", err)
-		return err
+	var data []byte
+	var err error
+
+	// If value is already []byte, use it directly (avoid double marshaling)
+	if b, ok := value.([]byte); ok {
+		data = b
+	} else {
+		data, err = json.Marshal(value)
+		if err != nil {
+			log.Printf("ERROR: Failed to marshal Kafka message: %v", err)
+			return err
+		}
 	}
 
 	msg := kafka.Message{

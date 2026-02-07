@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
+	stdlog "log"
 	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	emw "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	_ "github.com/lib/pq"
 	"github.com/pos/auth-service/api"
 	"github.com/pos/auth-service/middleware"
@@ -28,23 +29,29 @@ func main() {
 	e := echo.New()
 
 	// Enable debug mode for detailed logging
-	e.Debug = utils.GetEnvBool("DEBUG")
+	isDebug := utils.GetEnvBool("DEBUG")
+	if isDebug {
+		e.Debug = true
+		e.Logger.SetLevel(log.DEBUG)
+	}
 
 	// Set validator
 	e.Validator = utils.NewValidator()
 
 	e.Use(emw.Recover())
 
-	// OTEL
-	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+	if isDebug {
+		// OTEL
+		e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
 
-	// Trace → Log bridge
-	e.Use(middleware.TraceLogger)
+		// Trace → Log bridge
+		e.Use(middleware.TraceLogger)
+
+		middleware.MetricsMiddleware(e)
+	}
 
 	// Logging with PII masking (T061)
 	e.Use(middleware.LoggingMiddleware)
-
-	middleware.MetricsMiddleware(e)
 
 	// Database connection
 	dbURL := utils.GetEnv("DATABASE_URL")
@@ -142,6 +149,6 @@ func main() {
 
 	// Start server
 	port := utils.GetEnv("PORT")
-	log.Printf("Auth service starting on port %s", port)
+	stdlog.Printf("Auth service starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }

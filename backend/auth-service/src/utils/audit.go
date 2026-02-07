@@ -214,10 +214,10 @@ func (ap *AuditPublisher) validateEvent(event *AuditEvent) error {
 
 	validActions := map[string]bool{
 		"CREATE": true, "READ": true, "UPDATE": true, "DELETE": true,
-		"ACCESS": true, "EXPORT": true, "ANONYMIZE": true,
+		"ACCESS": true, "EXPORT": true, "ANONYMIZE": true, "LOGIN": true, "LOGOUT": true,
 	}
 	if !validActions[event.Action] {
-		return fmt.Errorf("action must be one of: CREATE, READ, UPDATE, DELETE, ACCESS, EXPORT, ANONYMIZE")
+		return fmt.Errorf("action must be one of: CREATE, READ, UPDATE, DELETE, ACCESS, EXPORT, ANONYMIZE, LOGIN, LOGOUT")
 	}
 
 	if event.ResourceType == "" {

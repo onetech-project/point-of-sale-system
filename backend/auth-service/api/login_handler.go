@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/pos/auth-service/src/models"
 	"github.com/pos/auth-service/src/services"
+	"github.com/pos/auth-service/src/utils"
 )
 
 type LoginHandler struct {
@@ -96,7 +97,7 @@ func (h *LoginHandler) Login(c echo.Context) error {
 		HttpOnly: true,
 		Secure:   isProduction,
 		SameSite: http.SameSiteLaxMode, // Lax allows cookie on redirects
-		MaxAge:   15 * 60,              // 15 minutes
+		MaxAge:   utils.GetEnvInt("SESSION_TTL_MINUTES") * 60,
 	}
 	c.SetCookie(cookie)
 

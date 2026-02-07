@@ -58,9 +58,17 @@ func NewKafkaProducerWithConfig(config KafkaProducerConfig) *KafkaProducer {
 
 // Publish publishes a single message to Kafka
 func (p *KafkaProducer) Publish(ctx context.Context, key string, value interface{}) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
+	var data []byte
+	var err error
+
+	// If value is already []byte, use it directly (avoid double marshaling)
+	if b, ok := value.([]byte); ok {
+		data = b
+	} else {
+		data, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 	}
 
 	msg := kafka.Message{
@@ -74,9 +82,17 @@ func (p *KafkaProducer) Publish(ctx context.Context, key string, value interface
 
 // PublishWithHeaders publishes a message with custom headers
 func (p *KafkaProducer) PublishWithHeaders(ctx context.Context, key string, value interface{}, headers []kafka.Header) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
+	var data []byte
+	var err error
+
+	// If value is already []byte, use it directly (avoid double marshaling)
+	if b, ok := value.([]byte); ok {
+		data = b
+	} else {
+		data, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
 	}
 
 	msg := kafka.Message{

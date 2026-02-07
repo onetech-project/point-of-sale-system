@@ -43,7 +43,7 @@ class APIClient {
             withCredentials: true, // Send existing cookie
           }
         );
-        
+
         return response.status === 200;
       } catch (error) {
         console.error('Token refresh failed:', error);
@@ -77,14 +77,14 @@ class APIClient {
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-        
+
         // Handle 401 authentication errors
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-          
+
           // Attempt to refresh the session
           const refreshed = await this.refreshSession();
-          
+
           if (refreshed) {
             // Retry the original request with new token
             return this.axiosInstance(originalRequest);
@@ -95,7 +95,7 @@ class APIClient {
             }
           }
         }
-        
+
         return Promise.reject(error);
       }
     );

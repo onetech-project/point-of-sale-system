@@ -1,13 +1,14 @@
 package main
 
 import (
-	"log"
+	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 
 	"github.com/labstack/echo/v4"
 	emw "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
 
@@ -26,14 +27,22 @@ func main() {
 
 	e.Use(emw.Recover())
 
-	// OTEL
-	e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
+	isDevelopment := utils.GetEnv("ENVIRONMENT") == "development"
+	if isDevelopment {
+		stdlog.Println("Running in development mode")
+		e.Logger.SetLevel(log.DEBUG)
+	}
 
-	// Trace → Log bridge
-	e.Use(middleware.TraceLogger)
+	if !isDevelopment {
+		// OTEL
+		e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
 
-	// Metrics
-	middleware.MetricsMiddleware(e)
+		// Trace → Log bridge
+		e.Use(middleware.TraceLogger)
+
+		// Metrics
+		middleware.MetricsMiddleware(e)
+	}
 
 	e.Use(middleware.Logging())
 	e.Use(middleware.CORS())
@@ -240,7 +249,7 @@ func main() {
 	analyticsGroup.Any("/*", proxyWildcard(analyticsServiceURL))
 
 	port := utils.GetEnv("PORT")
-	log.Printf("API Gateway starting on port %s", port)
+	stdlog.Printf("API Gateway starting on port %s", port)
 	e.Logger.Fatal(e.Start(":" + port))
 }
 

@@ -12,8 +12,8 @@ import (
 )
 
 type SessionManager struct {
-	redis     *redis.Client
-	ttl       time.Duration
+	redis *redis.Client
+	ttl   time.Duration
 }
 
 func NewSessionManager(redisClient *redis.Client, ttlMinutes int) *SessionManager {
@@ -24,15 +24,16 @@ func NewSessionManager(redisClient *redis.Client, ttlMinutes int) *SessionManage
 }
 
 // Create creates a new session in Redis
-func (sm *SessionManager) Create(ctx context.Context, userID, tenantID, email, role, firstName string) (string, error) {
+func (sm *SessionManager) Create(ctx context.Context, user *models.User) (string, error) {
 	sessionID := uuid.New().String()
 
 	sessionData := models.SessionData{
-		UserID:    userID,
-		TenantID:  tenantID,
-		Email:     email,
-		Role:      role,
-		FirstName: firstName,
+		UserID:    user.ID,
+		TenantID:  user.TenantID,
+		Email:     user.Email,
+		Role:      user.Role,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
 		CreatedAt: time.Now().Unix(),
 	}
 
@@ -117,7 +118,7 @@ func (sm *SessionManager) DeleteByUserID(ctx context.Context, userID string) err
 
 	for iter.Next(ctx) {
 		key := iter.Val()
-		
+
 		// Get session data to check user ID
 		data, err := sm.redis.Get(ctx, key).Result()
 		if err != nil {
