@@ -1,0 +1,17 @@
+# Dev Container .gitignore
+# Don't commit local environment overrides or cache files
+
+# Local environment overrides
+.env.local
+.env.*.local
+
+# Docker cache and build artifacts
+.docker/
+docker-compose.override.yml
+
+# Log files
+*.log
+
+# Cache files
+.cache/
+*.cache

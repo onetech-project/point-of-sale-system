@@ -1,0 +1,159 @@
+{
+  "name": "Point of Sale System",
+  "description": "Development environment for Point of Sale System with Go backend and Next.js frontend",
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "vscode",
+
+  // Features to install
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  // Ports to expose
+  "forwardPorts": [
+    3000, 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 5432, 6379, 9092, 9001, 5555, 8200
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "API Gateway",
+      "onAutoForward": "notify"
+    },
+    "8081": {
+      "label": "Tenant Service",
+      "onAutoForward": "notify"
+    },
+    "8082": {
+      "label": "Auth Service",
+      "onAutoForward": "notify"
+    },
+    "8083": {
+      "label": "User Service",
+      "onAutoForward": "notify"
+    },
+    "8084": {
+      "label": "Order Service",
+      "onAutoForward": "notify"
+    },
+    "8085": {
+      "label": "Product Service",
+      "onAutoForward": "notify"
+    },
+    "8086": {
+      "label": "Notification Service",
+      "onAutoForward": "notify"
+    },
+    "8087": {
+      "label": "Proxy",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    },
+    "6379": {
+      "label": "Redis",
+      "onAutoForward": "silent"
+    },
+    "9092": {
+      "label": "Kafka",
+      "onAutoForward": "silent"
+    },
+    "9001": {
+      "label": "MinIO Console",
+      "onAutoForward": "notify"
+    },
+    "5555": {
+      "label": "Mailhog",
+      "onAutoForward": "notify"
+    },
+    "8200": {
+      "label": "HashiCorp Vault",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Mounts for persistence
+  "mounts": [
+    "source=devcontainer-go-extensions,target=/root/.vscode-server/extensions/golang.go,type=volume",
+    "source=devcontainer-node-modules,target=/workspace/frontend/node_modules,type=volume"
+  ],
+
+  // VS Code extensions to install
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "golang.tools",
+        "ms-vscode.makefile-tools",
+        "ms-vscode-remote.remote-containers",
+        "ms-vscode-remote.remote-ssh",
+        "ms-vscode-remote.vscode-remote-extensionpack",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "prisma.prisma",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.vscode-node-debug2",
+        "ms-vscode.live-server",
+        "postman.postman-for-vscode",
+        "qpkorr.vim-be-good",
+        "eamodio.gitlens",
+        "GitHub.copilot"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.lintOnSave": "package",
+        "go.formatOnSave": true,
+        "go.vetOnSave": "package",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.formatOnSave": true
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        }
+      }
+    }
+  },
+
+  // Post creation commands
+  "postCreateCommand": ".devcontainer/post-create.sh",
+
+  // Environment variables
+  "remoteEnv": {
+    "POSTGRES_HOST": "postgres",
+    "POSTGRES_PORT": "5432",
+    "POSTGRES_DB": "pos_db",
+    "POSTGRES_USER": "pos_user",
+    "POSTGRES_PASSWORD": "pos_password",
+    "REDIS_HOST": "redis",
+    "REDIS_PORT": "6379",
+    "REDIS_PASSWORD": "pos_password",
+    "KAFKA_BROKERS": "kafka:29092",
+    "MINIO_HOST": "minio",
+    "MINIO_PORT": "9000",
+    "MINIO_CONSOLE_PORT": "9001",
+    "VAULT_ADDR": "https://vault:8200",
+    "VAULT_SKIP_VERIFY": "true"
+  }
+}
