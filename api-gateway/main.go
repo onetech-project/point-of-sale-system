@@ -177,6 +177,7 @@ func main() {
 	adminOrders := protected.Group("/api/v1/admin")
 	adminOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
 	adminOrders.Any("/orders*", proxyWildcard(orderServiceURL))
+	adminOrders.Any("/offline-orders*", proxyWildcard(orderServiceURL))
 
 	// Admin order settings routes (requires auth, owner/manager only)
 	adminSettings := protected.Group("/api/v1/admin")

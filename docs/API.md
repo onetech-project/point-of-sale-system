@@ -1642,3 +1642,629 @@ All endpoints log `query_time_ms` for monitoring:
 - Structured logging with zerolog
 
 ---
+
+## Offline Orders API
+
+Base URL: `http://api-gateway:8080/api/v1`
+
+### Overview
+
+Offline orders allow staff to record sales made outside the online system, including cash transactions, phone orders, and in-person sales. This feature supports:
+
+- **Basic offline order creation** with customer PII (US1)
+- **Payment terms and installments** for partial payments (US2)
+- **Order editing** with complete audit trail (US3)
+- **Role-based deletion** for owners and managers only (US4)
+- **Analytics integration** for revenue tracking (US5)
+
+All endpoints require authentication via JWT token and enforce tenant isolation.
+
+**Rate Limiting**: All offline order endpoints are rate-limited to prevent abuse.
+
+---
+
+### Create Offline Order
+
+Create a new offline order with optional payment terms for installments.
+
+**Endpoint**: `POST /offline-orders`
+
+**Authentication**: Required (JWT)
+
+**Headers**:
+
+- `X-Tenant-ID`: Tenant UUID (injected by API Gateway)
+- `X-User-ID`: User UUID (injected by API Gateway)
+
+**Request Body**:
+
+```json
+{
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "customer_name": "John Doe",
+  "customer_phone": "+6281234567890",
+  "customer_email": "john.doe@example.com",
+  "delivery_type": "pickup",
+  "table_number": null,
+  "notes": "Customer requested gift wrapping",
+  "items": [
+    {
+      "product_id": "prod-uuid-1",
+      "product_name": "Coffee Beans 250g",
+      "quantity": 2,
+      "unit_price": 75000,
+      "subtotal": 150000
+    }
+  ],
+  "data_consent_given": true,
+  "consent_method": "verbal",
+  "recorded_by_user_id": "user-uuid-123",
+  "payment": {
+    "type": "full",
+    "amount": 150000,
+    "method": "cash"
+  }
+}
+```
+
+**Request Body (Installment Payment)**:
+
+```json
+{
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "customer_name": "Jane Smith",
+  "customer_phone": "+6281234567891",
+  "customer_email": "jane@example.com",
+  "delivery_type": "delivery",
+  "notes": "Deliver to office",
+  "items": [
+    {
+      "product_id": "prod-uuid-2",
+      "product_name": "Premium Coffee Maker",
+      "quantity": 1,
+      "unit_price": 3000000,
+      "subtotal": 3000000
+    }
+  ],
+  "data_consent_given": true,
+  "consent_method": "written",
+  "recorded_by_user_id": "user-uuid-456",
+  "payment": {
+    "type": "installment",
+    "down_payment_amount": 1000000,
+    "down_payment_method": "bank_transfer",
+    "installment_count": 4,
+    "installment_amount": 500000,
+    "payment_schedule": [
+      {
+        "installment_number": 1,
+        "due_date": "2024-02-15",
+        "amount": 500000,
+        "status": "pending"
+      },
+      {
+        "installment_number": 2,
+        "due_date": "2024-03-15",
+        "amount": 500000,
+        "status": "pending"
+      },
+      {
+        "installment_number": 3,
+        "due_date": "2024-04-15",
+        "amount": 500000,
+        "status": "pending"
+      },
+      {
+        "installment_number": 4,
+        "due_date": "2024-05-15",
+        "amount": 500000,
+        "status": "pending"
+      }
+    ]
+  }
+}
+```
+
+**Field Descriptions**:
+
+| Field               | Type    | Required | Description                                                       |
+| ------------------- | ------- | -------- | ----------------------------------------------------------------- |
+| tenant_id           | string  | Yes      | Tenant UUID                                                       |
+| customer_name       | string  | Yes      | Customer full name (2-255 chars, encrypted at rest)               |
+| customer_phone      | string  | Yes      | Customer phone with country code (10-20 chars, encrypted at rest) |
+| customer_email      | string  | No       | Customer email (encrypted at rest)                                |
+| delivery_type       | string  | Yes      | One of: `pickup`, `delivery`, `dine_in`                           |
+| table_number        | string  | No       | Table number for dine-in orders                                   |
+| notes               | string  | No       | Order notes                                                       |
+| items               | array   | Yes      | Order items (min 1 item)                                          |
+| data_consent_given  | boolean | Yes      | Must be `true` (UU PDP compliance)                                |
+| consent_method      | string  | Yes      | One of: `verbal`, `written`, `digital_signature`                  |
+| recorded_by_user_id | string  | Yes      | UUID of staff member recording the order                          |
+| payment             | object  | No       | Payment details (omit for pending payment)                        |
+| payment.type        | string  | Yes      | `full` or `installment`                                           |
+| payment.amount      | integer | Yes\*    | Full payment amount in IDR (\*required if type=full)              |
+| payment.method      | string  | Yes\*    | Payment method (\*required if type=full)                          |
+
+**Payment Methods**: `cash`, `bank_transfer`, `qris`, `credit_card`, `debit_card`, `e_wallet`
+
+**Response**: `201 Created`
+
+```json
+{
+  "id": "order-uuid-789",
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "order_reference": "GO-001234",
+  "status": "PAID",
+  "order_type": "offline",
+  "delivery_type": "pickup",
+  "customer_name": "John Doe",
+  "customer_phone": "+6281234567890",
+  "customer_email": "john.doe@example.com",
+  "subtotal_amount": 150000,
+  "delivery_fee": 0,
+  "total_amount": 150000,
+  "data_consent_given": true,
+  "consent_method": "verbal",
+  "recorded_by_user_id": "user-uuid-123",
+  "created_at": "2024-01-15T10:30:00Z",
+  "paid_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid request body or missing required fields
+- `401 Unauthorized`: Missing or invalid JWT token
+- `422 Unprocessable Entity`: Data consent not given or validation failed
+- `500 Internal Server Error`: Server error
+
+---
+
+### List Offline Orders
+
+Retrieve paginated list of offline orders with filters.
+
+**Endpoint**: `GET /offline-orders`
+
+**Authentication**: Required (JWT)
+
+**Query Parameters**:
+
+| Parameter     | Type    | Required | Default | Description                               |
+| ------------- | ------- | -------- | ------- | ----------------------------------------- |
+| page          | integer | No       | 1       | Page number (1-indexed)                   |
+| limit         | integer | No       | 20      | Items per page (max 100)                  |
+| status        | string  | No       | -       | Filter by status (PENDING/PAID/CANCELLED) |
+| delivery_type | string  | No       | -       | Filter by delivery type                   |
+| recorded_by   | string  | No       | -       | Filter by staff user ID                   |
+| start_date    | string  | No       | -       | Filter by start date (ISO 8601)           |
+| end_date      | string  | No       | -       | Filter by end date (ISO 8601)             |
+
+**Response**: `200 OK`
+
+```json
+{
+  "orders": [
+    {
+      "id": "order-uuid-789",
+      "order_reference": "GO-001234",
+      "status": "PAID",
+      "delivery_type": "pickup",
+      "customer_name": "J*** D***",
+      "customer_phone": "****7890",
+      "total_amount": 150000,
+      "recorded_by_user_id": "user-uuid-123",
+      "created_at": "2024-01-15T10:30:00Z",
+      "paid_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 156,
+    "total_pages": 8
+  }
+}
+```
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid query parameters
+- `401 Unauthorized`: Missing or invalid JWT token
+- `500 Internal Server Error`: Server error
+
+**Note**: Customer PII (name, phone, email) is masked in list responses for privacy.
+
+---
+
+### Get Offline Order by ID
+
+Retrieve full details of a specific offline order.
+
+**Endpoint**: `GET /offline-orders/:id`
+
+**Authentication**: Required (JWT)
+
+**Path Parameters**:
+
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| id        | string | Yes      | Order UUID  |
+
+**Response**: `200 OK`
+
+```json
+{
+  "id": "order-uuid-789",
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "order_reference": "GO-001234",
+  "status": "PENDING",
+  "order_type": "offline",
+  "delivery_type": "delivery",
+  "customer_name": "Jane Smith",
+  "customer_phone": "+6281234567891",
+  "customer_email": "jane@example.com",
+  "subtotal_amount": 3000000,
+  "delivery_fee": 0,
+  "total_amount": 3000000,
+  "notes": "Deliver to office",
+  "data_consent_given": true,
+  "consent_method": "written",
+  "recorded_by_user_id": "user-uuid-456",
+  "created_at": "2024-01-15T10:30:00Z",
+  "last_modified_at": null,
+  "last_modified_by_user_id": null,
+  "items": [
+    {
+      "id": "item-uuid-1",
+      "product_id": "prod-uuid-2",
+      "product_name": "Premium Coffee Maker",
+      "quantity": 1,
+      "unit_price": 3000000,
+      "subtotal": 3000000
+    }
+  ],
+  "payment_terms": {
+    "id": "terms-uuid-1",
+    "total_amount": 3000000,
+    "down_payment_amount": 1000000,
+    "remaining_balance": 2000000,
+    "installment_count": 4,
+    "installment_amount": 500000,
+    "next_due_date": "2024-02-15",
+    "installments": [
+      {
+        "installment_number": 1,
+        "due_date": "2024-02-15",
+        "amount": 500000,
+        "status": "pending"
+      }
+    ]
+  }
+}
+```
+
+**Error Responses**:
+
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Order not found or access denied
+- `500 Internal Server Error`: Server error
+
+---
+
+### Update Offline Order
+
+Edit an existing offline order (only PENDING orders can be edited).
+
+**Endpoint**: `PATCH /offline-orders/:id`
+
+**Authentication**: Required (JWT)
+
+**Headers**:
+
+- `X-User-ID`: User UUID (injected by API Gateway)
+
+**Path Parameters**:
+
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| id        | string | Yes      | Order UUID  |
+
+**Request Body**:
+
+```json
+{
+  "customer_name": "Jane Smith Updated",
+  "customer_phone": "+6281234567899",
+  "customer_email": "jane.updated@example.com",
+  "delivery_type": "pickup",
+  "table_number": "A5",
+  "notes": "Customer changed delivery to pickup",
+  "items": [
+    {
+      "product_id": "prod-uuid-2",
+      "product_name": "Premium Coffee Maker",
+      "quantity": 2,
+      "unit_price": 3000000,
+      "subtotal": 6000000
+    }
+  ]
+}
+```
+
+**Field Descriptions**: All fields are optional. Only provided fields will be updated.
+
+**Response**: `200 OK`
+
+```json
+{
+  "id": "order-uuid-789",
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "order_reference": "GO-001234",
+  "status": "PENDING",
+  "customer_name": "Jane Smith Updated",
+  "customer_phone": "+6281234567899",
+  "last_modified_at": "2024-01-15T11:00:00Z",
+  "last_modified_by_user_id": "user-uuid-789"
+}
+```
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid request body
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: Cannot edit order with status PAID/COMPLETE/CANCELLED
+- `404 Not Found`: Order not found or access denied
+- `500 Internal Server Error`: Server error
+
+**Audit Trail**: All changes are logged with field-level diffs in the `offline_order.updated` event.
+
+---
+
+### Delete Offline Order
+
+Soft-delete an offline order (only owners and managers can delete).
+
+**Endpoint**: `DELETE /offline-orders/:id?reason=<deletion_reason>`
+
+**Authentication**: Required (JWT)
+
+**Authorization**: Requires `owner` or `manager` role
+
+**Headers**:
+
+- `X-User-ID`: User UUID (injected by API Gateway)
+- `X-User-Role`: User role (injected by API Gateway)
+
+**Path Parameters**:
+
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| id        | string | Yes      | Order UUID  |
+
+**Query Parameters**:
+
+| Parameter | Type   | Required | Description                        |
+| --------- | ------ | -------- | ---------------------------------- |
+| reason    | string | Yes      | Deletion reason (5-500 characters) |
+
+**Response**: `204 No Content`
+
+**Error Responses**:
+
+- `400 Bad Request`: Missing or invalid deletion reason
+- `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: User does not have owner/manager role, or order status prevents deletion
+- `404 Not Found`: Order not found or access denied
+- `409 Conflict`: Order already deleted
+- `500 Internal Server Error`: Server error
+
+**Business Rules**:
+
+- Only orders with status `PENDING` or `CANCELLED` can be deleted
+- Orders with status `PAID` or `COMPLETE` cannot be deleted (data retention)
+- Deletion is soft delete (sets `deleted_at` timestamp, does not remove from database)
+- Publishes `offline_order.deleted` event to audit trail
+
+**Example**:
+
+```bash
+DELETE /offline-orders/order-uuid-789?reason=Customer%20requested%20cancellation
+```
+
+---
+
+### Record Payment
+
+Record a payment for an offline order with installment terms.
+
+**Endpoint**: `POST /offline-orders/:id/payments`
+
+**Authentication**: Required (JWT)
+
+**Headers**:
+
+- `X-User-ID`: User UUID (injected by API Gateway)
+
+**Path Parameters**:
+
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| id        | string | Yes      | Order UUID  |
+
+**Request Body**:
+
+```json
+{
+  "amount_paid": 500000,
+  "payment_method": "bank_transfer",
+  "notes": "Payment for installment #1",
+  "receipt_number": "RCPT-2024-001"
+}
+```
+
+**Field Descriptions**:
+
+| Field          | Type    | Required | Description                                     |
+| -------------- | ------- | -------- | ----------------------------------------------- |
+| amount_paid    | integer | Yes      | Payment amount in IDR                           |
+| payment_method | string  | Yes      | One of: cash/bank_transfer/qris/credit_card/etc |
+| notes          | string  | No       | Payment notes                                   |
+| receipt_number | string  | No       | Receipt or transaction number                   |
+
+**Response**: `201 Created`
+
+```json
+{
+  "id": "payment-uuid-1",
+  "order_id": "order-uuid-789",
+  "payment_number": 1,
+  "amount_paid": 500000,
+  "payment_method": "bank_transfer",
+  "payment_date": "2024-02-15T14:30:00Z",
+  "remaining_balance_after": 1500000,
+  "notes": "Payment for installment #1",
+  "receipt_number": "RCPT-2024-001",
+  "recorded_by_user_id": "user-uuid-456"
+}
+```
+
+**Error Responses**:
+
+- `400 Bad Request`: Invalid request body or payment amount exceeds remaining balance
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Order not found or access denied
+- `422 Unprocessable Entity`: Order already fully paid
+- `500 Internal Server Error`: Server error
+
+**Business Rules**:
+
+- Payment amount cannot exceed remaining balance
+- When remaining balance reaches zero, order status automatically changes to `PAID`
+- Publishes `payment.received` event to audit trail
+
+---
+
+### Get Payment History
+
+Retrieve payment history for an order with installment terms.
+
+**Endpoint**: `GET /offline-orders/:id/payments`
+
+**Authentication**: Required (JWT)
+
+**Path Parameters**:
+
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| id        | string | Yes      | Order UUID  |
+
+**Response**: `200 OK`
+
+```json
+{
+  "payments": [
+    {
+      "id": "payment-uuid-0",
+      "payment_number": 0,
+      "amount_paid": 1000000,
+      "payment_method": "bank_transfer",
+      "payment_date": "2024-01-15T10:30:00Z",
+      "remaining_balance_after": 2000000,
+      "notes": "Down payment",
+      "recorded_by_user_id": "user-uuid-456"
+    },
+    {
+      "id": "payment-uuid-1",
+      "payment_number": 1,
+      "amount_paid": 500000,
+      "payment_method": "bank_transfer",
+      "payment_date": "2024-02-15T14:30:00Z",
+      "remaining_balance_after": 1500000,
+      "notes": "Payment for installment #1",
+      "receipt_number": "RCPT-2024-001",
+      "recorded_by_user_id": "user-uuid-456"
+    }
+  ],
+  "payment_terms": {
+    "total_amount": 3000000,
+    "down_payment_amount": 1000000,
+    "remaining_balance": 1500000,
+    "installment_count": 4,
+    "installment_amount": 500000,
+    "next_due_date": "2024-03-15"
+  }
+}
+```
+
+**Error Responses**:
+
+- `401 Unauthorized`: Missing or invalid JWT token
+- `404 Not Found`: Order not found or access denied
+- `500 Internal Server Error`: Server error
+
+---
+
+### Security & Compliance
+
+**PII Encryption**:
+
+- Customer names, phone numbers, and emails are encrypted at rest using HashiCorp Vault Transit Engine
+- Encryption keys are stored outside the database (Vault)
+- All PII fields use convergent encryption with HMAC integrity verification
+
+**Data Consent (UU PDP Compliance)**:
+
+- Orders require explicit data consent (`data_consent_given: true`)
+- Consent method must be recorded (`verbal`, `written`, `digital_signature`)
+- Consent records are immutable and auditable
+
+**Tenant Isolation**:
+
+- All queries automatically filtered by `tenant_id` from JWT
+- Row-Level Security (RLS) policies enforce tenant boundaries
+- Zero cross-tenant data access possible
+
+**Role-Based Access Control**:
+
+- `owner` and `manager` roles can delete orders
+- `staff` and `cashier` roles can create, view, and edit orders
+- Deletion requires explicit role check via `RequireRole` middleware
+
+**Audit Trail**:
+
+- All operations publish events to audit trail:
+  - `offline_order.created`
+  - `offline_order.updated` (with field-level change diff)
+  - `offline_order.deleted` (with deletion reason)
+  - `payment.received`
+- Events stored in `event_outbox` table for asynchronous processing
+- Includes user ID, tenant ID, timestamps, and detailed payloads
+
+**Rate Limiting**:
+
+- All offline order endpoints are rate-limited to prevent abuse
+- Default: 100 requests per minute per IP
+- Configurable via environment variables
+
+**Performance Optimizations**:
+
+- Database indexes on frequently queried fields (tenant_id, status, recorded_by_user_id)
+- Encryption key caching (5-minute TTL) to reduce Vault API calls
+- Batch encryption/decryption for list operations
+- Connection pooling and prepared statements
+
+**Monitoring**:
+
+- Prometheus metrics:
+  - `offline_orders_total{status, tenant_id}` - Counter of orders by status
+  - `offline_order_revenue{tenant_id}` - Total revenue gauge
+  - `offline_order_creation_duration_seconds{tenant_id}` - Histogram of creation latency
+  - `offline_order_payments_total{tenant_id, payment_method}` - Payment counter
+  - `payment_installments_total{tenant_id, installment_count}` - Installment counter
+  - `offline_order_updates_total{tenant_id}` - Update counter
+  - `offline_order_deletions_total{tenant_id, user_role}` - Deletion counter
+- OpenTelemetry distributed tracing for all operations
+- Structured logging with trace IDs
+
+---

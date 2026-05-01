@@ -61,6 +61,7 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 	var order models.GuestOrder
 	var encryptedName, encryptedPhone sql.NullString
 	var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+	var sessionID sql.NullString
 
 	err := r.db.QueryRowContext(ctx, query, orderReference).Scan(
 		&order.ID,
@@ -80,7 +81,7 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 		&order.PaidAt,
 		&order.CompletedAt,
 		&order.CancelledAt,
-		&order.SessionID,
+		&sessionID,
 		&encryptedIP,
 		&encryptedUA,
 		&order.IsAnonymized,
@@ -98,6 +99,10 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 			Str("order_reference", orderReference).
 			Msg("Failed to get order by reference")
 		return nil, err
+	}
+
+	if sessionID.Valid {
+		order.SessionID = sessionID.String
 	}
 
 	// Decrypt PII fields
@@ -143,6 +148,7 @@ WHERE id = $1
 	var order models.GuestOrder
 	var encryptedName, encryptedPhone sql.NullString
 	var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+	var sessionID sql.NullString
 
 	err := r.db.QueryRowContext(ctx, query, orderID).Scan(
 		&order.ID,
@@ -162,7 +168,7 @@ WHERE id = $1
 		&order.PaidAt,
 		&order.CompletedAt,
 		&order.CancelledAt,
-		&order.SessionID,
+		&sessionID,
 		&encryptedIP,
 		&encryptedUA,
 	)
@@ -177,6 +183,10 @@ WHERE id = $1
 			Str("order_id", orderID).
 			Msg("Failed to get order by ID")
 		return nil, err
+	}
+
+	if sessionID.Valid {
+		order.SessionID = sessionID.String
 	}
 
 	// Decrypt PII fields
@@ -316,6 +326,7 @@ WHERE tenant_id = $1
 		var order models.GuestOrder
 		var encryptedName, encryptedPhone sql.NullString
 		var encryptedEmail, encryptedIP, encryptedUA sql.NullString
+		var sessionID sql.NullString
 
 		err := rows.Scan(
 			&order.ID,
@@ -335,13 +346,17 @@ WHERE tenant_id = $1
 			&order.PaidAt,
 			&order.CompletedAt,
 			&order.CancelledAt,
-			&order.SessionID,
+			&sessionID,
 			&encryptedIP,
 			&encryptedUA,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan order row")
 			return nil, err
+		}
+
+		if sessionID.Valid {
+			order.SessionID = sessionID.String
 		}
 
 		// Decrypt PII fields

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	vault "github.com/hashicorp/vault/api"
 	"github.com/point-of-sale-system/order-service/src/config"
@@ -25,15 +26,29 @@ type Encryptor interface {
 	DecryptBatch(ctx context.Context, ciphertexts []string) ([]string, error)
 }
 
+// cacheEntry stores a cached value with its expiration time
+type cacheEntry struct {
+	value      string
+	expiresAt  time.Time
+}
+
 // VaultClient handles encryption/decryption via Vault Transit Engine
 // Implements FR-009: Secure key storage outside primary data storage
 // Implements FR-012: HMAC integrity verification
 // Implements Encryptor interface for dependency injection
+// T109: Implements in-memory caching to reduce Vault API calls
 type VaultClient struct {
-	client     *vault.Client
-	transitKey string
-	hmacSecret []byte
-	mu         sync.RWMutex
+	client        *vault.Client
+	transitKey    string
+	hmacSecret    []byte
+	mu            sync.RWMutex
+	
+	// T109: Cache for encryption operations (plaintext+context -> ciphertext)
+	encryptCache  map[string]*cacheEntry
+	// T109: Cache for decryption operations (ciphertext+context -> plaintext)
+	decryptCache  map[string]*cacheEntry
+	cacheTTL      time.Duration
+	maxCacheSize  int
 }
 
 var (
@@ -43,6 +58,7 @@ var (
 
 // NewVaultClient creates a singleton Vault client instance
 // POST /transit/encrypt/:key_name, POST /transit/decrypt/:key_name
+// T109: Initializes cache with 5-minute TTL and starts background cleanup
 func NewVaultClient() (*VaultClient, error) {
 	var initErr error
 	vaultClientOnce.Do(func() {
@@ -66,10 +82,17 @@ func NewVaultClient() (*VaultClient, error) {
 		hmacSecret := sha256.Sum256([]byte(transitKey + "-hmac-secret"))
 
 		vaultClientInstance = &VaultClient{
-			client:     client,
-			transitKey: transitKey,
-			hmacSecret: hmacSecret[:],
+			client:       client,
+			transitKey:   transitKey,
+			hmacSecret:   hmacSecret[:],
+			encryptCache: make(map[string]*cacheEntry),
+			decryptCache: make(map[string]*cacheEntry),
+			cacheTTL:     5 * time.Minute,  // T109: 5-minute cache TTL
+			maxCacheSize: 10000,             // T109: Max 10k entries per cache
 		}
+		
+		// T109: Start background cache cleanup every minute
+		go vaultClientInstance.cleanupExpiredCache()
 	})
 
 	if initErr != nil {
@@ -77,6 +100,70 @@ func NewVaultClient() (*VaultClient, error) {
 	}
 
 	return vaultClientInstance, nil
+}
+
+// cleanupExpiredCache removes expired entries from both caches every minute
+// T109: Background goroutine to prevent unbounded cache growth
+func (vc *VaultClient) cleanupExpiredCache() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	
+	for range ticker.C {
+		now := time.Now()
+		
+		vc.mu.Lock()
+		
+		// Clean encrypt cache
+		for key, entry := range vc.encryptCache {
+			if now.After(entry.expiresAt) {
+				delete(vc.encryptCache, key)
+			}
+		}
+		
+		// Clean decrypt cache
+		for key, entry := range vc.decryptCache {
+			if now.After(entry.expiresAt) {
+				delete(vc.decryptCache, key)
+			}
+		}
+		
+		// Enforce max cache size - evict oldest entries if over limit
+		if len(vc.encryptCache) > vc.maxCacheSize {
+			// Simple eviction: clear 10% of cache
+			count := 0
+			threshold := vc.maxCacheSize / 10
+			for key := range vc.encryptCache {
+				delete(vc.encryptCache, key)
+				count++
+				if count >= threshold {
+					break
+				}
+			}
+		}
+		
+		if len(vc.decryptCache) > vc.maxCacheSize {
+			count := 0
+			threshold := vc.maxCacheSize / 10
+			for key := range vc.decryptCache {
+				delete(vc.decryptCache, key)
+				count++
+				if count >= threshold {
+					break
+				}
+			}
+		}
+		
+		vc.mu.Unlock()
+	}
+}
+
+// getCacheKey generates a cache key for encryption/decryption operations
+// T109: Combines value and context for cache lookup
+func getCacheKey(value, context string) string {
+	if context == "" {
+		return value
+	}
+	return fmt.Sprintf("%s|%s", value, context)
 }
 
 // Encrypt encrypts plaintext using Vault Transit Engine Encrypt API
@@ -91,13 +178,28 @@ func (vc *VaultClient) Encrypt(ctx context.Context, plaintext string) (string, e
 // The context parameter enables deterministic encryption - same plaintext + context = same ciphertext
 // This allows for efficient encrypted field search and deduplication
 // Format: "vault:v1:<base64_ciphertext>:<hex_hmac>"
+// T109: Implements caching to reduce Vault API calls
 func (vc *VaultClient) EncryptWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
 	if plaintext == "" {
 		return "", nil // Don't encrypt empty strings
 	}
 
+	// T109: Check cache first (read lock for cache lookup)
+	cacheKey := getCacheKey(plaintext, encryptionContext)
 	vc.mu.RLock()
-	defer vc.mu.RUnlock()
+	if entry, exists := vc.encryptCache[cacheKey]; exists {
+		if time.Now().Before(entry.expiresAt) {
+			// Cache hit - return cached ciphertext
+			vc.mu.RUnlock()
+			return entry.value, nil
+		}
+		// Cache expired - will be cleaned up later
+	}
+	vc.mu.RUnlock()
+
+	// T109: Cache miss - call Vault and store result
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
 
 	// Call Vault Transit Engine Encrypt API with context for convergent encryption
 	path := fmt.Sprintf("transit/encrypt/%s", vc.transitKey)
@@ -127,7 +229,15 @@ func (vc *VaultClient) EncryptWithContext(ctx context.Context, plaintext string,
 	hmacHex := hex.EncodeToString(mac.Sum(nil))
 
 	// Return format: ciphertext:hmac
-	return fmt.Sprintf("%s:%s", ciphertext, hmacHex), nil
+	result := fmt.Sprintf("%s:%s", ciphertext, hmacHex)
+	
+	// T109: Store in cache with TTL
+	vc.encryptCache[cacheKey] = &cacheEntry{
+		value:     result,
+		expiresAt: time.Now().Add(vc.cacheTTL),
+	}
+	
+	return result, nil
 }
 
 // Decrypt decrypts ciphertext using Vault Transit Engine Decrypt API
@@ -140,13 +250,28 @@ func (vc *VaultClient) Decrypt(ctx context.Context, ciphertext string) (string, 
 // DecryptWithContext decrypts ciphertext using Vault Transit Engine with convergent encryption context
 // The context parameter must match the one used during encryption
 // Verifies HMAC integrity before decryption (FR-012)
+// T109: Implements caching to reduce Vault API calls
 func (vc *VaultClient) DecryptWithContext(ctx context.Context, ciphertext string, encryptionContext string) (string, error) {
 	if ciphertext == "" {
 		return "", nil // Don't decrypt empty strings
 	}
 
+	// T109: Check cache first (read lock for cache lookup)
+	cacheKey := getCacheKey(ciphertext, encryptionContext)
 	vc.mu.RLock()
-	defer vc.mu.RUnlock()
+	if entry, exists := vc.decryptCache[cacheKey]; exists {
+		if time.Now().Before(entry.expiresAt) {
+			// Cache hit - return cached plaintext
+			vc.mu.RUnlock()
+			return entry.value, nil
+		}
+		// Cache expired - will be cleaned up later
+	}
+	vc.mu.RUnlock()
+
+	// T109: Cache miss - verify HMAC and call Vault
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
 
 	// Parse vault:v1:data:hmac format
 	// HMAC is optional - only present if string ends with :HEXSTRING (64 hex chars)
@@ -220,7 +345,15 @@ func (vc *VaultClient) DecryptWithContext(ctx context.Context, ciphertext string
 		return "", fmt.Errorf("failed to decode plaintext: %w", err)
 	}
 
-	return string(plaintext), nil
+	result := string(plaintext)
+	
+	// T109: Store in cache with TTL
+	vc.decryptCache[cacheKey] = &cacheEntry{
+		value:     result,
+		expiresAt: time.Now().Add(vc.cacheTTL),
+	}
+
+	return result, nil
 }
 
 // EncryptBatch encrypts multiple plaintexts in a single Vault API call (performance optimization)

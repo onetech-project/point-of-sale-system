@@ -13,21 +13,22 @@ import { TaskAlerts } from '@/components/dashboard/TaskAlerts';
 import { TimeSeriesFilter, Granularity } from '@/components/dashboard/TimeSeriesFilter';
 import { SalesChart } from '@/components/dashboard/SalesChart';
 import { QuickActions } from '@/components/dashboard/QuickActions';
+import { OfflineOrderMetrics } from '@/components/dashboard/OfflineOrderMetrics';
 import { DashboardErrorBoundary } from '@/components/common/ErrorBoundary';
 import analytics from '@/services/analytics';
 import { formatCurrency, formatNumber } from '@/utils/format';
-import type { 
-  SalesOverviewResponse, 
-  TopProductsResponse, 
+import type {
+  SalesOverviewResponse,
+  TopProductsResponse,
   TopCustomersResponse,
   OperationalTasksResponse,
   SalesTrendResponse,
-  TimeRange 
+  TimeRange,
 } from '@/types/analytics';
 
 export default function AnalyticsDashboardPage() {
   const router = useRouter();
-  
+
   // Helper function to format date in user's local timezone
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -42,7 +43,7 @@ export default function AnalyticsDashboardPage() {
   const [topProducts, setTopProducts] = useState<TopProductsResponse | null>(null);
   const [topCustomers, setTopCustomers] = useState<TopCustomersResponse | null>(null);
   const [tasks, setTasks] = useState<OperationalTasksResponse | null>(null);
-  
+
   // State for time series section
   const [granularity, setGranularity] = useState<Granularity>('daily');
   const [startDate, setStartDate] = useState(() => {
@@ -52,7 +53,7 @@ export default function AnalyticsDashboardPage() {
   });
   const [endDate, setEndDate] = useState(() => formatLocalDate(new Date()));
   const [trendData, setTrendData] = useState<SalesTrendResponse | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [trendLoading, setTrendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +83,16 @@ export default function AnalyticsDashboardPage() {
         // Monday-based week calculation
         const currentDayOfWeek = now.getDay();
         const daysFromMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1; // Convert Sunday (0) to 6, others to Mon=0, Tue=1, etc.
-        const lastMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday - 7);
-        const lastSunday = new Date(lastMonday.getFullYear(), lastMonday.getMonth(), lastMonday.getDate() + 6);
+        const lastMonday = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - daysFromMonday - 7
+        );
+        const lastSunday = new Date(
+          lastMonday.getFullYear(),
+          lastMonday.getMonth(),
+          lastMonday.getDate() + 6
+        );
         start = lastMonday;
         end = lastSunday;
         break;
@@ -146,8 +155,7 @@ export default function AnalyticsDashboardPage() {
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
       setError(
-        err.response?.data?.message || 
-        'Failed to load dashboard data. Please try again later.'
+        err.response?.data?.message || 'Failed to load dashboard data. Please try again later.'
       );
     } finally {
       setLoading(false);
@@ -232,10 +240,10 @@ export default function AnalyticsDashboardPage() {
             <div className="flex items-center gap-3">
               <select
                 value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                onChange={e => setTimeRange(e.target.value as TimeRange)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                {timeRangeOptions.map((option) => (
+                {timeRangeOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -267,94 +275,96 @@ export default function AnalyticsDashboardPage() {
           {/* Metrics Cards */}
           <DashboardErrorBoundary sectionName="Sales Metrics">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard
-              title="Total Revenue"
-              value={salesData ? formatCurrency(salesData.metrics.total_revenue, true) : '—'}
-              change={salesData?.metrics.revenue_change}
-              changeLabel="vs previous period"
-              loading={loading}
-              icon={
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              }
-            />
-            <MetricCard
-              title="Total Orders"
-              value={salesData ? formatNumber(salesData.metrics.total_orders, 0) : '—'}
-              change={salesData?.metrics.orders_change}
-              changeLabel="vs previous period"
-              loading={loading}
-              icon={
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                  />
-                </svg>
-              }
-            />
-            <MetricCard
-              title="Average Order Value"
-              value={salesData ? formatCurrency(salesData.metrics.average_order_value, true) : '—'}
-              change={salesData?.metrics.aov_change}
-              changeLabel="vs previous period"
-              loading={loading}
-              icon={
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-              }
-            />
-            <MetricCard
-              title="Inventory Value"
-              value={salesData ? formatCurrency(salesData.metrics.inventory_value, true) : '—'}
-              changeLabel="total stock value"
-              loading={loading}
-              icon={
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                  />
-                </svg>
-              }
-            />
-          </div>
+              <MetricCard
+                title="Total Revenue"
+                value={salesData ? formatCurrency(salesData.metrics.total_revenue, true) : '—'}
+                change={salesData?.metrics.revenue_change}
+                changeLabel="vs previous period"
+                loading={loading}
+                icon={
+                  <svg
+                    className="w-6 h-6 text-primary-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                }
+              />
+              <MetricCard
+                title="Total Orders"
+                value={salesData ? formatNumber(salesData.metrics.total_orders, 0) : '—'}
+                change={salesData?.metrics.orders_change}
+                changeLabel="vs previous period"
+                loading={loading}
+                icon={
+                  <svg
+                    className="w-6 h-6 text-primary-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                    />
+                  </svg>
+                }
+              />
+              <MetricCard
+                title="Average Order Value"
+                value={
+                  salesData ? formatCurrency(salesData.metrics.average_order_value, true) : '—'
+                }
+                change={salesData?.metrics.aov_change}
+                changeLabel="vs previous period"
+                loading={loading}
+                icon={
+                  <svg
+                    className="w-6 h-6 text-primary-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                }
+              />
+              <MetricCard
+                title="Inventory Value"
+                value={salesData ? formatCurrency(salesData.metrics.inventory_value, true) : '—'}
+                changeLabel="total stock value"
+                loading={loading}
+                icon={
+                  <svg
+                    className="w-6 h-6 text-primary-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                    />
+                  </svg>
+                }
+              />
+            </div>
           </DashboardErrorBoundary>
 
           {/* Time Series Chart Section */}
@@ -382,14 +392,29 @@ export default function AnalyticsDashboardPage() {
             <QuickActions />
           </DashboardErrorBoundary>
 
+          {/* US5: Offline Order Metrics (T104-T106) */}
+          <DashboardErrorBoundary sectionName="Offline Order Insights">
+            <OfflineOrderMetrics
+              offlineOrderCount={salesData?.metrics.offline_order_count || 0}
+              offlineRevenue={salesData?.metrics.offline_revenue || 0}
+              offlinePercentage={salesData?.metrics.offline_percentage || 0}
+              onlineOrderCount={salesData?.metrics.online_order_count || 0}
+              onlineRevenue={salesData?.metrics.online_revenue || 0}
+              installmentCount={salesData?.metrics.installment_count || 0}
+              installmentRevenue={salesData?.metrics.installment_revenue || 0}
+              pendingInstallments={salesData?.metrics.pending_installments || 0}
+              loading={loading}
+            />
+          </DashboardErrorBoundary>
+
           {/* Operational Tasks (Delayed Orders & Low Stock) */}
           <DashboardErrorBoundary sectionName="Operational Tasks">
             <TaskAlerts
               delayedOrders={tasks?.delayed_orders.delayed_orders || []}
               restockAlerts={tasks?.restock_alerts.restock_alerts || []}
               loading={loading}
-              onNavigateToOrder={(orderId) => router.push(`/orders/${orderId}`)}
-              onNavigateToProduct={(productId) => router.push(`/products/${productId}`)}
+              onNavigateToOrder={orderId => router.push(`/orders/${orderId}`)}
+              onNavigateToProduct={productId => router.push(`/products/${productId}`)}
             />
           </DashboardErrorBoundary>
 
@@ -430,17 +455,17 @@ export default function AnalyticsDashboardPage() {
           {/* Customer Rankings */}
           <DashboardErrorBoundary sectionName="Customer Rankings">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <CustomerRankingTable
-              customers={topCustomers?.top_by_spending || []}
-              loading={loading}
-              type="Spending"
-            />
-            <CustomerRankingTable
-              customers={topCustomers?.top_by_orders || []}
-              loading={loading}
-              type="Orders"
-            />
-          </div>
+              <CustomerRankingTable
+                customers={topCustomers?.top_by_spending || []}
+                loading={loading}
+                type="Spending"
+              />
+              <CustomerRankingTable
+                customers={topCustomers?.top_by_orders || []}
+                loading={loading}
+                type="Orders"
+              />
+            </div>
           </DashboardErrorBoundary>
 
           {/* Footer Note */}
@@ -462,8 +487,8 @@ export default function AnalyticsDashboardPage() {
               <div className="text-sm text-blue-700">
                 <p className="font-medium">Data Privacy</p>
                 <p className="mt-1">
-                  Customer information is encrypted and masked to protect privacy. 
-                  All analytics data is cached for performance and refreshed periodically.
+                  Customer information is encrypted and masked to protect privacy. All analytics
+                  data is cached for performance and refreshed periodically.
                 </p>
               </div>
             </div>

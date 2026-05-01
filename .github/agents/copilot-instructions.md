@@ -17,6 +17,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-22
 - PostgreSQL (primary data storage with RLS and multi-tenancy), Kafka (event streaming) (006-uu-pdp-compliance)
 - Go 1.24.0 (backend analytics service), TypeScript 5.9+ (frontend), Next.js 16.0.3 + Echo v4.13.4 (HTTP), PostgreSQL lib/pq 1.10.9 (database), Redis go-redis v9.7.0 (caching), React 19.2.0, Chart library (TBD - Recharts vs Chart.js vs Apache ECharts) (007-business-insights-dashboard)
 - PostgreSQL 14+ (shared database with tenant isolation via RLS), Redis 7+ (caching aggregated metrics) (007-business-insights-dashboard)
+- Go 1.24.0 (backend services), TypeScript/Next.js 16 + React 19 (frontend) + Echo v4.13 (REST framework), PostgreSQL 14 (primary storage), Redis 7 (caching), Kafka (event streaming), Vault (secrets), golang-migrate (migrations), go-redis/v9, lib/pq (PostgreSQL driver) (008-offline-orders)
+- PostgreSQL 14 with Row-Level Security (RLS) for tenant isolation, Redis for session/cache (008-offline-orders)
 
 - (001-auth-multitenancy)
 
@@ -36,9 +38,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 008-offline-orders: Added Go 1.24.0 (backend services), TypeScript/Next.js 16 + React 19 (frontend) + Echo v4.13 (REST framework), PostgreSQL 14 (primary storage), Redis 7 (caching), Kafka (event streaming), Vault (secrets), golang-migrate (migrations), go-redis/v9, lib/pq (PostgreSQL driver)
 - 007-business-insights-dashboard: Added Go 1.24.0 (backend analytics service), TypeScript 5.9+ (frontend), Next.js 16.0.3 + Echo v4.13.4 (HTTP), PostgreSQL lib/pq 1.10.9 (database), Redis go-redis v9.7.0 (caching), React 19.2.0, Chart library (TBD - Recharts vs Chart.js vs Apache ECharts)
 - 006-uu-pdp-compliance: Added Go 1.24 (backend microservices), TypeScript/Next.js 16 (frontend) + Echo v4 (Go web framework), lib/pq (PostgreSQL driver), OpenTelemetry, Kafka, React 19, next-i18next
-- 005-product-photo-storage: Added Go 1.23.0 + Echo v4.12.0 (web framework), MinIO Go SDK (object storage client), lib/pq (PostgreSQL driver), disintegration/imaging v1.6.2 (image processing)
 
 
 <!-- MANUAL ADDITIONS START -->

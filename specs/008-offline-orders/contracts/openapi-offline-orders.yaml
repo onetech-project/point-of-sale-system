@@ -1,0 +1,933 @@
+openapi: 3.0.3
+info:
+  title: Offline Order Management API
+  description: |
+    API for managing offline orders (walk-in customers, phone orders) with payment terms and installments.
+    All endpoints require authentication via JWT token. RBAC enforced for sensitive operations.
+  version: 1.0.0
+  contact:
+    name: POS System API Team
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development via API Gateway
+  - url: https://api.possystem.example.com/api/v1
+    description: Production API Gateway
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Offline Orders
+    description: CRUD operations for offline orders
+  - name: Payments
+    description: Payment recording and installment management
+  - name: Admin
+    description: Administrative operations (owner/manager only)
+
+paths:
+  /offline-orders:
+    post:
+      summary: Create a new offline order
+      description: |
+        Record a new offline order with customer details and line items.
+        Optionally specify payment terms (full payment, down payment + installments).
+      tags:
+        - Offline Orders
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOfflineOrderRequest'
+            examples:
+              fullPayment:
+                summary: Full payment upfront
+                value:
+                  customer_name: "John Doe"
+                  customer_phone: "+6281234567890"
+                  customer_email: "john@example.com"
+                  delivery_type: "pickup"
+                  notes: "Customer will pick up tomorrow"
+                  data_consent_given: true
+                  consent_method: "verbal"
+                  items:
+                    - product_id: "550e8400-e29b-41d4-a716-446655440000"
+                      quantity: 2
+                      unit_price: 50000
+                    - product_id: "660e8400-e29b-41d4-a716-446655440001"
+                      quantity: 1
+                      unit_price: 100000
+                  payment:
+                    type: "full"
+                    amount: 200000
+                    method: "cash"
+              installmentPayment:
+                summary: Down payment with installments
+                value:
+                  customer_name: "Jane Smith"
+                  customer_phone: "+6281234567891"
+                  delivery_type: "delivery"
+                  delivery_address: "Jl. Sudirman No. 123, Jakarta"
+                  data_consent_given: true
+                  consent_method: "written"
+                  items:
+                    - product_id: "550e8400-e29b-41d4-a716-446655440000"
+                      quantity: 5
+                      unit_price: 100000
+                  payment:
+                    type: "installment"
+                    down_payment_amount: 150000
+                    down_payment_method: "card"
+                    installment_count: 3
+                    installment_amount: 116667
+                    payment_schedule:
+                      - installment_number: 1
+                        due_date: "2026-03-07"
+                        amount: 116667
+                      - installment_number: 2
+                        due_date: "2026-04-07"
+                        amount: 116667
+                      - installment_number: 3
+                        due_date: "2026-05-07"
+                        amount: 116666
+      responses:
+        '201':
+          description: Offline order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      summary: List offline orders
+      description: |
+        Retrieve a paginated list of offline orders for the authenticated user's tenant.
+        Supports filtering by status, date range, and payment status.
+      tags:
+        - Offline Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by order status
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, PAID, COMPLETE, CANCELLED]
+        - name: payment_status
+          in: query
+          description: Filter by payment completion
+          required: false
+          schema:
+            type: string
+            enum: [pending_payment, paid, overdue]
+        - name: from_date
+          in: query
+          description: Filter orders created after this date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to_date
+          in: query
+          description: Filter orders created before this date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of offline orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineOrderListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /offline-orders/{orderId}:
+    get:
+      summary: Get offline order details
+      description: Retrieve full details of a specific offline order including items, payments, and audit trail.
+      tags:
+        - Offline Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+descriptionUUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Offline order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineOrderDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update offline order
+      description: |
+        Update customer information or order items. 
+        Restrictions: Cannot modify order after status = PAID (except adding notes).
+      tags:
+        - Offline Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: UUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOfflineOrderRequest'
+      responses:
+        '200':
+          description: Order updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete offline order (owner/manager only)
+      description: |
+        Soft delete an offline order. Requires owner or manager role.
+        Order is marked as cancelled with deletion reason logged to audit trail.
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: UUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for deletion (logged to audit trail)
+                  example: "Duplicate order entry"
+              required:
+                - reason
+      responses:
+        '204':
+          description: Order deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - requires owner or manager role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Insufficient permissions"
+                message: "Only owner or manager can delete offline orders"
+                code: "FORBIDDEN"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /offline-orders/{orderId}/payments:
+    post:
+      summary: Record a payment for offline order
+      description: |
+        Record a payment (installment or additional payment) for an offline order.
+        Automatically updates order status to PAID when total_paid >= total_amount.
+      tags:
+        - Payments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: UUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPaymentRequest'
+      responses:
+        '201':
+          description: Payment recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRecordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      summary: Get payment history for order
+      description: Retrieve all payment records for an offline order in chronological order.
+      tags:
+        - Payments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: UUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /offline-orders/{orderId}/status:
+    patch:
+      summary: Update order status
+      description: |
+        Manually update order status. 
+        Restrictions: Can only mark COMPLETE if current status is PAID.
+      tags:
+        - Offline Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: UUID of the offline order
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [COMPLETE, CANCELLED]
+                  description: New status (PENDING/PAID auto-managed by payments)
+                notes:
+                  type: string
+                  description: Optional notes explaining status change
+              required:
+                - status
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from authentication service
+
+  schemas:
+    CreateOfflineOrderRequest:
+      type: object
+      required:
+        - customer_name
+        - customer_phone
+        - delivery_type
+        - data_consent_given
+        - consent_method
+        - items
+        - payment
+      properties:
+        customer_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "John Doe"
+        customer_phone:
+          type: string
+          pattern: '^\+?[0-9]{10,15}$'
+          example: "+6281234567890"
+        customer_email:
+          type: string
+          format: email
+          nullable: true
+          example: "john@example.com"
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        delivery_address:
+          type: string
+          nullable: true
+          description: Required if delivery_type = delivery
+        table_number:
+          type: string
+          nullable: true
+          description: Required if delivery_type = dine_in
+        notes:
+          type: string
+          nullable: true
+          description: Staff notes or customer preferences
+        data_consent_given:
+          type: boolean
+          description: UU PDP/GDPR compliance - customer consented to data collection
+        consent_method:
+          type: string
+          enum: [verbal, written, digital]
+          description: How consent was obtained
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - product_id
+              - quantity
+              - unit_price
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+              unit_price:
+                type: integer
+                minimum: 0
+                description: Price in smallest currency unit (IDR cents)
+        payment:
+          oneOf:
+            - $ref: '#/components/schemas/FullPayment'
+            - $ref: '#/components/schemas/InstallmentPayment'
+
+    FullPayment:
+      type: object
+      required:
+        - type
+        - amount
+        - method
+      properties:
+        type:
+          type: string
+          enum: [full]
+        amount:
+          type: integer
+          minimum: 1
+          description: Payment amount in smallest currency unit
+        method:
+          type: string
+          enum: [cash, card, bank_transfer, check, other]
+        receipt_number:
+          type: string
+          nullable: true
+
+    InstallmentPayment:
+      type: object
+      required:
+        - type
+        - down_payment_amount
+        - down_payment_method
+        - installment_count
+        - installment_amount
+        - payment_schedule
+      properties:
+        type:
+          type: string
+          enum: [installment]
+        down_payment_amount:
+          type: integer
+          minimum: 0
+          description: Initial payment amount
+        down_payment_method:
+          type: string
+          enum: [cash, card, bank_transfer, check, other]
+        installment_count:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Number of installment payments
+        installment_amount:
+          type: integer
+          minimum: 1
+          description: Amount per installment
+        payment_schedule:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - installment_number
+              - due_date
+              - amount
+            properties:
+              installment_number:
+                type: integer
+                minimum: 1
+              due_date:
+                type: string
+                format: date
+              amount:
+                type: integer
+                minimum: 1
+
+    UpdateOfflineOrderRequest:
+      type: object
+      properties:
+        customer_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        customer_phone:
+          type: string
+          pattern: '^\+?[0-9]{10,15}$'
+        customer_email:
+          type: string
+          format: email
+          nullable: true
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        delivery_address:
+          type: string
+          nullable: true
+        table_number:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          minItems: 1
+          description: Complete replacement of order items (if provided)
+          items:
+            type: object
+            required:
+              - product_id
+              - quantity
+              - unit_price
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+              unit_price:
+                type: integer
+                minimum: 0
+
+    Record PaymentRequest:
+      type: object
+      required:
+        - amount
+        - payment_method
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: Payment amount in smallest currency unit
+        payment_method:
+          type: string
+          enum: [cash, card, bank_transfer, check, other]
+        receipt_number:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    OfflineOrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_reference:
+          type: string
+          example: "GO-ABC123"
+        order_type:
+          type: string
+          enum: [offline]
+        status:
+          type: string
+          enum: [PENDING, PAID, COMPLETE, CANCELLED]
+        customer_name:
+          type: string
+        customer_phone:
+          type: string
+        customer_email:
+          type: string
+          nullable: true
+        delivery_type:
+          type: string
+          enum: [pickup, delivery, dine_in]
+        delivery_address:
+          type: string
+          nullable: true
+        table_number:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        subtotal_amount:
+          type: integer
+        delivery_fee:
+          type: integer
+        total_amount:
+          type: integer
+        total_paid:
+          type: integer
+          description: Sum of all payments received
+        remaining_balance:
+          type: integer
+          description: Outstanding balance (total_amount - total_paid)
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        recorded_by:
+          type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            user_name:
+              type: string
+        last_modified_by:
+          type: object
+          nullable: true
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            user_name:
+              type: string
+        last_modified_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    OfflineOrderDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/OfflineOrderResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  product_id:
+                    type: string
+                    format: uuid
+                  product_name:
+                    type: string
+                  quantity:
+                    type: integer
+                  unit_price:
+                    type: integer
+                  total_price:
+                    type: integer
+            payment_terms:
+              type: object
+              nullable: true
+              description: Present only if order has installment plan
+              properties:
+                down_payment_amount:
+                  type: integer
+                installment_count:
+                  type: integer
+                installment_amount:
+                  type: integer
+                payment_schedule:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      installment_number:
+                        type: integer
+                      due_date:
+                        type: string
+                        format: date
+                      amount:
+                        type: integer
+                      status:
+                        type: string
+                        enum: [pending, paid, overdue]
+            payments:
+              type: array
+              description: Payment history
+              items:
+                $ref: '#/components/schemas/PaymentRecord'
+
+    OfflineOrderListResponse:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfflineOrderResponse'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total_count:
+              type: integer
+            total_pages:
+              type: integer
+
+    PaymentRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        payment_number:
+          type: integer
+          description: 0 = down payment, 1+ = installment number
+        amount_paid:
+          type: integer
+        payment_method:
+          type: string
+          enum: [cash, card, bank_transfer, check, other]
+        payment_date:
+          type: string
+          format: date-time
+        remaining_balance_after:
+          type: integer
+        receipt_number:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        recorded_by:
+          type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            user_name:
+              type: string
+
+    PaymentRecordResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaymentRecord'
+        - type: object
+          properties:
+            order_updated:
+              type: boolean
+              description: True if order status changed to PAID
+            new_order_status:
+              type: string
+              enum: [PENDING, PAID, COMPLETE, CANCELLED]
+
+    PaymentHistoryResponse:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        total_amount:
+          type: integer
+        total_paid:
+          type: integer
+        remaining_balance:
+          type: integer
+        payments:
+          type: array
+          items:
+            $ref:'/components/schemas/PaymentRecord'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          description: Field-specific validation errors
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Validation failed"
+            message: "Invalid request body"
+            code: "BAD_REQUEST"
+            fields:
+              customer_phone: "Invalid phone number format"
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Authentication required"
+            message: "Missing or invalid authorization token"
+            code: "UNAUTHORIZED"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Insufficient permissions"
+            message: "User does not have permission to perform this action"
+            code: "FORBIDDEN"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Resource not found"
+            message: "Offline order with id 'xxx' not found"
+            code: "NOT_FOUND"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal server error"
+            message: "An unexpected error occurred"
+            code: "INTERNAL_ERROR"

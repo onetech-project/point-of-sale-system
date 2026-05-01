@@ -105,6 +105,56 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		metrics.AOVChange = 100
 	}
 
+	// US5: Calculate offline order metrics (T101-T102)
+	offlineMetricsQuery := fmt.Sprintf(`
+		SELECT 
+			COUNT(*) as offline_count,
+			COALESCE(SUM(total_amount), 0) as offline_revenue,
+			COUNT(CASE WHEN pt.payment_type = 'installment' THEN 1 END) as installment_count,
+			COALESCE(SUM(CASE WHEN pt.payment_type = 'installment' THEN total_amount ELSE 0 END), 0) as installment_revenue
+		FROM guest_orders go
+		LEFT JOIN payment_terms pt ON pt.order_id = go.id AND pt.tenant_id = go.tenant_id
+		WHERE go.tenant_id = $1 
+			AND go.order_type = 'offline'
+			AND go.status = 'COMPLETE'
+			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+	`, r.timezone)
+
+	err = r.db.QueryRowContext(ctx, offlineMetricsQuery, tenantID, start, end).Scan(
+		&metrics.OfflineOrderCount,
+		&metrics.OfflineRevenue,
+		&metrics.InstallmentCount,
+		&metrics.InstallmentRevenue,
+	)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("Failed to get offline metrics, using zero values")
+		// Continue with zero values for offline metrics
+	}
+
+	// Calculate online orders (total - offline)
+	metrics.OnlineOrderCount = metrics.TotalOrders - metrics.OfflineOrderCount
+	metrics.OnlineRevenue = metrics.TotalRevenue - metrics.OfflineRevenue
+
+	// Calculate offline percentage
+	if metrics.TotalOrders > 0 {
+		metrics.OfflinePercentage = (float64(metrics.OfflineOrderCount) / float64(metrics.TotalOrders)) * 100
+	}
+
+	// Calculate pending installments
+	pendingInstallmentsQuery := `
+		SELECT COALESCE(SUM(amount_due - amount_paid), 0) as pending_amount
+		FROM installment_schedules
+		WHERE tenant_id = $1 
+			AND status = 'pending'
+			AND due_date <= CURRENT_TIMESTAMP
+	`
+
+	err = r.db.QueryRowContext(ctx, pendingInstallmentsQuery, tenantID).Scan(&metrics.PendingInstallments)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("Failed to get pending installments, using zero value")
+		// Continue with zero value for pending installments
+	}
+
 	return metrics, nil
 }
 
