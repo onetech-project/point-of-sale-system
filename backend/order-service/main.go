@@ -144,6 +144,32 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize GuestOrderRepository")
 	}
 
+	// Initialize offline order components (US1-US4)
+	offlineOrderRepo, err := repository.NewOfflineOrderRepositoryWithVault(config.GetDB(), auditPublisher)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize OfflineOrderRepository")
+	}
+	
+	outboxRepo := repository.NewOutboxRepository(config.GetDB())
+	eventPublisherConfig := services.EventPublisherConfig{
+		KafkaBrokers: brokerList,
+		MaxRetries:   5,
+	}
+	eventPublisher := services.NewEventPublisher(config.GetDB(), eventPublisherConfig)
+	paymentCalculator := services.NewPaymentCalculator()
+	
+	offlineOrderService := services.NewOfflineOrderService(
+		config.GetDB(),
+		offlineOrderRepo,
+		orderRepo,
+		paymentRepo,
+		outboxRepo,
+		eventPublisher,
+		paymentCalculator,
+	)
+	
+	offlineOrderHandler := api.NewOfflineOrderHandler(offlineOrderService)
+
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
 	adminOrderHandler := api.NewAdminOrderHandler(orderService)
@@ -202,6 +228,25 @@ func main() {
 	// Admin routes (JWT auth will be added in future)
 	adminOrderHandler.RegisterRoutes(e)
 	orderSettingsHandler.RegisterRoutes(e)
+
+	// Offline order routes (US1-US4)
+	// Authentication is handled by API Gateway (injects X-User-ID, X-User-Role headers)
+	// No JWT middleware needed here, but RequireRole middleware enforces role-based access
+	// T110: Rate limiting applied to prevent abuse of offline order operations
+	noopJWTMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return next
+	}
+	
+	requireRoleWrapper := func(roles ...string) echo.MiddlewareFunc {
+		rolesList := make([]customMiddleware.Role, len(roles))
+		for i, role := range roles {
+			rolesList[i] = customMiddleware.Role(role)
+		}
+		return customMiddleware.RequireRole(rolesList...)
+	}
+	
+	// T110: Pass rate limit middleware to offline order routes
+	api.RegisterOfflineOrderRoutes(e, offlineOrderHandler, noopJWTMiddleware, requireRoleWrapper, customMiddleware.RateLimit())
 
 	// Start server
 	port := config.GetEnvAsString("PORT")

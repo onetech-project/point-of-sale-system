@@ -147,7 +147,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -198,7 +198,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
@@ -243,6 +243,16 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
             fi
             sleep 1
         done
+        echo ""
+
+        # Apply latest database schema before services boot.
+        echo "🗃️  Running database migrations..."
+        if [ -x "$PROJECT_ROOT/scripts/run-migrations.sh" ]; then
+            "$PROJECT_ROOT/scripts/run-migrations.sh"
+        else
+            chmod +x "$PROJECT_ROOT/scripts/run-migrations.sh"
+            "$PROJECT_ROOT/scripts/run-migrations.sh"
+        fi
         echo ""
     fi
 fi

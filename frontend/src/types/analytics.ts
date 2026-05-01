@@ -27,6 +27,16 @@ export interface SalesMetrics {
   revenue_change: number; // Percentage
   orders_change: number; // Percentage
   aov_change: number; // Percentage
+
+  // US5: Offline Order Metrics (T107)
+  offline_order_count: number;
+  offline_revenue: number;
+  offline_percentage: number;
+  online_order_count: number;
+  online_revenue: number;
+  installment_count: number;
+  installment_revenue: number;
+  pending_installments: number;
 }
 
 export interface DailySalesData {
@@ -137,8 +147,8 @@ export interface DelayedOrder {
 
 export interface DelayedOrdersResponse {
   count: number;
-  urgent_count: number;   // > 30 minutes
-  warning_count: number;  // 15-30 minutes
+  urgent_count: number; // > 30 minutes
+  warning_count: number; // 15-30 minutes
   delayed_orders: DelayedOrder[];
 }
 
@@ -150,7 +160,7 @@ export interface RestockAlert {
   current_stock: number;
   low_stock_threshold: number;
   recommended_reorder: number;
-  status: 'critical' | 'low';  // critical = 0 stock, low = below threshold
+  status: 'critical' | 'low'; // critical = 0 stock, low = below threshold
   selling_price: number;
   cost_price: number;
   image_url?: string;
@@ -158,7 +168,7 @@ export interface RestockAlert {
 
 export interface RestockAlertsResponse {
   count: number;
-  critical_count: number;  // 0 stock
+  critical_count: number; // 0 stock
   low_stock_count: number; // below threshold
   restock_alerts: RestockAlert[];
 }
@@ -170,9 +180,9 @@ export interface OperationalTasksResponse {
 
 // Time Series Types
 export interface SalesTrendResponse {
-  period: string;       // e.g., "daily", "monthly"
-  start_date: string;   // ISO 8601 date
-  end_date: string;     // ISO 8601 date
+  period: string; // e.g., "daily", "monthly"
+  start_date: string; // ISO 8601 date
+  end_date: string; // ISO 8601 date
   revenue_data: TimeSeriesDataPoint[];
   orders_data: TimeSeriesDataPoint[];
 }
