@@ -86,6 +86,7 @@ func main() {
 		tenantSlug := c.Param("tenant_slug")
 		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
 	})
+	public.GET("/api/v1/public/plans", proxyHandler(tenantServiceURL, "/public/plans"))
 
 	// Public menu endpoint for guest ordering
 	public.GET("/api/public/menu/:tenant_id/products", func(c echo.Context) error {

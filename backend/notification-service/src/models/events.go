@@ -42,6 +42,9 @@ type OrderItem struct {
 
 // Event type constants
 const (
-	EventTypeOrderPaidStaff    = "order.paid.staff"
-	EventTypeOrderPaidCustomer = "order.paid.customer"
+	EventTypeOrderPaidStaff      = "order.paid.staff"
+	EventTypeOrderPaidCustomer   = "order.paid.customer"
+	EventTypeSubscriptionTrialStarted  = "subscription.trial_started"
+	EventTypeSubscriptionTrialEnding   = "subscription.trial_ending"
+	EventTypeSubscriptionPaymentReceived = "subscription.payment_received"
 )

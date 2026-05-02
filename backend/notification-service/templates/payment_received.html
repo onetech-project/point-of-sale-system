@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Confirmed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #4F46E5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4F46E5;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 10px 10px 0;
+        }
+
+        .button-group {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .details-table th {
+            background-color: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+            font-weight: bold;
+        }
+
+        .details-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .confirmation-badge {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Payment Confirmed ✓</h1>
+    </div>
+    <div class="content">
+        <span class="confirmation-badge">TRANSACTION SUCCESSFUL</span>
+        
+        <h2>Thank you for your subscription!</h2>
+        <p>Hi {{.OwnerName}},</p>
+        <p>We've successfully received your payment for {{.BusinessName}}. Your subscription is now active.</p>
+
+        <h3>Subscription Details</h3>
+        <table class="details-table">
+            <tr>
+                <th>Plan</th>
+                <td>{{.PlanName}}</td>
+            </tr>
+            <tr>
+                <th>Billing Cycle</th>
+                <td>{{.BillingCycle}}</td>
+            </tr>
+            <tr>
+                <th>Amount</th>
+                <td><strong>{{.Amount}}</strong></td>
+            </tr>
+            <tr>
+                <th>Next Billing Date</th>
+                <td>{{.NextBillingDate}}</td>
+            </tr>
+        </table>
+
+        <p>You now have full access to all features included in the {{.PlanName}} plan. Start managing your business with Posku today!</p>
+
+        <div class="button-group">
+            <a href="{{.InvoiceURL}}" class="button">View Invoice</a>
+            <a href="{{.DashboardURL}}" class="button">Go to Dashboard</a>
+        </div>
+
+        <p>If you need to manage your subscription or have any questions about your account, you can access your billing settings from your dashboard.</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated email, please do not reply.</p>
+        <p>&copy; {{ now.Year }} Posku. All rights reserved.</p>
+    </div>
+</body>
+
+</html>
