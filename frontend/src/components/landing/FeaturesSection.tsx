@@ -6,22 +6,6 @@ interface Feature {
   description: string;
 }
 
-function MultiTenantIcon() {
-  return (
-    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z" />
-    </svg>
-  );
-}
-
-function InventoryIcon() {
-  return (
-    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M3 6h18v2H3V6zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-    </svg>
-  );
-}
-
 function OnlineOrderingIcon() {
   return (
     <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -38,10 +22,26 @@ function PaymentIcon() {
   );
 }
 
+function OfflineOrderIcon() {
+  return (
+    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3zm-9-3.82l-2.09-2.09L6.5 13.5 10 17l6.01-6.01-1.42-1.41z" />
+    </svg>
+  );
+}
+
 function AnalyticsIcon() {
   return (
     <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
       <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z" />
+    </svg>
+  );
+}
+
+function InventoryIcon() {
+  return (
+    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M3 6h18v2H3V6zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
     </svg>
   );
 }
@@ -57,34 +57,40 @@ function TeamIcon() {
 export default function FeaturesSection() {
   const features: Feature[] = [
     {
-      icon: <MultiTenantIcon />,
-      title: 'Multi-Tenant',
-      description: 'Each business gets its own isolated workspace with complete data privacy',
+      icon: <OnlineOrderingIcon />,
+      title: 'Online Ordering with Menu Catalog',
+      description:
+        'Share a QR code link — customers browse your digital menu and place orders directly from their phone, no app required.',
+    },
+    {
+      icon: <PaymentIcon />,
+      title: 'Customer QRIS Payment',
+      description:
+        'Accept instant payments via QRIS powered by Midtrans. Works with all major Indonesian e-wallets and bank apps.',
+    },
+    {
+      icon: <OfflineOrderIcon />,
+      title: 'Offline Order Management',
+      description:
+        'Record walk-in, phone, or WhatsApp orders directly in the system. Support cash payments and installment plans for orders taken outside the digital menu.',
+    },
+    {
+      icon: <AnalyticsIcon />,
+      title: 'Dashboard Analytics',
+      description:
+        'Track daily revenue, top-selling products, and customer trends with a clear at-a-glance business dashboard.',
     },
     {
       icon: <InventoryIcon />,
       title: 'Inventory Management',
-      description: 'Real-time stock tracking with automated alerts for low inventory',
-    },
-    {
-      icon: <OnlineOrderingIcon />,
-      title: 'Online Ordering',
-      description: 'Accept orders via QR code and digital menu from your customers',
-    },
-    {
-      icon: <PaymentIcon />,
-      title: 'QRIS & Credit Card',
-      description: 'Seamless payment processing powered by Midtrans',
-    },
-    {
-      icon: <AnalyticsIcon />,
-      title: 'Analytics Dashboard',
-      description: 'Sales insights and revenue reports at a glance',
+      description:
+        'Real-time stock tracking with automatic low-stock alerts and full audit trail for every adjustment.',
     },
     {
       icon: <TeamIcon />,
       title: 'Team Management',
-      description: 'Invite staff with role-based access control and permissions',
+      description:
+        'Invite staff by email and assign roles — Owner, Manager, or Cashier — with granular access control per feature.',
     },
   ];
 
