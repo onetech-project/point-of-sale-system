@@ -71,8 +71,9 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 	}
 
 	tenant := &models.Tenant{
-		BusinessName: req.BusinessName,
-		Slug:         slug,
+		BusinessName:      req.BusinessName,
+		Slug:              slug,
+		StorageQuotaBytes: models.DefaultStorageQuotaBytes,
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -108,6 +109,12 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 		go func() {
 			if err := s.eventPublisher.PublishUserRegistered(context.Background(), tenant.ID, ownerUserID, req.Email, name, verificationToken); err != nil {
 				fmt.Printf("Warning: failed to publish login event: %v\n", err)
+			}
+		}()
+
+		go func() {
+			if err := s.eventPublisher.PublishTrialStarted(context.Background(), tenant.ID, req.Email, tenant.TrialEndsAt); err != nil {
+				fmt.Printf("Warning: failed to publish trial started event: %v\n", err)
 			}
 		}()
 	}

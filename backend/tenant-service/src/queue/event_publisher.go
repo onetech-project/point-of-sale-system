@@ -64,6 +64,23 @@ func (p *EventPublisher) PublishUserRegistered(ctx context.Context, tenantID, us
 	return p.publish(ctx, event)
 }
 
+func (p *EventPublisher) PublishTrialStarted(ctx context.Context, tenantID, email string, trialEndsAt *time.Time) error {
+	data := map[string]interface{}{
+		"email": email,
+	}
+	if trialEndsAt != nil {
+		data["trial_ends_at"] = trialEndsAt.Format(time.RFC3339)
+	}
+	event := NotificationEvent{
+		EventID:   uuid.New().String(),
+		EventType: "subscription.trial_started",
+		TenantID:  tenantID,
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+	return p.publish(ctx, event)
+}
+
 // PublishConsentGranted publishes a consent granted event to Kafka
 // This should be called AFTER user/order creation to ensure proper subject_id
 // Uses dedicated consent-events topic for audit-service consumption
