@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Failed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #E53E3E;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #E53E3E;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .highlight {
+            background-color: #FFF5F5;
+            padding: 15px;
+            border-left: 4px solid #E53E3E;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+
+        .button-group {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .details-table th {
+            background-color: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+            font-weight: bold;
+        }
+
+        .details-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Payment Failed</h1>
+    </div>
+    <div class="content">
+        <h2>Hi {{.TenantName}},</h2>
+        <p>Unfortunately, we were unable to process your payment for invoice <strong>{{.InvoiceNumber}}</strong>.</p>
+
+        <div class="highlight">
+            <strong>Reason:</strong> {{.ErrorMsg}}
+        </div>
+
+        <p>Your subscription access may be affected. Please retry the payment as soon as possible to avoid service interruption.</p>
+
+        <h3>Invoice Details</h3>
+        <table class="details-table">
+            <tr>
+                <th>Invoice Number</th>
+                <td>{{.InvoiceNumber}}</td>
+            </tr>
+            <tr>
+                <th>Failure Reason</th>
+                <td>{{.ErrorMsg}}</td>
+            </tr>
+        </table>
+
+        <div class="button-group">
+            <a href="{{.RetryURL}}" class="button">Retry Payment</a>
+        </div>
+
+        <p>If you continue to experience issues, please contact our support team for assistance.</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated email, please do not reply.</p>
+        <p>&copy; {{ now.Year }} Posku. All rights reserved.</p>
+    </div>
+</body>
+
+</html>

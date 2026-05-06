@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	emw "github.com/labstack/echo/v4/middleware"
@@ -48,6 +49,7 @@ func main() {
 	e.Use(middleware.CORS())
 
 	rateLimiter := middleware.NewRateLimiter()
+	subscriptionEnforcer := middleware.NewSubscriptionEnforcer()
 
 	e.GET("/health", func(c echo.Context) error {
 		tr := otel.Tracer(utils.GetEnv("SERVICE_NAME"))
@@ -80,8 +82,11 @@ func main() {
 	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
 	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
 	analyticsServiceURL := utils.GetEnv("ANALYTICS_SERVICE_URL")
+	billingServiceURL := utils.GetEnv("BILLING_SERVICE_URL")
 
-	public.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
+	registrationGroup := e.Group("")
+	registrationGroup.Use(rateLimiter.RateLimit(5, 30*time.Minute))
+	registrationGroup.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
 	public.GET("/api/public/tenants/:tenant_slug/config", func(c echo.Context) error {
 		tenantSlug := c.Param("tenant_slug")
 		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
@@ -136,6 +141,7 @@ func main() {
 	protected := e.Group("")
 	protected.Use(middleware.JWTAuth())
 	protected.Use(middleware.TenantScope())
+	protected.Use(subscriptionEnforcer.EnforceSubscription())
 
 	// Refresh endpoint - outside protected group since it may not have valid JWT
 	e.POST("/api/auth/refresh", proxyHandler(authServiceURL, "/refresh"))
@@ -249,6 +255,18 @@ func main() {
 	analyticsGroup := protected.Group("/api/v1/analytics")
 	analyticsGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	analyticsGroup.Any("/*", proxyWildcard(analyticsServiceURL))
+
+	// Billing service routes — use a separate group that skips the subscription enforcer
+	// (expired tenants must be able to reach billing endpoints to fix their subscription)
+	billingProtected := e.Group("")
+	billingProtected.Use(middleware.JWTAuth())
+	billingProtected.Use(middleware.TenantScope())
+	billingProtected.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	billingGroup := billingProtected.Group("/api/v1/billing")
+	billingGroup.Any("/*", proxyWildcard(billingServiceURL))
+
+	// Billing webhook (no auth - signature verified by billing-service)
+	e.POST("/api/v1/billing/webhook", proxyHandler(billingServiceURL, "/webhook/billing"))
 
 	port := utils.GetEnv("PORT")
 	stdlog.Printf("API Gateway starting on port %s", port)

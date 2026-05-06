@@ -1,0 +1,43 @@
+{
+  "title": "Langganan",
+  "status": {
+    "trial": "Percobaan",
+    "active": "Aktif",
+    "grace_period": "Masa Tenggang",
+    "expired": "Kedaluwarsa"
+  },
+  "trialBanner": {
+    "daysLeft": "{{count}} hari tersisa dalam uji coba gratis Anda",
+    "upgrade": "Upgrade Sekarang",
+    "expired": "Masa uji coba Anda telah berakhir. Berlangganan untuk melanjutkan.",
+    "subscribe": "Berlangganan Sekarang"
+  },
+  "page": {
+    "heading": "Langganan & Penagihan",
+    "currentPlan": "Paket Saat Ini",
+    "billing": "Penagihan",
+    "monthly": "Bulanan",
+    "annual": "Tahunan",
+    "save": "Hemat {{pct}}%",
+    "startSubscription": "Mulai Berlangganan",
+    "upgradeNow": "Upgrade Sekarang"
+  },
+  "invoices": {
+    "title": "Faktur",
+    "invoiceNumber": "No. Faktur",
+    "amount": "Jumlah",
+    "period": "Periode",
+    "status": "Status",
+    "date": "Tanggal",
+    "actions": "Aksi",
+    "payNow": "Bayar Sekarang",
+    "noInvoices": "Belum ada faktur",
+    "noInvoicesDesc": "Faktur penagihan Anda akan muncul di sini setelah Anda berlangganan."
+  },
+  "wall": {
+    "title": "Langganan Diperlukan",
+    "description": "Langganan Anda telah berakhir. Berlangganan untuk terus menggunakan sistem POS.",
+    "subscribe": "Berlangganan Sekarang",
+    "logout": "Keluar"
+  }
+}

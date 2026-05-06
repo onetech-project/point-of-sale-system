@@ -1,0 +1,43 @@
+{
+  "title": "Subscription",
+  "status": {
+    "trial": "Trial",
+    "active": "Active",
+    "grace_period": "Grace Period",
+    "expired": "Expired"
+  },
+  "trialBanner": {
+    "daysLeft": "{{count}} days left in your free trial",
+    "upgrade": "Upgrade Now",
+    "expired": "Your trial has expired. Subscribe to continue.",
+    "subscribe": "Subscribe Now"
+  },
+  "page": {
+    "heading": "Subscription & Billing",
+    "currentPlan": "Current Plan",
+    "billing": "Billing",
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "save": "Save {{pct}}%",
+    "startSubscription": "Start Subscription",
+    "upgradeNow": "Upgrade Now"
+  },
+  "invoices": {
+    "title": "Invoices",
+    "invoiceNumber": "Invoice #",
+    "amount": "Amount",
+    "period": "Period",
+    "status": "Status",
+    "date": "Date",
+    "actions": "Actions",
+    "payNow": "Pay Now",
+    "noInvoices": "No invoices yet",
+    "noInvoicesDesc": "Your billing invoices will appear here after you subscribe."
+  },
+  "wall": {
+    "title": "Subscription Required",
+    "description": "Your subscription has expired. Subscribe to continue using the POS system.",
+    "subscribe": "Subscribe Now",
+    "logout": "Log Out"
+  }
+}

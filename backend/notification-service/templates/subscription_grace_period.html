@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Required: Your trial has expired</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #E53E3E;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #E53E3E;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .secondary-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+            border: 1px solid #ddd;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .highlight {
+            background-color: #FFF5F5;
+            padding: 15px;
+            border-left: 4px solid #E53E3E;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+
+        .button-group {
+            text-align: center;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Action Required: Your Trial Has Expired</h1>
+    </div>
+    <div class="content">
+        <h2>Hi {{.TenantName}},</h2>
+        <p>Your free trial for Posku has ended. Your account is currently in a grace period.</p>
+
+        <div class="highlight">
+            <strong>Grace period ends: {{.GraceEndsAt}}</strong><br>
+            Subscribe before this date to avoid account suspension.
+        </div>
+
+        <p>During the grace period your data is safe and preserved, but access to features is limited. Subscribe now to restore full access immediately.</p>
+
+        <div class="button-group">
+            <a href="{{.SubscribeURL}}" class="button">Subscribe Now</a>
+            <a href="{{.DashboardURL}}" class="secondary-button">View Dashboard</a>
+        </div>
+
+        <p>If you have any questions, please contact our support team.</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated email, please do not reply.</p>
+        <p>&copy; {{ now.Year }} Posku. All rights reserved.</p>
+    </div>
+</body>
+
+</html>

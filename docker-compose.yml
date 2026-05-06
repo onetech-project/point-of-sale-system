@@ -401,6 +401,39 @@ services:
   #     service: "audit-service"
   #     env: "development"
 
+  # billing-service:
+  #   build:
+  #     context: ./backend/billing-service
+  #     dockerfile: Dockerfile
+  #   container_name: billing-service
+  #   ports:
+  #     - "8090:8090"
+  #   environment:
+  #     - PORT=8090
+  #     - SERVICE_NAME=billing-service
+  #     - DATABASE_URL=postgresql://pos_user:pos_password@postgres:5432/pos_db?sslmode=disable
+  #     - KAFKA_BROKERS=kafka:9092
+  #     - KAFKA_TOPIC=notification-events
+  #     - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY:-}
+  #     - MIDTRANS_ENV=${MIDTRANS_ENV:-sandbox}
+  #     - PLAN_MONTHLY_PRICE_IDR=${PLAN_MONTHLY_PRICE_IDR:-299000}
+  #     - PLAN_ANNUAL_DISCOUNT_PCT=${PLAN_ANNUAL_DISCOUNT_PCT:-20}
+  #     - PLAN_TRIAL_DAYS=${PLAN_TRIAL_DAYS:-7}
+  #     - PLAN_GRACE_PERIOD_DAYS=${PLAN_GRACE_PERIOD_DAYS:-7}
+  #     - FRONTEND_DOMAIN=${FRONTEND_DOMAIN:-http://localhost:3000}
+  #     - REDIS_HOST=redis:6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD:-pos_password}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - pos-network
+
   # analytics-service:
   #   build:
   #     context: ./backend/analytics-service

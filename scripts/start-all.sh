@@ -60,6 +60,9 @@ else
             analytics|analytics-service)
                 TARGET_SERVICES+=("analytics")
                 ;;
+            billing|billing-service)
+                TARGET_SERVICES+=("billing")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -85,6 +88,7 @@ else
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
                 echo "  analytics        - Analytics Service"
+                echo "  billing          - Billing Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services (default)"
                 echo ""
@@ -147,7 +151,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend" || should_start_service "billing"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -182,6 +186,10 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
         services_to_check+=("frontend/.env.local")
     fi
 
+    if [ "$START_ALL" = true ] || should_start_service "billing"; then
+        services_to_check+=("backend/billing-service/.env")
+    fi
+
     missing_files=false
     for service_env in "${services_to_check[@]}"; do
         if [ ! -f "$PROJECT_ROOT/$service_env" ]; then
@@ -204,7 +212,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
@@ -266,7 +274,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then
@@ -295,6 +303,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "analytics"; then
         cd "$PROJECT_ROOT/backend/analytics-service" && go build -o analytics-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "billing"; then
+        cd "$PROJECT_ROOT/backend/billing-service" && go build -o billing-service.bin main.go &
     fi
     
     wait
@@ -367,6 +378,10 @@ if [ "$START_ALL" = true ] || should_start_service "analytics"; then
     start_service_with_env "Analytics Service" "$PROJECT_ROOT/backend/analytics-service" "analytics-service" "/tmp/analytics-service.log"
 fi
 
+if [ "$START_ALL" = true ] || should_start_service "billing"; then
+    start_service_with_env "Billing Service" "$PROJECT_ROOT/backend/billing-service" "billing-service" "/tmp/billing-service.log"
+fi
+
 # Wait a moment for services to start
 sleep 2
 
@@ -403,8 +418,7 @@ echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-808
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
 echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
 echo "   Audit Service:        http://localhost:${AUDIT_SERVICE_PORT:-8088}"
-echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"
-echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
+echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"echo "   Billing Service:       http://localhost:${BILLING_SERVICE_PORT:-8090}"echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
 echo "   curl http://localhost:${API_GATEWAY_PORT:-8080}/health"
@@ -416,6 +430,7 @@ echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
 echo "   curl http://localhost:${ORDER_SERVICE_PORT:-8087}/health"
 echo "   curl http://localhost:${AUDIT_SERVICE_PORT:-8088}/health"
 echo "   curl http://localhost:${ANALYTICS_SERVICE_PORT:-8089}/health"
+echo "   curl http://localhost:${BILLING_SERVICE_PORT:-8090}/health"
 echo ""
 echo "📝 Logs:"
 echo "   tail -f /tmp/api-gateway.log"
@@ -426,8 +441,7 @@ echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
 echo "   tail -f /tmp/order-service.log"
 echo "   tail -f /tmp/audit-service.log"
-echo "   tail -f /tmp/analytics-service.log"
-echo "   tail -f /tmp/frontend.log"
+echo "   tail -f /tmp/analytics-service.log"echo "   tail -f /tmp/billing-service.log"echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"
 echo "   Using .env files from service directories"
