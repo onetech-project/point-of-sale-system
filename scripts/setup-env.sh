@@ -99,6 +99,31 @@ else
     echo "✓ backend/analytics-service/.env already exists"
 fi
 
+# Billing Service
+if [ ! -f "backend/billing-service/.env" ]; then
+    echo "Creating backend/billing-service/.env file..."
+    cp backend/billing-service/.env.example backend/billing-service/.env
+    echo "✓ Created backend/billing-service/.env"
+else
+    echo "✓ backend/billing-service/.env already exists"
+fi
+if ! grep -q "^KAFKA_AUDIT_TOPIC=" backend/billing-service/.env; then
+    echo "KAFKA_AUDIT_TOPIC=audit-events" >> backend/billing-service/.env
+    echo "✓ Added KAFKA_AUDIT_TOPIC to backend/billing-service/.env"
+fi
+if ! grep -q "^PLAN_RETENTION_DAYS=" backend/billing-service/.env; then
+    echo "PLAN_RETENTION_DAYS=30" >> backend/billing-service/.env
+    echo "✓ Added PLAN_RETENTION_DAYS to backend/billing-service/.env"
+fi
+if ! grep -q "^REDIS_HOST=" backend/billing-service/.env; then
+    echo "REDIS_HOST=localhost:6379" >> backend/billing-service/.env
+    echo "✓ Added REDIS_HOST to backend/billing-service/.env"
+fi
+if ! grep -q "^REDIS_PASSWORD=" backend/billing-service/.env; then
+    echo "REDIS_PASSWORD=pos_password" >> backend/billing-service/.env
+    echo "✓ Added REDIS_PASSWORD to backend/billing-service/.env"
+fi
+
 # Observability
 if [ ! -f "observability/.env" ]; then
     echo "Creating observability/.env file..."
@@ -143,6 +168,7 @@ echo "  - backend/product-service/.env (Vault config)"
 echo "  - backend/order-service/.env (Midtrans, Google Maps, Vault config)"
 echo "  - backend/audit-service/.env (Kafka, Vault config)"
 echo "  - backend/analytics-service/.env (analytics DB, Vault config)"
+echo "  - backend/billing-service/.env (Midtrans, billing plan config)"
 echo "  - observability/.env (Grafana, MinIO credentials)"
 echo "  - vault/.env (Vault token)"
 echo "  - frontend/.env.local (API URL)"

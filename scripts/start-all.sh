@@ -150,6 +150,123 @@ else
     echo ""
 fi
 
+# Keep root values available after service-specific .env files are loaded.
+ROOT_POSTGRES_DB="${POSTGRES_DB:-pos_db}"
+ROOT_POSTGRES_USER="${POSTGRES_USER:-pos_user}"
+ROOT_POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-pos_password}"
+ROOT_POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+ROOT_POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+ROOT_REDIS_HOST="${REDIS_HOST:-localhost}"
+ROOT_REDIS_PORT="${REDIS_PORT:-6379}"
+ROOT_REDIS_PASSWORD="${REDIS_PASSWORD:-pos_password}"
+ROOT_KAFKA_BROKER="${KAFKA_BROKER:-localhost:9092}"
+ROOT_API_GATEWAY_PORT="${API_GATEWAY_PORT:-8080}"
+ROOT_AUTH_SERVICE_PORT="${AUTH_SERVICE_PORT:-8082}"
+ROOT_USER_SERVICE_PORT="${USER_SERVICE_PORT:-8083}"
+ROOT_TENANT_SERVICE_PORT="${TENANT_SERVICE_PORT:-8084}"
+ROOT_NOTIFICATION_SERVICE_PORT="${NOTIFICATION_SERVICE_PORT:-8085}"
+ROOT_PRODUCT_SERVICE_PORT="${PRODUCT_SERVICE_PORT:-8086}"
+ROOT_ORDER_SERVICE_PORT="${ORDER_SERVICE_PORT:-8087}"
+ROOT_AUDIT_SERVICE_PORT="${AUDIT_SERVICE_PORT:-8088}"
+ROOT_ANALYTICS_SERVICE_PORT="${ANALYTICS_SERVICE_PORT:-8089}"
+ROOT_BILLING_SERVICE_PORT="${BILLING_SERVICE_PORT:-8090}"
+ROOT_BILLING_SERVICE_URL="${BILLING_SERVICE_URL:-http://localhost:${ROOT_BILLING_SERVICE_PORT}}"
+
+local_redis_addr() {
+    if [[ "$ROOT_REDIS_HOST" == *":"* ]]; then
+        echo "$ROOT_REDIS_HOST"
+    else
+        echo "${ROOT_REDIS_HOST}:${ROOT_REDIS_PORT}"
+    fi
+}
+
+local_redis_host() {
+    if [[ "$ROOT_REDIS_HOST" == *":"* ]]; then
+        echo "${ROOT_REDIS_HOST%%:*}"
+    else
+        echo "$ROOT_REDIS_HOST"
+    fi
+}
+
+local_redis_url() {
+    local redis_addr
+    redis_addr="$(local_redis_addr)"
+    if [ -n "$ROOT_REDIS_PASSWORD" ]; then
+        echo "redis://:${ROOT_REDIS_PASSWORD}@${redis_addr}/0"
+    else
+        echo "redis://${redis_addr}/0"
+    fi
+}
+
+local_database_url() {
+    echo "postgresql://${ROOT_POSTGRES_USER}:${ROOT_POSTGRES_PASSWORD}@${ROOT_POSTGRES_HOST}:${ROOT_POSTGRES_PORT}/${ROOT_POSTGRES_DB}?sslmode=disable"
+}
+
+apply_local_runtime_overrides() {
+    local service_key=$1
+    local service_port=$2
+    local redis_addr
+    local redis_url
+    local db_url
+
+    redis_addr="$(local_redis_addr)"
+    redis_url="$(local_redis_url)"
+    db_url="$(local_database_url)"
+
+    export PORT="$service_port"
+    export DATABASE_URL="$db_url"
+    export DB_HOST="$ROOT_POSTGRES_HOST"
+    export DB_PORT="$ROOT_POSTGRES_PORT"
+    export DB_USER="$ROOT_POSTGRES_USER"
+    export DB_PASSWORD="$ROOT_POSTGRES_PASSWORD"
+    export DB_NAME="$ROOT_POSTGRES_DB"
+    export KAFKA_BROKERS="$ROOT_KAFKA_BROKER"
+    export REDIS_PASSWORD="$ROOT_REDIS_PASSWORD"
+    export REDIS_DB="${REDIS_DB:-0}"
+
+    case "$service_key" in
+        gateway)
+            export REDIS_HOST="$redis_addr"
+            export AUTH_SERVICE_URL="http://localhost:${ROOT_AUTH_SERVICE_PORT}"
+            export USER_SERVICE_URL="http://localhost:${ROOT_USER_SERVICE_PORT}"
+            export TENANT_SERVICE_URL="http://localhost:${ROOT_TENANT_SERVICE_PORT}"
+            export PRODUCT_SERVICE_URL="http://localhost:${ROOT_PRODUCT_SERVICE_PORT}"
+            export ORDER_SERVICE_URL="http://localhost:${ROOT_ORDER_SERVICE_PORT}"
+            export NOTIFICATION_SERVICE_URL="http://localhost:${ROOT_NOTIFICATION_SERVICE_PORT}"
+            export AUDIT_SERVICE_URL="http://localhost:${ROOT_AUDIT_SERVICE_PORT}"
+            export ANALYTICS_SERVICE_URL="http://localhost:${ROOT_ANALYTICS_SERVICE_PORT}"
+            export BILLING_SERVICE_URL="$ROOT_BILLING_SERVICE_URL"
+            ;;
+        auth|user|tenant|notification|product)
+            export REDIS_HOST="$redis_addr"
+            export REDIS_URL="$redis_url"
+            ;;
+        order)
+            export REDIS_HOST="$(local_redis_host)"
+            export REDIS_PORT="$ROOT_REDIS_PORT"
+            export REDIS_URL="$redis_url"
+            export TENANT_SERVICE_URL="http://localhost:${ROOT_TENANT_SERVICE_PORT}"
+            export MIDTRANS_WEBHOOK_URL="http://localhost:${ROOT_API_GATEWAY_PORT}/api/v1/webhooks/payments/midtrans/notification"
+            ;;
+        analytics)
+            export REDIS_HOST="$(local_redis_host)"
+            export REDIS_PORT="$ROOT_REDIS_PORT"
+            ;;
+    esac
+
+    if [ "$service_key" = "tenant" ]; then
+        export NOTIFICATION_SERVICE_URL="http://localhost:${ROOT_NOTIFICATION_SERVICE_PORT}"
+    fi
+
+    if [ "$service_key" = "notification" ] && [ "$SMTP_HOST" = "mailhog" ]; then
+        export SMTP_HOST="localhost"
+    fi
+
+    if [ "$service_key" = "product" ] && [ "$S3_ENDPOINT" = "minio:9000" ]; then
+        export S3_ENDPOINT="localhost:9000"
+    fi
+}
+
 # Check if service .env files exist
 if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend" || should_start_service "billing"; then
     echo "🔍 Checking service configuration files..."
@@ -318,10 +435,12 @@ echo "🎯 Starting services..."
 
 # Helper function to start service with .env
 start_service_with_env() {
-    local service_name=$1
-    local service_dir=$2
-    local binary_name=$3
-    local log_file=$4
+    local service_key=$1
+    local service_name=$2
+    local service_dir=$3
+    local binary_name=$4
+    local log_file=$5
+    local service_port=$6
     
     cd "$service_dir"
     
@@ -329,6 +448,10 @@ start_service_with_env() {
     if [ -f ".env" ]; then
         export $(grep -v '^#' .env | xargs)
     fi
+
+    # Local development runs binaries on the host while Compose starts infra only.
+    # Override Docker-network defaults from service .env files with root .env values.
+    apply_local_runtime_overrides "$service_key" "$service_port"
     
     ./"$binary_name".bin > "$log_file" 2>&1 &
     local pid=$!
@@ -343,43 +466,43 @@ start_service_with_env() {
 
 # Start services based on arguments
 if [ "$START_ALL" = true ] || should_start_service "gateway"; then
-    start_service_with_env "API Gateway" "$PROJECT_ROOT/api-gateway" "api-gateway" "/tmp/api-gateway.log"
+    start_service_with_env "gateway" "API Gateway" "$PROJECT_ROOT/api-gateway" "api-gateway" "/tmp/api-gateway.log" "$ROOT_API_GATEWAY_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "tenant"; then
-    start_service_with_env "Tenant Service" "$PROJECT_ROOT/backend/tenant-service" "tenant-service" "/tmp/tenant-service.log"
+    start_service_with_env "tenant" "Tenant Service" "$PROJECT_ROOT/backend/tenant-service" "tenant-service" "/tmp/tenant-service.log" "$ROOT_TENANT_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "auth"; then
-    start_service_with_env "Auth Service" "$PROJECT_ROOT/backend/auth-service" "auth-service" "/tmp/auth-service.log"
+    start_service_with_env "auth" "Auth Service" "$PROJECT_ROOT/backend/auth-service" "auth-service" "/tmp/auth-service.log" "$ROOT_AUTH_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "user"; then
-    start_service_with_env "User Service" "$PROJECT_ROOT/backend/user-service" "user-service" "/tmp/user-service.log"
+    start_service_with_env "user" "User Service" "$PROJECT_ROOT/backend/user-service" "user-service" "/tmp/user-service.log" "$ROOT_USER_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "notification"; then
-    start_service_with_env "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log"
+    start_service_with_env "notification" "Notification Service" "$PROJECT_ROOT/backend/notification-service" "notification-service" "/tmp/notification-service.log" "$ROOT_NOTIFICATION_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "product"; then
-    start_service_with_env "Product Service" "$PROJECT_ROOT/backend/product-service" "product-service" "/tmp/product-service.log"
+    start_service_with_env "product" "Product Service" "$PROJECT_ROOT/backend/product-service" "product-service" "/tmp/product-service.log" "$ROOT_PRODUCT_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "order"; then
-    start_service_with_env "Order Service" "$PROJECT_ROOT/backend/order-service" "order-service" "/tmp/order-service.log"
+    start_service_with_env "order" "Order Service" "$PROJECT_ROOT/backend/order-service" "order-service" "/tmp/order-service.log" "$ROOT_ORDER_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "audit"; then
-    start_service_with_env "Audit Service" "$PROJECT_ROOT/backend/audit-service" "audit-service" "/tmp/audit-service.log"
+    start_service_with_env "audit" "Audit Service" "$PROJECT_ROOT/backend/audit-service" "audit-service" "/tmp/audit-service.log" "$ROOT_AUDIT_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "analytics"; then
-    start_service_with_env "Analytics Service" "$PROJECT_ROOT/backend/analytics-service" "analytics-service" "/tmp/analytics-service.log"
+    start_service_with_env "analytics" "Analytics Service" "$PROJECT_ROOT/backend/analytics-service" "analytics-service" "/tmp/analytics-service.log" "$ROOT_ANALYTICS_SERVICE_PORT"
 fi
 
 if [ "$START_ALL" = true ] || should_start_service "billing"; then
-    start_service_with_env "Billing Service" "$PROJECT_ROOT/backend/billing-service" "billing-service" "/tmp/billing-service.log"
+    start_service_with_env "billing" "Billing Service" "$PROJECT_ROOT/backend/billing-service" "billing-service" "/tmp/billing-service.log" "$ROOT_BILLING_SERVICE_PORT"
 fi
 
 # Wait a moment for services to start
@@ -418,7 +541,9 @@ echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-808
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
 echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
 echo "   Audit Service:        http://localhost:${AUDIT_SERVICE_PORT:-8088}"
-echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"echo "   Billing Service:       http://localhost:${BILLING_SERVICE_PORT:-8090}"echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
+echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"
+echo "   Billing Service:      http://localhost:${BILLING_SERVICE_PORT:-8090}"
+echo "   Frontend:             http://localhost:${FRONTEND_PORT:-3000}"
 echo ""
 echo "📋 Health Checks:"
 echo "   curl http://localhost:${API_GATEWAY_PORT:-8080}/health"
@@ -441,7 +566,9 @@ echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
 echo "   tail -f /tmp/order-service.log"
 echo "   tail -f /tmp/audit-service.log"
-echo "   tail -f /tmp/analytics-service.log"echo "   tail -f /tmp/billing-service.log"echo "   tail -f /tmp/frontend.log"
+echo "   tail -f /tmp/analytics-service.log"
+echo "   tail -f /tmp/billing-service.log"
+echo "   tail -f /tmp/frontend.log"
 echo ""
 echo "🔧 Configuration:"
 echo "   Using .env files from service directories"

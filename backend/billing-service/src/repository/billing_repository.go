@@ -25,10 +25,11 @@ func scanTenant(row interface {
 }) (*models.Tenant, error) {
 	t := &models.Tenant{}
 	var trialStartedAt, trialEndsAt, subscribedAt, subscriptionEndsAt sql.NullTime
+	var retentionStartedAt, dataAnonymizedAt sql.NullTime
 	err := row.Scan(
 		&t.ID, &t.BusinessName, &t.SubscriptionPlan, &t.BillingCycle,
 		&trialStartedAt, &trialEndsAt, &subscribedAt, &subscriptionEndsAt,
-		&t.SubscriptionStatus, &t.StorageQuotaBytes,
+		&t.SubscriptionStatus, &retentionStartedAt, &dataAnonymizedAt, &t.StorageQuotaBytes,
 	)
 	if err != nil {
 		return nil, err
@@ -45,13 +46,20 @@ func scanTenant(row interface {
 	if subscriptionEndsAt.Valid {
 		t.SubscriptionEndsAt = &subscriptionEndsAt.Time
 	}
+	if retentionStartedAt.Valid {
+		t.RetentionStartedAt = &retentionStartedAt.Time
+	}
+	if dataAnonymizedAt.Valid {
+		t.DataAnonymizedAt = &dataAnonymizedAt.Time
+	}
 	return t, nil
 }
 
 const tenantSelectColumns = `
 	id, business_name, subscription_plan, billing_cycle,
 	trial_started_at, trial_ends_at, subscribed_at, subscription_ends_at,
-	subscription_status, storage_quota_bytes`
+	subscription_status, subscription_retention_started_at, subscription_data_anonymized_at,
+	storage_quota_bytes`
 
 // GetTenantByID returns the tenant with the given ID.
 func (r *BillingRepository) GetTenantByID(ctx context.Context, id string) (*models.Tenant, error) {
@@ -112,6 +120,18 @@ func (r *BillingRepository) GetGracePeriodExpiredTenants(ctx context.Context, gr
 	return r.queryTenants(ctx, query, graceDays)
 }
 
+// GetTenantsDueForSubscriptionRetention returns tenants whose operational data is eligible for cleanup.
+func (r *BillingRepository) GetTenantsDueForSubscriptionRetention(ctx context.Context, retentionDays int) ([]*models.Tenant, error) {
+	query := fmt.Sprintf(`
+		SELECT %s FROM tenants
+		WHERE subscription_status IN ('grace_period', 'expired')
+		  AND subscription_retention_started_at IS NOT NULL
+		  AND subscription_retention_started_at <= NOW() - ($1 * INTERVAL '1 day')
+		  AND subscription_data_anonymized_at IS NULL
+		ORDER BY subscription_retention_started_at ASC`, tenantSelectColumns)
+	return r.queryTenants(ctx, query, retentionDays)
+}
+
 func (r *BillingRepository) queryTenants(ctx context.Context, query string, args ...interface{}) ([]*models.Tenant, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -132,8 +152,15 @@ func (r *BillingRepository) queryTenants(ctx context.Context, query string, args
 
 // UpdateTenantSubscriptionStatus updates the subscription_status column for a tenant.
 func (r *BillingRepository) UpdateTenantSubscriptionStatus(ctx context.Context, tenantID, status string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE tenants SET subscription_status = $2, updated_at = NOW() WHERE id = $1`,
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE tenants
+		SET subscription_status = $2,
+		    subscription_retention_started_at = CASE
+		      WHEN $2 = 'grace_period' THEN COALESCE(subscription_retention_started_at, NOW())
+		      ELSE subscription_retention_started_at
+		    END,
+		    updated_at = NOW()
+		WHERE id = $1`,
 		tenantID, status,
 	)
 	return err
@@ -148,11 +175,95 @@ func (r *BillingRepository) UpdateTenantSubscribedAt(ctx context.Context, tenant
 		  subscribed_at         = NOW(),
 		  subscription_ends_at  = $4,
 		  subscription_status   = 'active',
+		  subscription_retention_started_at = NULL,
 		  updated_at            = NOW()
 		WHERE id = $1`,
 		tenantID, plan, billingInterval, subscriptionEndsAt,
 	)
 	return err
+}
+
+// AnonymizeTenantOperationalData deletes operational workspace data while preserving billing,
+// consent, audit, tenant, owner-login, and financial order history.
+func (r *BillingRepository) AnonymizeTenantOperationalData(ctx context.Context, tenantID string) (time.Time, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to start retention cleanup transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('app.current_tenant_id', $1, true)`, tenantID); err != nil {
+		return time.Time{}, fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	queries := []string{
+		`
+		UPDATE guest_orders
+		SET customer_name = 'Anonymized customer',
+		    customer_phone = '0000000000',
+		    customer_email = NULL,
+		    customer_email_hash = NULL,
+		    ip_address = NULL,
+		    user_agent = NULL,
+		    session_id = NULL,
+		    notes = NULL,
+		    is_anonymized = TRUE,
+		    anonymized_at = COALESCE(anonymized_at, NOW())
+		WHERE tenant_id = $1
+		  AND is_anonymized = FALSE`,
+		`
+		DELETE FROM inventory_reservations
+		WHERE product_id IN (SELECT id FROM products WHERE tenant_id = $1)
+		   OR order_id IN (SELECT id FROM guest_orders WHERE tenant_id = $1)`,
+		`DELETE FROM stock_adjustments WHERE tenant_id = $1`,
+		`DELETE FROM product_photos WHERE tenant_id = $1`,
+		`DELETE FROM products WHERE tenant_id = $1`,
+		`DELETE FROM categories WHERE tenant_id = $1`,
+		`DELETE FROM tenant_configs WHERE tenant_id = $1`,
+		`DELETE FROM notification_configs WHERE tenant_id = $1`,
+		`DELETE FROM invitations WHERE tenant_id = $1`,
+		`
+		UPDATE users
+		SET status = 'deleted',
+		    email = CONCAT('deleted-user-', id::text, '@retention.local'),
+		    first_name = NULL,
+		    last_name = NULL,
+		    verification_token = NULL,
+		    verification_token_expires_at = NULL,
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+		  AND role <> 'owner'
+		  AND status <> 'deleted'`,
+		`
+		UPDATE sessions
+		SET terminated_at = COALESCE(terminated_at, NOW())
+		WHERE tenant_id = $1
+		  AND user_id IN (SELECT id FROM users WHERE tenant_id = $1 AND role <> 'owner')`,
+	}
+
+	for _, query := range queries {
+		if _, err := tx.ExecContext(ctx, query, tenantID); err != nil {
+			return time.Time{}, fmt.Errorf("failed to anonymize tenant operational data: %w", err)
+		}
+	}
+
+	anonymizedAt := time.Now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE tenants
+		SET storage_used_bytes = 0,
+		    subscription_data_anonymized_at = $2,
+		    updated_at = NOW()
+		WHERE id = $1
+		  AND subscription_data_anonymized_at IS NULL`,
+		tenantID, anonymizedAt,
+	); err != nil {
+		return time.Time{}, fmt.Errorf("failed to mark tenant retention cleanup complete: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return time.Time{}, fmt.Errorf("failed to commit retention cleanup transaction: %w", err)
+	}
+	return anonymizedAt, nil
 }
 
 // UpdateTenantBillingCycle updates the billing_cycle preference for a tenant.
@@ -162,6 +273,31 @@ func (r *BillingRepository) UpdateTenantBillingCycle(ctx context.Context, tenant
 		tenantID, billingInterval,
 	)
 	return err
+}
+
+// GetTenantPhotoStorageKeys returns object-storage keys for all product photos owned by a tenant.
+func (r *BillingRepository) GetTenantPhotoStorageKeys(ctx context.Context, tenantID string) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT storage_key
+		FROM product_photos
+		WHERE tenant_id = $1
+		ORDER BY created_at ASC`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
 }
 
 // CreateInvoice inserts a new billing invoice and sets its ID.

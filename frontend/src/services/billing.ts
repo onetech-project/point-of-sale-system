@@ -6,6 +6,9 @@ export interface BillingSubscription {
   billing_cycle: 'monthly' | 'annual';
   trial_ends_at?: string;
   subscription_ends_at?: string;
+  retention_started_at?: string;
+  retention_cleanup_at?: string;
+  data_anonymized_at?: string;
   is_active: boolean;
   days_remaining: number;
   tenant_id: string;

@@ -10,6 +10,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/pos/billing-service/api"
+	subcache "github.com/pos/billing-service/src/cache"
 	"github.com/pos/billing-service/src/jobs"
 	"github.com/pos/billing-service/src/queue"
 	"github.com/pos/billing-service/src/repository"
@@ -40,6 +41,11 @@ func main() {
 	repo := repository.NewBillingRepository(db)
 	paymentSvc := services.NewPaymentService()
 	subSvc := services.NewSubscriptionService(db, repo, publisher, paymentSvc)
+	subscriptionCache := subcache.NewSubscriptionCacheFromEnv()
+	if subscriptionCache != nil {
+		defer subscriptionCache.Close()
+		subSvc.SetSubscriptionCacheInvalidator(subscriptionCache)
+	}
 	handler := api.NewBillingHandler(subSvc)
 
 	// Health
@@ -63,6 +69,9 @@ func main() {
 
 	// Start background jobs
 	jobRunner := jobs.NewJobRunner(db, repo, publisher)
+	if subscriptionCache != nil {
+		jobRunner.SetSubscriptionCacheInvalidator(subscriptionCache)
+	}
 	go jobRunner.StartAll()
 
 	port := GetEnv("PORT")

@@ -189,8 +189,8 @@ export default function PricingSection() {
 
         {/* Trial note */}
         <p className="text-center text-gray-500 text-sm mt-8">
-          After your {TRIAL_DAYS}-day free trial, choose monthly or annual billing. Cancel anytime —
-          no lock-in.
+          After your {plan.trial_days}-day free trial, choose monthly or annual billing. Cancel
+          anytime — no lock-in.
         </p>
       </div>
     </section>

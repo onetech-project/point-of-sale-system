@@ -5,6 +5,37 @@ This document summarises all changes made in the
 
 ---
 
+## Verified Status
+
+Implemented and verified:
+- Public landing page at `/` with authenticated redirect to `/dashboard`.
+- Runtime pricing fetch through `GET /api/v1/public/plans`.
+- Tenant trial/subscription fields, 7-day trial registration flow, and 2 GB quota constant.
+- Billing service for subscription status, upgrade invoices, Midtrans payment initiation, webhooks, and renewal/trial jobs.
+- Notification handlers and templates for trial and invoice lifecycle events.
+
+Completed follow-up fixes:
+- Fresh setup now includes billing env templates and verification.
+- `BILLING_SERVICE_URL` is defined for API Gateway.
+- Root Compose is documented as infrastructure-only for local development.
+- `invoice.generated`, `invoice.paid`, and `invoice.payment_failed` are the canonical billing notification events.
+- `subscription.payment_received` remains a legacy alias only.
+- Trial notification payloads now use `tenant_name`, with `business_name` accepted as a fallback.
+- Storage quota migration safety is handled by `000067_normalize_trial_storage_quota`.
+- `000065` rollback no longer drops storage columns owned by the product-photo migration.
+- Expired tenants are redirected to a focused subscription recovery page after login and on `402 Payment Required`.
+- Grace-period tenants keep normal app access with a red warning banner.
+- Tenant operational data cleanup is eligible 30 days after grace period starts.
+- Terms of Service acceptance is required and recorded during signup.
+- Frontend subscription status now uses a shared cached provider with in-flight request deduplication.
+- Billing service invalidates the API Gateway subscription cache after successful payment and job-driven status changes.
+
+Remaining operational notes:
+- Production Midtrans credentials must be configured before testing real subscription payments.
+- Application containers in root Compose are intentionally not enabled; use `./scripts/start-all.sh all` for local services.
+
+---
+
 ## 1. Public Landing Page
 
 ### What was done
@@ -72,6 +103,10 @@ trial with a 2 GB storage quota.
 | `backend/tenant-service/src/queue/event_publisher.go` | `PublishTrialStarted` method added |
 | `backend/migrations/000065_add_subscription_fields.up.sql` | Schema migration (up) |
 | `backend/migrations/000065_add_subscription_fields.down.sql` | Schema migration (down) |
+| `backend/migrations/000067_normalize_trial_storage_quota.up.sql` | Normalizes old 5 GB default quota rows to 2 GB |
+| `backend/migrations/000067_normalize_trial_storage_quota.down.sql` | Restores earlier default without rewriting tenant-specific quotas |
+| `backend/migrations/000068_subscription_retention_terms.up.sql` | Adds retention timestamps, Terms acceptance records, and nullable order item product references |
+| `backend/migrations/000068_subscription_retention_terms.down.sql` | Rolls back retention and Terms schema changes |
 
 ### New `Tenant` fields
 ```go
@@ -81,6 +116,8 @@ TrialStartedAt      *time.Time
 TrialEndsAt         *time.Time
 SubscribedAt        *time.Time
 SubscriptionEndsAt  *time.Time
+RetentionStartedAt *time.Time
+DataAnonymizedAt   *time.Time
 ```
 
 ### New constants
@@ -98,6 +135,27 @@ DefaultAnnualDiscountPercent int  = 20
    `trial_ends_at = NOW() + 7 days`, and the storage fields.
 3. After the transaction commits a `subscription.trial_started` Kafka event is
    published asynchronously.
+4. Signup requires `terms_accepted = true` and `terms_version = "1.0.0"`.
+5. Terms acceptance is stored with tenant ID, owner user ID, version, timestamp,
+   IP address, and user agent.
+
+### Expiry and retention rules
+- Free trial length: **7 days**.
+- Access grace period after trial/subscription expiry: **7 days**.
+- Operational-data retention window: **30 days from grace-period start**.
+- When billing jobs move a tenant into `grace_period`,
+  `subscription_retention_started_at` is set if empty.
+- Existing `grace_period` or `expired` tenants are backfilled with
+  `subscription_retention_started_at = NOW()` by migration `000068`.
+- Payment before cleanup reactivates the tenant and clears
+  `subscription_retention_started_at`.
+- Payment after cleanup can reactivate the account, but cleaned operational data
+  remains gone.
+- Billing invoices, payment attempts, Terms acceptance records, consent records,
+  audit events, and financial order rows are preserved as historical/compliance
+  records.
+- Customer PII in preserved financial orders is anonymized during retention
+  cleanup.
 
 ### Database migration (`000065`)
 ```sql
@@ -158,35 +216,52 @@ Example response:
 
 ### What was done
 Added email notification support for the subscription lifecycle:
-trial started, trial about to expire, and payment received.
+trial started, trial about to expire, invoice generated, invoice paid, and payment failed.
 
 ### Files changed
 | File | Change |
 |------|--------|
-| `backend/notification-service/src/models/events.go` | Three new event type constants |
-| `backend/notification-service/src/services/notification_service.go` | Three new handlers + templates loaded |
+| `backend/notification-service/src/models/events.go` | Subscription and billing event type constants |
+| `backend/notification-service/src/services/notification_service.go` | Trial and invoice lifecycle handlers + templates loaded |
+| `backend/notification-service/templates/trial_started.html` | New trial started template |
 | `backend/notification-service/templates/trial_ending.html` | New email template |
 | `backend/notification-service/templates/payment_received.html` | New email template |
+| `backend/notification-service/templates/invoice_generated.html` | New invoice generated template |
+| `backend/notification-service/templates/invoice_paid.html` | New invoice paid template |
+| `backend/notification-service/templates/invoice_payment_failed.html` | New invoice payment failed template |
 
-### New event types
+### Billing event types
 | Kafka event type | Trigger |
 |-----------------|---------|
 | `subscription.trial_started` | Fired immediately after a new tenant registers |
-| `subscription.trial_ending` | Fired by a scheduler when trial has ≤ N days left |
-| `subscription.payment_received` | Fired after a successful subscription payment |
+| `subscription.trial_ending` | Fired by billing-service when trial has <= N days left |
+| `invoice.generated` | Fired when billing-service generates a renewal invoice |
+| `invoice.paid` | Fired after a successful billing invoice payment |
+| `invoice.payment_failed` | Fired after a failed billing invoice payment |
+| `subscription.payment_received` | Legacy alias handled by notification-service only |
+
+### `trial_started.html`
+- Confirms the 7-day trial has started
+- Shows trial end time when available
+- **Go to Dashboard** button
+- **View subscription options** link
 
 ### `trial_ending.html`
 - Warns the tenant that the trial expires in `{{.DaysRemaining}}` day(s)
 - Lists the features they have been using during the trial
-- **Upgrade Now** button (→ `/settings/subscription`)
+- **Upgrade Now** button (-> `/subscription`)
 - **View Pricing** secondary link
 
-### `payment_received.html`
-- Confirms a successful payment
-- Subscription details table: Plan, Billing Cycle, Amount, Next Billing Date
-- **View Invoice** and **Go to Dashboard** buttons
+### Invoice templates
+- `invoice_generated.html` sends pending invoice details and payment link
+- `invoice_paid.html` confirms a successful invoice payment
+- `invoice_payment_failed.html` asks the owner to retry payment
 
-Both templates match the existing Posku email style (indigo header `#4F46E5`,
+### `payment_received.html`
+- Legacy template for `subscription.payment_received`
+- Retained for backward compatibility with older event producers
+
+These templates match the existing Posku email style (indigo header `#4F46E5`,
 light-grey content area, auto-copyright footer).
 
 ---
@@ -198,6 +273,14 @@ light-grey content area, auto-copyright footer).
 | `tenant-service` | `PLAN_MONTHLY_PRICE_IDR` | Base monthly subscription price (IDR) | `299000` |
 | `tenant-service` | `PLAN_ANNUAL_DISCOUNT_PCT` | Annual billing discount percentage | `20` |
 | `tenant-service` | `PLAN_TRIAL_DAYS` | Free trial length in days | `7` |
+| `billing-service` | `BILLING_SERVICE_URL` | API Gateway target for billing endpoints | `http://localhost:8090` |
+| `billing-service` | `PLAN_GRACE_PERIOD_DAYS` | Grace period after trial/subscription expiry | `7` |
+| `billing-service` | `PLAN_RETENTION_DAYS` | Operational-data retention window from grace-period start | `30` |
+| `billing-service` | `KAFKA_AUDIT_TOPIC` | Audit topic for retention cleanup events | `audit-events` |
+| `billing-service` | `REDIS_HOST` | Redis address for API Gateway subscription-cache invalidation | `localhost:6379` |
+| `billing-service` | `REDIS_PASSWORD` | Redis password for cache invalidation | `pos_password` |
+| `billing-service` | `MIDTRANS_SERVER_KEY` | Midtrans server key for subscription payments | `YOUR_SERVER_KEY_HERE` |
+| `billing-service` | `MIDTRANS_ENV` | Midtrans environment | `sandbox` |
 
 ---
 
@@ -214,9 +297,58 @@ User clicks "Start Free Trial"
         ├─ Publishes user.registered ──► notification-service ──► Welcome email
         └─ Publishes subscription.trial_started ──► notification-service ──► Trial started email
 
-[Scheduler — future]
-  └─ Publishes subscription.trial_ending ──► notification-service ──► Trial expiry warning
-
-[Payment service — future]
-  └─ Publishes subscription.payment_received ──► notification-service ──► Payment confirmation
+Billing service background jobs
+  ├─ Publishes subscription.trial_ending ──► notification-service ──► Trial expiry warning
+  ├─ Moves expired trial/subscription tenants to grace_period and starts retention timer
+  ├─ Moves grace-expired tenants to expired after 7 days
+  ├─ Runs 30-day retention cleanup for grace/expired tenants
+  ├─ Publishes invoice.generated ──► notification-service ──► Invoice email
+  ├─ Publishes invoice.paid ──► notification-service ──► Payment confirmation
+  ├─ Publishes invoice.payment_failed ──► notification-service ──► Retry payment email
+  └─ Publishes tenant subscription-data anonymization events ──► audit topic
 ```
+
+## 5. Expired Subscription Recovery and Terms
+
+### User experience
+- Login checks `GET /api/v1/billing/subscription` after authentication.
+- `expired` tenants are redirected to `/subscription?reason=expired`.
+- Protected API calls returning `402 Payment Required` redirect to the same
+  subscription recovery route unless the user is already under `/subscription`.
+- Frontend subscription state is cached for 60 seconds, deduplicates concurrent
+  requests, refreshes on focus/visibility, and can be explicitly invalidated
+  after payment initiation or a `402` response.
+- The expired recovery page does not render dashboard navigation or unrelated
+  dashboard content. It shows suspended status, payment CTA, invoice link,
+  retention warning, and logout.
+- `grace_period` tenants stay in the normal app and see a red warning banner.
+
+### Gateway cache behavior
+- API Gateway caches subscription status in Redis under `sub:{tenant_id}`.
+- Normal active/trial status uses a 5-minute TTL.
+- `grace_period` status uses a 1-minute TTL.
+- `expired` and `cancelled` status use a 30-second TTL.
+- Billing service deletes the same cache key after successful payment and after
+  background jobs move a tenant into `grace_period` or `expired`.
+
+### Public interfaces
+`POST /api/tenants/register` now requires:
+
+```json
+{
+  "terms_accepted": true,
+  "terms_version": "1.0.0"
+}
+```
+
+`GET /api/v1/billing/subscription` now includes:
+
+```json
+{
+  "retention_started_at": "2026-05-01T00:00:00Z",
+  "retention_cleanup_at": "2026-05-31T00:00:00Z",
+  "data_anonymized_at": null
+}
+```
+
+The public Terms page is available at `/terms-of-service`.

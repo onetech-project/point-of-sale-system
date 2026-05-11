@@ -78,10 +78,22 @@ func (r *TenantRepository) Create(ctx context.Context, tx *sql.Tx, tenant *model
 	return err
 }
 
+func (r *TenantRepository) CreateTermsAcceptance(ctx context.Context, tx *sql.Tx, tenantID, userID, termsVersion, ipAddress, userAgent string) error {
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO tenant_terms_acceptances (
+			tenant_id, user_id, terms_version, ip_address, user_agent
+		)
+		VALUES ($1, $2, $3, NULLIF($4, '')::inet, $5)
+		ON CONFLICT (tenant_id, user_id, terms_version) DO NOTHING
+	`, tenantID, userID, termsVersion, ipAddress, userAgent)
+	return err
+}
+
 func (r *TenantRepository) FindBySlug(ctx context.Context, slug string) (*models.Tenant, error) {
 	query := `
 		SELECT id, business_name, slug, status, subscription_plan, billing_cycle,
 		       trial_started_at, trial_ends_at, subscribed_at, subscription_ends_at,
+		       subscription_retention_started_at, subscription_data_anonymized_at,
 		       storage_quota_bytes, storage_used_bytes, created_at, updated_at
 		FROM tenants
 		WHERE slug = $1 AND status != 'deleted'
@@ -99,6 +111,8 @@ func (r *TenantRepository) FindBySlug(ctx context.Context, slug string) (*models
 		&tenant.TrialEndsAt,
 		&tenant.SubscribedAt,
 		&tenant.SubscriptionEndsAt,
+		&tenant.RetentionStartedAt,
+		&tenant.DataAnonymizedAt,
 		&tenant.StorageQuotaBytes,
 		&tenant.StorageUsedBytes,
 		&tenant.CreatedAt,
@@ -120,6 +134,7 @@ func (r *TenantRepository) FindByID(ctx context.Context, id string) (*models.Ten
 	query := `
 		SELECT id, business_name, slug, status, subscription_plan, billing_cycle,
 		       trial_started_at, trial_ends_at, subscribed_at, subscription_ends_at,
+		       subscription_retention_started_at, subscription_data_anonymized_at,
 		       storage_quota_bytes, storage_used_bytes, created_at, updated_at
 		FROM tenants
 		WHERE id = $1 AND status != 'deleted'
@@ -137,6 +152,8 @@ func (r *TenantRepository) FindByID(ctx context.Context, id string) (*models.Ten
 		&tenant.TrialEndsAt,
 		&tenant.SubscribedAt,
 		&tenant.SubscriptionEndsAt,
+		&tenant.RetentionStartedAt,
+		&tenant.DataAnonymizedAt,
 		&tenant.StorageQuotaBytes,
 		&tenant.StorageUsedBytes,
 		&tenant.CreatedAt,

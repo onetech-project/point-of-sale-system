@@ -64,9 +64,10 @@ func (p *EventPublisher) PublishUserRegistered(ctx context.Context, tenantID, us
 	return p.publish(ctx, event)
 }
 
-func (p *EventPublisher) PublishTrialStarted(ctx context.Context, tenantID, email string, trialEndsAt *time.Time) error {
+func (p *EventPublisher) PublishTrialStarted(ctx context.Context, tenantID, email, tenantName string, trialEndsAt *time.Time) error {
 	data := map[string]interface{}{
-		"email": email,
+		"email":       email,
+		"tenant_name": tenantName,
 	}
 	if trialEndsAt != nil {
 		data["trial_ends_at"] = trialEndsAt.Format(time.RFC3339)
@@ -95,9 +96,9 @@ func (p *EventPublisher) PublishConsentGranted(ctx context.Context, event interf
 	if err := json.Unmarshal(data, &eventMap); err != nil {
 		return fmt.Errorf("failed to unmarshal for key extraction: %w", err)
 	}
-	
+
 	tenantID, _ := eventMap["tenant_id"].(string)
-	
+
 	msg := kafka.Message{
 		Key:   []byte(tenantID),
 		Value: data,

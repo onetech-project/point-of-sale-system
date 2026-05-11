@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pos/billing-service/src/models"
 	"github.com/pos/billing-service/src/queue"
 	"github.com/pos/billing-service/src/repository"
@@ -15,9 +18,14 @@ import (
 
 // JobRunner orchestrates background billing jobs.
 type JobRunner struct {
-	db        *sql.DB
-	repo      *repository.BillingRepository
-	publisher *queue.EventPublisher
+	db               *sql.DB
+	repo             *repository.BillingRepository
+	publisher        *queue.EventPublisher
+	cacheInvalidator SubscriptionCacheInvalidator
+}
+
+type SubscriptionCacheInvalidator interface {
+	InvalidateSubscriptionStatus(ctx context.Context, tenantID string) error
 }
 
 // NewJobRunner creates a new JobRunner.
@@ -25,11 +33,17 @@ func NewJobRunner(db *sql.DB, repo *repository.BillingRepository, publisher *que
 	return &JobRunner{db: db, repo: repo, publisher: publisher}
 }
 
+// SetSubscriptionCacheInvalidator wires gateway cache invalidation for status-changing jobs.
+func (j *JobRunner) SetSubscriptionCacheInvalidator(invalidator SubscriptionCacheInvalidator) {
+	j.cacheInvalidator = invalidator
+}
+
 // StartAll launches all background jobs as goroutines.
 func (j *JobRunner) StartAll() {
 	go j.runTrialExpiryJob()
 	go j.runGraceEnforcerJob()
 	go j.runInvoiceGeneratorJob()
+	go j.runTenantRetentionJob()
 }
 
 // --- Trial expiry job (every 6 hours) ---
@@ -84,6 +98,7 @@ func (j *JobRunner) processTrialExpiry() {
 			log.Printf("TrialExpiryJob: failed to update status for %s: %v", t.ID, err)
 			continue
 		}
+		j.invalidateSubscriptionCache(ctx, t.ID)
 		graceEndsAt := time.Now()
 		if t.TrialEndsAt != nil {
 			graceEndsAt = t.TrialEndsAt.Add(time.Duration(graceDays) * 24 * time.Hour)
@@ -105,6 +120,7 @@ func (j *JobRunner) processTrialExpiry() {
 			log.Printf("TrialExpiryJob: failed to update status for %s: %v", t.ID, err)
 			continue
 		}
+		j.invalidateSubscriptionCache(ctx, t.ID)
 		graceEndsAt := time.Now()
 		if t.SubscriptionEndsAt != nil {
 			graceEndsAt = t.SubscriptionEndsAt.Add(time.Duration(graceDays) * 24 * time.Hour)
@@ -141,10 +157,20 @@ func (j *JobRunner) processGraceExpiry() {
 			log.Printf("GraceEnforcerJob: failed to expire tenant %s: %v", t.ID, err)
 			continue
 		}
+		j.invalidateSubscriptionCache(ctx, t.ID)
 		email, _ := j.repo.GetTenantOwnerEmail(ctx, t.ID)
 		if err := j.publisher.PublishSubscriptionExpired(ctx, t.ID, email, t.BusinessName); err != nil {
 			log.Printf("GraceEnforcerJob: failed to publish expired for %s: %v", t.ID, err)
 		}
+	}
+}
+
+func (j *JobRunner) invalidateSubscriptionCache(ctx context.Context, tenantID string) {
+	if j.cacheInvalidator == nil {
+		return
+	}
+	if err := j.cacheInvalidator.InvalidateSubscriptionStatus(ctx, tenantID); err != nil {
+		log.Printf("SubscriptionJob: failed to invalidate subscription cache for tenant %s: %v", tenantID, err)
 	}
 }
 
@@ -243,4 +269,76 @@ func (j *JobRunner) buildRenewalInvoice(ctx context.Context, t *models.Tenant) (
 		return nil, err
 	}
 	return inv, nil
+}
+
+// --- Tenant retention cleanup job (daily) ---
+
+func (j *JobRunner) runTenantRetentionJob() {
+	j.processTenantRetention()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		j.processTenantRetention()
+	}
+}
+
+func (j *JobRunner) processTenantRetention() {
+	ctx := context.Background()
+	retentionDays := utils.GetEnvInt("PLAN_RETENTION_DAYS", 30)
+
+	tenants, err := j.repo.GetTenantsDueForSubscriptionRetention(ctx, retentionDays)
+	if err != nil {
+		log.Printf("TenantRetentionJob: error fetching tenants due for cleanup: %v", err)
+		return
+	}
+
+	for _, t := range tenants {
+		j.deleteTenantPhotoObjects(ctx, t.ID)
+
+		anonymizedAt, err := j.repo.AnonymizeTenantOperationalData(ctx, t.ID)
+		if err != nil {
+			log.Printf("TenantRetentionJob: failed to anonymize operational data for tenant %s: %v", t.ID, err)
+			continue
+		}
+		if j.publisher != nil {
+			if err := j.publisher.PublishTenantSubscriptionDataAnonymized(ctx, t.ID, t.RetentionStartedAt, anonymizedAt); err != nil {
+				log.Printf("TenantRetentionJob: failed to publish anonymization audit event for tenant %s: %v", t.ID, err)
+			}
+		}
+	}
+}
+
+func (j *JobRunner) deleteTenantPhotoObjects(ctx context.Context, tenantID string) {
+	endpoint := os.Getenv("S3_ENDPOINT")
+	accessKey := os.Getenv("S3_ACCESS_KEY")
+	secretKey := os.Getenv("S3_SECRET_KEY")
+	bucket := os.Getenv("S3_BUCKET_NAME")
+	if endpoint == "" || accessKey == "" || secretKey == "" || bucket == "" {
+		return
+	}
+
+	keys, err := j.repo.GetTenantPhotoStorageKeys(ctx, tenantID)
+	if err != nil {
+		log.Printf("TenantRetentionJob: failed to list photo objects for tenant %s: %v", tenantID, err)
+		return
+	}
+	if len(keys) == 0 {
+		return
+	}
+
+	useSSL := os.Getenv("S3_USE_SSL") == "true"
+	client, err := minio.New(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: useSSL,
+	})
+	if err != nil {
+		log.Printf("TenantRetentionJob: failed to initialize object storage client for tenant %s: %v", tenantID, err)
+		return
+	}
+
+	for _, key := range keys {
+		if err := client.RemoveObject(ctx, bucket, key, minio.RemoveObjectOptions{}); err != nil {
+			log.Printf("TenantRetentionJob: failed to delete photo object %s for tenant %s: %v", key, tenantID, err)
+		}
+	}
 }

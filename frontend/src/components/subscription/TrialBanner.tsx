@@ -2,18 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { billingService, BillingSubscriptionUI } from '@/services/billing';
+import { useSubscription } from '@/store/subscription';
 
 const TrialBanner: React.FC = () => {
-  const [subscription, setSubscription] = useState<BillingSubscriptionUI | null>(null);
+  const { subscription, refreshSubscription } = useSubscription();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    billingService
-      .getSubscription()
-      .then(setSubscription)
-      .catch(() => {});
-  }, []);
+    void refreshSubscription();
+  }, [refreshSubscription]);
 
   if (!subscription) return null;
   if (dismissed) return null;
@@ -21,6 +18,13 @@ const TrialBanner: React.FC = () => {
   if (status !== 'trial' && status !== 'grace_period') return null;
 
   const isGracePeriod = status === 'grace_period';
+  const cleanupDate = subscription.retention_cleanup_at
+    ? new Date(subscription.retention_cleanup_at).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
 
   return (
     <div
@@ -30,7 +34,10 @@ const TrialBanner: React.FC = () => {
     >
       <div className="flex items-center gap-2">
         {isGracePeriod ? (
-          <span>Your trial has expired. Subscribe to continue.</span>
+          <span>
+            Subscription grace period. Subscribe now
+            {cleanupDate ? ` before data cleanup on ${cleanupDate}.` : ' to avoid data cleanup.'}
+          </span>
         ) : (
           <span>
             {subscription.trial_days_remaining ?? subscription.days_remaining ?? 0} days left in

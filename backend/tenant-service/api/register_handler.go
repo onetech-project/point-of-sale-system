@@ -84,6 +84,18 @@ func (h *RegisterHandler) Register(c echo.Context) error {
 				"error": GetLocalizedMessage(locale, "validation.businessNameRequired"),
 			})
 		}
+		if err == services.ErrTermsAcceptanceRequired {
+			c.Logger().Warnf("Terms acceptance missing for business: %s", req.BusinessName)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "You must accept the Terms of Service to create an account.",
+			})
+		}
+		if err == services.ErrUnsupportedTermsVersion {
+			c.Logger().Warnf("Unsupported terms version for business %s: %s", req.BusinessName, req.TermsVersion)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Unsupported Terms of Service version.",
+			})
+		}
 
 		// Log detailed error for debugging, return generic message to user
 		c.Logger().Errorf("Failed to register tenant for business %s: %v", req.BusinessName, err)

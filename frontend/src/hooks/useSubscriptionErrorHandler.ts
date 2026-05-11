@@ -1,23 +1,26 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import apiClient from '@/services/api';
 import { useSubscription } from '@/store/subscription';
 
 export function useSubscriptionErrorHandler() {
-  const { setExpired } = useSubscription();
+  const { invalidateSubscription, setExpired } = useSubscription();
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     apiClient.setSubscriptionExpiredHandler(() => {
-      // Don't show the wall when the user is already on the subscription page
+      // Keep subscription recovery usable; every other protected screen redirects there.
       if (pathname?.startsWith('/subscription')) return;
+      invalidateSubscription();
       setExpired(true);
+      router.replace('/subscription?reason=expired');
     });
 
     return () => {
       apiClient.setSubscriptionExpiredHandler(() => {});
     };
-  }, [setExpired, pathname]);
+  }, [invalidateSubscription, setExpired, pathname, router]);
 }

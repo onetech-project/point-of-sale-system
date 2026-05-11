@@ -14,6 +14,8 @@ type Tenant struct {
 	SubscribedAt       *time.Time
 	SubscriptionEndsAt *time.Time
 	SubscriptionStatus string
+	RetentionStartedAt *time.Time
+	DataAnonymizedAt   *time.Time
 	StorageQuotaBytes  int64
 }
 
@@ -55,6 +57,9 @@ type SubscriptionStatusResponse struct {
 	BillingCycle       string     `json:"billing_cycle"`
 	TrialEndsAt        *time.Time `json:"trial_ends_at,omitempty"`
 	SubscriptionEndsAt *time.Time `json:"subscription_ends_at,omitempty"`
+	RetentionStartedAt *time.Time `json:"retention_started_at,omitempty"`
+	RetentionCleanupAt *time.Time `json:"retention_cleanup_at,omitempty"`
+	DataAnonymizedAt   *time.Time `json:"data_anonymized_at,omitempty"`
 	IsActive           bool       `json:"is_active"`
 	DaysRemaining      int        `json:"days_remaining"`
 }

@@ -19,13 +19,23 @@ import (
 )
 
 type NotificationService struct {
-	repo          *repository.NotificationRepository
+	repo          notificationRepository
 	emailProvider providers.EmailProvider
 	pushProvider  providers.PushProvider
 	templates     map[string]*template.Template
 	frontendURL   string
 	db            *sql.DB
 	encryptor     utils.Encryptor
+}
+
+type notificationRepository interface {
+	Create(ctx context.Context, notification *models.Notification) error
+	HasSentOrderNotification(ctx context.Context, tenantID, transactionID string) (bool, error)
+	UpdateStatus(ctx context.Context, id string, status models.NotificationStatus, sentAt, failedAt *time.Time, errorMsg *string) error
+	GetNotificationHistory(filters map[string]interface{}) ([]map[string]interface{}, error)
+	CountNotifications(filters map[string]interface{}) (int, error)
+	GetByID(id string) (*models.Notification, error)
+	Update(notification *models.Notification) error
 }
 
 func NewNotificationService(db *sql.DB) (*NotificationService, error) {
@@ -71,6 +81,7 @@ func (s *NotificationService) loadTemplates() error {
 		"order_staff_notification.html",
 		"user_deletion_warning.html",
 		"guest_data_deleted.html",
+		"trial_started.html",
 		"trial_ending.html",
 		"payment_received.html",
 		"subscription_grace_period.html",
@@ -844,7 +855,10 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 
 func (s *NotificationService) handleTrialEnding(ctx context.Context, event models.NotificationEvent) error {
 	email, _ := event.Data["email"].(string)
-	businessName, _ := event.Data["business_name"].(string)
+	businessName, _ := event.Data["tenant_name"].(string)
+	if businessName == "" {
+		businessName, _ = event.Data["business_name"].(string)
+	}
 	daysRemaining, _ := event.Data["days_remaining"].(float64)
 	trialEndsAt, _ := event.Data["trial_ends_at"].(string)
 
@@ -936,6 +950,10 @@ func (s *NotificationService) handlePaymentReceived(ctx context.Context, event m
 
 func (s *NotificationService) handleTrialStarted(ctx context.Context, event models.NotificationEvent) error {
 	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	if tenantName == "" {
+		tenantName, _ = event.Data["business_name"].(string)
+	}
 	trialEndsAt, _ := event.Data["trial_ends_at"].(string)
 
 	if email == "" {
@@ -944,11 +962,11 @@ func (s *NotificationService) handleTrialStarted(ctx context.Context, event mode
 	}
 
 	subject := "Your 7-day free trial has started!"
-	body := s.renderTemplate("registration", map[string]interface{}{
-		"Name":        "there",
-		"Token":       "",
-		"URL":         fmt.Sprintf("%s/dashboard", s.frontendURL),
-		"TrialEndsAt": trialEndsAt,
+	body := s.renderTemplate("trial_started", map[string]interface{}{
+		"TenantName":   tenantName,
+		"TrialEndsAt":  trialEndsAt,
+		"DashboardURL": fmt.Sprintf("%s/dashboard", s.frontendURL),
+		"UpgradeURL":   fmt.Sprintf("%s/subscription", s.frontendURL),
 	})
 
 	metadata := event.Data

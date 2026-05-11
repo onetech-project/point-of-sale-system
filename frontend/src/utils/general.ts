@@ -17,6 +17,7 @@ export const PUBLIC_PAGES = {
     '/contact',
     '/blog',
     '/terms',
+    '/terms-of-service',
     '/privacy-policy',
     '/help',
     '/status',

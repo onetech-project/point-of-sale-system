@@ -204,6 +204,7 @@ Verifies environment configuration is correct.
 - Database configuration is set
 - Redis configuration is set
 - Vault configuration is set
+- Billing service URL and plan configuration are set
 - Frontend API URL is configured
 
 ### `start-all.sh`
@@ -223,7 +224,7 @@ Starts local development services using their `.env` configuration files.
 3. Starts PostgreSQL, Redis, Kafka, MinIO, and MailHog in Docker
 4. Runs database migrations
 5. Builds all Go services
-6. Starts each service with its own `.env` file:
+6. Starts each service with its own `.env` file and root `.env` local runtime overrides:
    - API Gateway (port 8080)
    - Auth Service (port 8082)
    - User Service (port 8083)
@@ -233,6 +234,7 @@ Starts local development services using their `.env` configuration files.
    - Order Service (port 8087)
    - Audit Service (port 8088)
    - Analytics Service (port 8089)
+   - Billing Service (port 8090)
 7. Starts the Next.js frontend (port 3000)
 8. Stores PIDs in `/tmp/pos-services.pid`
 9. Creates log files in `/tmp/`
@@ -241,7 +243,8 @@ Starts local development services using their `.env` configuration files.
 
 1. Root `.env` (global defaults)
 2. Service-specific `.env` (overrides root)
-3. System environment variables (highest priority)
+3. `start-all.sh` local runtime overrides for host ports, localhost infrastructure, and gateway service URLs
+4. System environment variables that are exported before startup and not overridden by local runtime values
 
 **Logs:**
 
@@ -254,6 +257,7 @@ Starts local development services using their `.env` configuration files.
 - `/tmp/order-service.log`
 - `/tmp/audit-service.log`
 - `/tmp/analytics-service.log`
+- `/tmp/billing-service.log`
 - `/tmp/frontend.log`
 
 ### `stop-all.sh`
@@ -287,6 +291,7 @@ Stops all running services and optionally cleans up log files.
 - Order Service: `${ORDER_SERVICE_PORT:-8087}`
 - Audit Service: `${AUDIT_SERVICE_PORT:-8088}`
 - Analytics Service: `${ANALYTICS_SERVICE_PORT:-8089}`
+- Billing Service: `${BILLING_SERVICE_PORT:-8090}`
 - Frontend: `${FRONTEND_PORT:-3000}`
 
 **Log files managed:**
@@ -300,6 +305,7 @@ Stops all running services and optionally cleans up log files.
 - `/tmp/order-service.log`
 - `/tmp/audit-service.log`
 - `/tmp/analytics-service.log`
+- `/tmp/billing-service.log`
 - `/tmp/frontend.log`
 
 ## Typical Workflow

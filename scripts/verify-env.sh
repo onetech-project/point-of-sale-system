@@ -31,6 +31,7 @@ files=(
     "backend/order-service/.env"
     "backend/audit-service/.env"
     "backend/analytics-service/.env"
+    "backend/billing-service/.env"
     "observability/.env"
     "vault/.env"
     "frontend/.env.local"
@@ -114,8 +115,32 @@ fi
 
 echo ""
 
+# Check billing configuration
+echo "5. Checking billing configuration..."
+echo ""
+
+billing_url=$(grep "^BILLING_SERVICE_URL=" api-gateway/.env | cut -d= -f2)
+billing_port=$(grep "^PORT=" backend/billing-service/.env | cut -d= -f2)
+monthly_price=$(grep "^PLAN_MONTHLY_PRICE_IDR=" backend/billing-service/.env | cut -d= -f2)
+retention_days=$(grep "^PLAN_RETENTION_DAYS=" backend/billing-service/.env | cut -d= -f2)
+billing_redis_host=$(grep "^REDIS_HOST=" backend/billing-service/.env | cut -d= -f2)
+
+if [ -n "$billing_url" ] && [ -n "$billing_port" ] && [ -n "$monthly_price" ] && [ -n "$retention_days" ] && [ -n "$billing_redis_host" ]; then
+    echo -e "  ${GREEN}✓${NC} Billing service configured"
+    echo "    Gateway URL: $billing_url"
+    echo "    Port: $billing_port"
+    echo "    Monthly price IDR: $monthly_price"
+    echo "    Retention days: $retention_days"
+    echo "    Redis host: $billing_redis_host"
+else
+    echo -e "  ${RED}✗${NC} Billing service not properly configured"
+    exit 1
+fi
+
+echo ""
+
 # Check Vault configuration
-echo "5. Checking Vault configuration..."
+echo "6. Checking Vault configuration..."
 echo ""
 
 vault_addr=$(grep "^VAULT_ADDR=" backend/auth-service/.env | cut -d= -f2)
@@ -135,7 +160,7 @@ fi
 echo ""
 
 # Check API URL in frontend
-echo "6. Checking frontend API URL..."
+echo "7. Checking frontend API URL..."
 echo ""
 
 api_url=$(grep "^NEXT_PUBLIC_API_URL=" frontend/.env.local | cut -d= -f2)
@@ -160,7 +185,8 @@ echo "  2. Update database password for production"
 echo "  3. Update Vault token for production"
 echo "  4. Configure SMTP settings for email"
 echo "  5. Set ENVIRONMENT=production when deploying"
-echo "  6. Review all service-specific configurations"
+echo "  6. Configure Midtrans billing credentials before subscription payment testing"
+echo "  7. Review all service-specific configurations"
 echo ""
 echo "📖 For more details, see: docs/ENVIRONMENT.md"
 echo ""

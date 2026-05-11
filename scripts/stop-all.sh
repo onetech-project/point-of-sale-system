@@ -11,6 +11,7 @@
 #   ./stop-all.sh user                # Stop only User Service
 #   ./stop-all.sh tenant              # Stop only Tenant Service
 #   ./stop-all.sh notification        # Stop only Notification Service
+#   ./stop-all.sh billing             # Stop only Billing Service
 #   ./stop-all.sh frontend            # Stop only Frontend
 #   ./stop-all.sh auth user tenant    # Stop multiple services
 #   ./stop-all.sh all                 # Stop all services and docker containers
@@ -55,6 +56,9 @@ else
             analytics|analytics-service)
                 TARGET_SERVICES+=("analytics")
                 ;;
+            billing|billing-service)
+                TARGET_SERVICES+=("billing")
+                ;;
             frontend|web)
                 TARGET_SERVICES+=("frontend")
                 ;;
@@ -75,6 +79,7 @@ else
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
                 echo "  analytics        - Analytics Service"
+                echo "  billing          - Billing Service"
                 echo "  frontend         - Frontend (Next.js)"
                 echo "  all              - All services and docker containers"
                 echo ""
@@ -139,6 +144,7 @@ PRODUCT_SERVICE_PORT=${PRODUCT_SERVICE_PORT:-8086}
 ORDER_SERVICE_PORT=${ORDER_SERVICE_PORT:-8087}
 AUDIT_SERVICE_PORT=${AUDIT_SERVICE_PORT:-8088}
 ANALYTICS_SERVICE_PORT=${ANALYTICS_SERVICE_PORT:-8089}
+BILLING_SERVICE_PORT=${BILLING_SERVICE_PORT:-8090}
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
 # Map ports to services
@@ -152,11 +158,12 @@ PORT_SERVICE_MAP[$PRODUCT_SERVICE_PORT]="product"
 PORT_SERVICE_MAP[$ORDER_SERVICE_PORT]="order"
 PORT_SERVICE_MAP[$AUDIT_SERVICE_PORT]="audit"
 PORT_SERVICE_MAP[$ANALYTICS_SERVICE_PORT]="analytics"
+PORT_SERVICE_MAP[$BILLING_SERVICE_PORT]="billing"
 PORT_SERVICE_MAP[$FRONTEND_PORT]="frontend"
 
 STOPPED_PORTS=()
 
-for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $ANALYTICS_SERVICE_PORT $FRONTEND_PORT; do
+for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $ANALYTICS_SERVICE_PORT $BILLING_SERVICE_PORT $FRONTEND_PORT; do
     service_name=${PORT_SERVICE_MAP[$port]}
     
     if should_stop_service "$service_name"; then
@@ -220,6 +227,9 @@ fi
 if should_stop_service "analytics"; then
     LOG_FILES+=("/tmp/analytics-service.log")
 fi
+if should_stop_service "billing"; then
+    LOG_FILES+=("/tmp/billing-service.log")
+fi
 if should_stop_service "frontend"; then
     LOG_FILES+=("/tmp/frontend.log")
 fi
@@ -258,11 +268,11 @@ else
     echo "ℹ️  No log files found"
 fi
 
-# Stop Docker containers (PostgreSQL, Redis, Vault, Observability) if requested
+# Stop Docker containers (infrastructure, Vault, Observability) if requested
 if [ "$STOP_DOCKER_CONTAINERS" = true ]; then 
     echo ""
     
-    echo "🛑 Stopping Docker containers (PostgreSQL, Redis)..."
+    echo "🛑 Stopping Docker infrastructure containers..."
     cd "$PROJECT_ROOT"
     docker compose down
     sleep 1
@@ -287,7 +297,7 @@ echo ""
 
 if [ "$STOP_ALL" = true ]; then
     echo "📊 Summary:"
-    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $ORDER_SERVICE_PORT, $AUDIT_SERVICE_PORT, $ANALYTICS_SERVICE_PORT,  $FRONTEND_PORT"
+    echo "   Stopped ports: $API_GATEWAY_PORT, $AUTH_SERVICE_PORT, $USER_SERVICE_PORT, $TENANT_SERVICE_PORT, $NOTIFICATION_SERVICE_PORT, $PRODUCT_SERVICE_PORT, $ORDER_SERVICE_PORT, $AUDIT_SERVICE_PORT, $ANALYTICS_SERVICE_PORT, $BILLING_SERVICE_PORT, $FRONTEND_PORT"
 else
     if [ ${#STOPPED_PORTS[@]} -gt 0 ]; then
         echo "📊 Summary:"

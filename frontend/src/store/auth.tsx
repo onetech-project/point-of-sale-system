@@ -163,6 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         first_name: firstName,
         last_name: lastName,
+        terms_accepted: true,
+        terms_version: '1.0.0',
       });
 
       return data;

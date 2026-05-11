@@ -73,15 +73,17 @@ func (se *SubscriptionEnforcer) getSubscriptionStatus(c echo.Context, tenantID s
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("sub:%s", tenantID)
 
-	cached, err := se.redis.Get(ctx, cacheKey).Result()
-	if err == nil {
-		return cached
+	if se.redis != nil {
+		cached, err := se.redis.Get(ctx, cacheKey).Result()
+		if err == nil {
+			return cached
+		}
 	}
 
 	status := se.fetchFromBillingService(c, tenantID)
 
-	if status != "" {
-		if setErr := se.redis.Set(ctx, cacheKey, status, 5*time.Minute).Err(); setErr != nil {
+	if status != "" && se.redis != nil {
+		if setErr := se.redis.Set(ctx, cacheKey, status, subscriptionCacheTTL(status)).Err(); setErr != nil {
 			c.Logger().Warnf("subscription cache write error for tenant %s: %v", tenantID, setErr)
 		}
 	}
@@ -116,4 +118,15 @@ func (se *SubscriptionEnforcer) fetchFromBillingService(c echo.Context, tenantID
 		return "trial"
 	}
 	return result.SubscriptionStatus
+}
+
+func subscriptionCacheTTL(status string) time.Duration {
+	switch status {
+	case "expired", "cancelled":
+		return 30 * time.Second
+	case "grace_period":
+		return time.Minute
+	default:
+		return 5 * time.Minute
+	}
 }

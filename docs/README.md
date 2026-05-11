@@ -10,6 +10,7 @@ This directory contains all project documentation files.
 
 ### Implementation Guides
 - [Run and Deployment Guide](./QUICK_START.md)
+- [Implementation Tasks](./IMPLEMENTATION_TASKS.md)
 - [Hero Implementation Guide](./HERO_IMPLEMENTATION_GUIDE.md)
 - [Frontend Quick Start Guide](./QUICK_START_GUIDE.md)
 

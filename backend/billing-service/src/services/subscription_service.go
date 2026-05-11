@@ -15,12 +15,19 @@ import (
 	"github.com/pos/billing-service/src/utils"
 )
 
+const SubscriptionRetentionDays = 30
+
+type SubscriptionCacheInvalidator interface {
+	InvalidateSubscriptionStatus(ctx context.Context, tenantID string) error
+}
+
 // SubscriptionService contains the core billing business logic.
 type SubscriptionService struct {
-	db         *sql.DB
-	repo       *repository.BillingRepository
-	publisher  *queue.EventPublisher
-	paymentSvc *PaymentService
+	db               *sql.DB
+	repo             *repository.BillingRepository
+	publisher        *queue.EventPublisher
+	paymentSvc       *PaymentService
+	cacheInvalidator SubscriptionCacheInvalidator
 }
 
 // NewSubscriptionService creates a SubscriptionService.
@@ -31,6 +38,11 @@ func NewSubscriptionService(db *sql.DB, repo *repository.BillingRepository, publ
 		publisher:  publisher,
 		paymentSvc: paymentSvc,
 	}
+}
+
+// SetSubscriptionCacheInvalidator wires cache invalidation for status-changing billing events.
+func (s *SubscriptionService) SetSubscriptionCacheInvalidator(invalidator SubscriptionCacheInvalidator) {
+	s.cacheInvalidator = invalidator
 }
 
 // UpgradeResponse is returned by UpgradeSubscription.
@@ -69,6 +81,7 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
 	status := computeSubscriptionStatus(tenant, graceDays)
 	days := computeDaysRemaining(tenant, status, graceDays)
+	retentionCleanupAt := computeRetentionCleanupAt(tenant)
 
 	return &models.SubscriptionStatusResponse{
 		TenantID:           tenant.ID,
@@ -77,6 +90,9 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 		BillingCycle:       tenant.BillingCycle,
 		TrialEndsAt:        tenant.TrialEndsAt,
 		SubscriptionEndsAt: tenant.SubscriptionEndsAt,
+		RetentionStartedAt: tenant.RetentionStartedAt,
+		RetentionCleanupAt: retentionCleanupAt,
+		DataAnonymizedAt:   tenant.DataAnonymizedAt,
 		IsActive:           status != "expired" && status != "cancelled",
 		DaysRemaining:      days,
 	}, nil
@@ -274,6 +290,7 @@ func (s *SubscriptionService) HandlePaymentWebhook(ctx context.Context, payload 
 		if err := s.repo.UpdateTenantSubscribedAt(ctx, inv.TenantID, "starter", inv.BillingInterval, subscriptionEndsAt); err != nil {
 			return fmt.Errorf("failed to update tenant subscription: %w", err)
 		}
+		s.invalidateSubscriptionCache(ctx, inv.TenantID)
 
 		ownerEmail, _ := s.repo.GetTenantOwnerEmail(ctx, inv.TenantID)
 		tenant, _ := s.repo.GetTenantByID(ctx, inv.TenantID)
@@ -301,6 +318,15 @@ func (s *SubscriptionService) HandlePaymentWebhook(ctx context.Context, payload 
 	}
 
 	return nil
+}
+
+func (s *SubscriptionService) invalidateSubscriptionCache(ctx context.Context, tenantID string) {
+	if s.cacheInvalidator == nil {
+		return
+	}
+	if err := s.cacheInvalidator.InvalidateSubscriptionStatus(ctx, tenantID); err != nil {
+		fmt.Printf("Warning: failed to invalidate subscription cache for tenant %s: %v\n", tenantID, err)
+	}
 }
 
 // CreateNextPeriodInvoice creates a renewal invoice for an active tenant if one doesn't exist yet.
@@ -400,6 +426,14 @@ func computeDaysRemaining(tenant *models.Tenant, status string, graceDays int) i
 		}
 	}
 	return 0
+}
+
+func computeRetentionCleanupAt(tenant *models.Tenant) *time.Time {
+	if tenant == nil || tenant.RetentionStartedAt == nil {
+		return nil
+	}
+	cleanupAt := tenant.RetentionStartedAt.AddDate(0, 0, SubscriptionRetentionDays)
+	return &cleanupAt
 }
 
 func computeAmount(billingInterval string) int {

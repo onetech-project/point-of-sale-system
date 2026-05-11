@@ -20,10 +20,12 @@ import (
 )
 
 var (
-	ErrTenantExists     = errors.New("tenant with this slug already exists")
-	ErrBusinessExists   = errors.New("business name already exists")
-	ErrInvalidSlug      = errors.New("invalid slug format")
-	ErrUserCreationFail = errors.New("failed to create owner user")
+	ErrTenantExists            = errors.New("tenant with this slug already exists")
+	ErrBusinessExists          = errors.New("business name already exists")
+	ErrInvalidSlug             = errors.New("invalid slug format")
+	ErrUserCreationFail        = errors.New("failed to create owner user")
+	ErrTermsAcceptanceRequired = errors.New("terms acceptance is required")
+	ErrUnsupportedTermsVersion = errors.New("unsupported terms version")
 )
 
 type TenantService struct {
@@ -48,6 +50,13 @@ func NewTenantService(db *sql.DB, eventPublisher *queue.EventPublisher) *TenantS
 }
 
 func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTenantRequest, ipAddress, userAgent string) (*models.Tenant, error) {
+	if !req.TermsAccepted {
+		return nil, ErrTermsAcceptanceRequired
+	}
+	if req.TermsVersion != models.CurrentTermsVersion {
+		return nil, ErrUnsupportedTermsVersion
+	}
+
 	// Validate optional consent codes (required consents are implicit)
 	if err := validators.ValidateTenantConsents(req.Consents); err != nil {
 		return nil, fmt.Errorf("invalid consent codes: %w", err)
@@ -99,6 +108,10 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 		return nil, fmt.Errorf("failed to create owner user: %w", err)
 	}
 
+	if err := s.tenantRepo.CreateTermsAcceptance(ctx, tx, tenant.ID, ownerUserID, req.TermsVersion, ipAddress, userAgent); err != nil {
+		return nil, fmt.Errorf("failed to record terms acceptance: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -113,7 +126,7 @@ func (s *TenantService) RegisterTenant(ctx context.Context, req *models.CreateTe
 		}()
 
 		go func() {
-			if err := s.eventPublisher.PublishTrialStarted(context.Background(), tenant.ID, req.Email, tenant.TrialEndsAt); err != nil {
+			if err := s.eventPublisher.PublishTrialStarted(context.Background(), tenant.ID, req.Email, tenant.BusinessName, tenant.TrialEndsAt); err != nil {
 				fmt.Printf("Warning: failed to publish trial started event: %v\n", err)
 			}
 		}()

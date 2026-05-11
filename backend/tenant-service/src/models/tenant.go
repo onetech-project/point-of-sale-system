@@ -18,6 +18,8 @@ type Tenant struct {
 	TrialEndsAt        *time.Time             `json:"trial_ends_at" db:"trial_ends_at"`
 	SubscribedAt       *time.Time             `json:"subscribed_at" db:"subscribed_at"`
 	SubscriptionEndsAt *time.Time             `json:"subscription_ends_at" db:"subscription_ends_at"`
+	RetentionStartedAt *time.Time             `json:"subscription_retention_started_at,omitempty" db:"subscription_retention_started_at"`
+	DataAnonymizedAt   *time.Time             `json:"subscription_data_anonymized_at,omitempty" db:"subscription_data_anonymized_at"`
 	CreatedAt          time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at" db:"updated_at"`
 }
@@ -51,19 +53,22 @@ const (
 
 // Storage and trial constants
 const (
-	DefaultStorageQuotaBytes    int64 = 2 * 1024 * 1024 * 1024 // 2 GB
-	TrialDurationDays           int   = 7
-	DefaultAnnualDiscountPercent int  = 20
+	DefaultStorageQuotaBytes     int64  = 2 * 1024 * 1024 * 1024 // 2 GB
+	TrialDurationDays            int    = 7
+	DefaultAnnualDiscountPercent int    = 20
+	CurrentTermsVersion          string = "1.0.0"
 )
 
 type CreateTenantRequest struct {
-	BusinessName string   `json:"business_name" validate:"required,min=1,max=100"`
-	Slug         string   `json:"slug,omitempty" validate:"omitempty,min=3,max=50"`
-	Email        string   `json:"email" validate:"required,email"`
-	Password     string   `json:"password" validate:"required,min=8"`
-	FirstName    string   `json:"first_name,omitempty" validate:"omitempty,max=50"`
-	LastName     string   `json:"last_name,omitempty" validate:"omitempty,max=50"`
-	Consents     []string `json:"consents" validate:"dive,oneof=analytics advertising"` // Optional consents granted (required consents implicit)
+	BusinessName  string   `json:"business_name" validate:"required,min=1,max=100"`
+	Slug          string   `json:"slug,omitempty" validate:"omitempty,min=3,max=50"`
+	Email         string   `json:"email" validate:"required,email"`
+	Password      string   `json:"password" validate:"required,min=8"`
+	FirstName     string   `json:"first_name,omitempty" validate:"omitempty,max=50"`
+	LastName      string   `json:"last_name,omitempty" validate:"omitempty,max=50"`
+	Consents      []string `json:"consents" validate:"dive,oneof=analytics advertising"` // Optional consents granted (required consents implicit)
+	TermsAccepted bool     `json:"terms_accepted"`
+	TermsVersion  string   `json:"terms_version"`
 }
 
 type TenantResponse struct {
@@ -80,6 +85,8 @@ type TenantResponse struct {
 	TrialEndsAt        *time.Time             `json:"trial_ends_at,omitempty"`
 	SubscribedAt       *time.Time             `json:"subscribed_at,omitempty"`
 	SubscriptionEndsAt *time.Time             `json:"subscription_ends_at,omitempty"`
+	RetentionStartedAt *time.Time             `json:"subscription_retention_started_at,omitempty"`
+	DataAnonymizedAt   *time.Time             `json:"subscription_data_anonymized_at,omitempty"`
 	CreatedAt          time.Time              `json:"created_at"`
 }
 
@@ -98,6 +105,8 @@ func (t *Tenant) ToResponse() *TenantResponse {
 		TrialEndsAt:        t.TrialEndsAt,
 		SubscribedAt:       t.SubscribedAt,
 		SubscriptionEndsAt: t.SubscriptionEndsAt,
+		RetentionStartedAt: t.RetentionStartedAt,
+		DataAnonymizedAt:   t.DataAnonymizedAt,
 		CreatedAt:          t.CreatedAt,
 	}
 }

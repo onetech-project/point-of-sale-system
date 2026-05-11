@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import TrialBanner from '@/components/subscription/TrialBanner';
-import GracePeriodWall from '@/components/subscription/GracePeriodWall';
-import { useSubscription } from '@/store/subscription';
 import { useSubscriptionErrorHandler } from '@/hooks/useSubscriptionErrorHandler';
+import { useSubscription } from '@/store/subscription';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,19 +13,24 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { isExpired } = useSubscription();
+  const router = useRouter();
   const pathname = usePathname();
+  const { subscription, refreshSubscription } = useSubscription();
   useSubscriptionErrorHandler();
   const appName = process.env.NEXT_PUBLIC_APP_NAME || 'POS';
   const appInitial = appName.charAt(0).toUpperCase();
 
-  const showWall = isExpired && !pathname?.startsWith('/subscription');
+  React.useEffect(() => {
+    if (pathname?.startsWith('/subscription')) return;
+    void refreshSubscription().then((latest) => {
+      if ((latest ?? subscription)?.subscription_status === 'expired') {
+        router.replace('/subscription?reason=expired');
+      }
+    });
+  }, [pathname, refreshSubscription, router, subscription]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Show grace period wall if subscription is expired and not already on subscription page */}
-      {showWall && <GracePeriodWall />}
-
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 

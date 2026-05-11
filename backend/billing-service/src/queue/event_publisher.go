@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,7 +22,8 @@ type NotificationEvent struct {
 
 // EventPublisher publishes billing events to Kafka.
 type EventPublisher struct {
-	writer *kafka.Writer
+	writer      *kafka.Writer
+	auditWriter *kafka.Writer
 }
 
 // NewEventPublisher creates an EventPublisher connected to the given brokers and topic.
@@ -33,12 +35,30 @@ func NewEventPublisher(brokers []string, topic string) *EventPublisher {
 		AllowAutoTopicCreation: true,
 		Async:                  false,
 	}
-	return &EventPublisher{writer: writer}
+
+	var auditWriter *kafka.Writer
+	if auditTopic := os.Getenv("KAFKA_AUDIT_TOPIC"); auditTopic != "" {
+		auditWriter = &kafka.Writer{
+			Addr:                   kafka.TCP(brokers...),
+			Topic:                  auditTopic,
+			Balancer:               &kafka.LeastBytes{},
+			AllowAutoTopicCreation: true,
+			Async:                  false,
+		}
+	}
+
+	return &EventPublisher{writer: writer, auditWriter: auditWriter}
 }
 
 // Close shuts down the Kafka writer.
 func (p *EventPublisher) Close() error {
-	return p.writer.Close()
+	if err := p.writer.Close(); err != nil {
+		return err
+	}
+	if p.auditWriter != nil {
+		return p.auditWriter.Close()
+	}
+	return nil
 }
 
 func (p *EventPublisher) publish(ctx context.Context, event NotificationEvent) error {
@@ -155,4 +175,48 @@ func (p *EventPublisher) PublishInvoicePaymentFailed(ctx context.Context, tenant
 		},
 		Timestamp: time.Now(),
 	})
+}
+
+// PublishTenantSubscriptionDataAnonymized emits the compliance audit event for retention cleanup.
+func (p *EventPublisher) PublishTenantSubscriptionDataAnonymized(ctx context.Context, tenantID string, retentionStartedAt *time.Time, anonymizedAt time.Time) error {
+	if p.auditWriter == nil {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	metadata := map[string]interface{}{
+		"reason":         "subscription_retention_cleanup",
+		"retention_days": 30,
+		"anonymized_at":  anonymizedAt.Format(time.RFC3339),
+	}
+	if retentionStartedAt != nil {
+		metadata["retention_started_at"] = retentionStartedAt.Format(time.RFC3339)
+	}
+
+	payload := map[string]interface{}{
+		"event_id":      uuid.New().String(),
+		"tenant_id":     tenantID,
+		"timestamp":     now.Format(time.RFC3339),
+		"actor_type":    "system",
+		"action":        "ANONYMIZE",
+		"resource_type": "tenant_subscription_data",
+		"resource_id":   tenantID,
+		"purpose":       "subscription_retention_cleanup",
+		"metadata":      metadata,
+		"created_at":    now.Format(time.RFC3339),
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal audit event: %w", err)
+	}
+	msg := kafka.Message{
+		Key:   []byte(tenantID),
+		Value: data,
+		Time:  now,
+	}
+	if err := p.auditWriter.WriteMessages(ctx, msg); err != nil {
+		return fmt.Errorf("failed to write audit event to kafka: %w", err)
+	}
+	return nil
 }
