@@ -147,7 +147,7 @@ else
 fi
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -169,11 +169,17 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     if [ "$START_ALL" = true ] || should_start_service "product"; then
         services_to_check+=("backend/product-service/.env")
     fi
+    if [ "$START_ALL" = true ] || should_start_service "order"; then
+        services_to_check+=("backend/order-service/.env")
+    fi
     if [ "$START_ALL" = true ] || should_start_service "audit"; then
         services_to_check+=("backend/audit-service/.env")
     fi
     if [ "$START_ALL" = true ] || should_start_service "analytics"; then
         services_to_check+=("backend/analytics-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "frontend"; then
+        services_to_check+=("frontend/.env.local")
     fi
 
     missing_files=false
@@ -205,30 +211,32 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
         echo ""
     fi
 
-    # Start vault from directory /vault if available
-    if [ "$WITH_VAULT" = true ] && [ -d "$PROJECT_ROOT/vault" ]; then
-        echo "🔐 Starting Vault server..."
-        cd "$PROJECT_ROOT/vault"
-        docker compose up -d &
-        echo "✅ Vault server started"
-        echo ""
-    fi
-
-    if [ "$WITH_OBSERVABILITY" = true ] && [ -d "$PROJECT_ROOT/observability" ]; then
-        echo "📊 Starting Observability stack (Prometheus & Grafana)..."
-        cd "$PROJECT_ROOT/observability"
-        docker compose up -d &
-        echo "✅ Observability stack started"
-        echo ""
-    fi
-
     # Start Docker services if available
     if docker info > /dev/null 2>&1; then
+        docker network inspect pos-network > /dev/null 2>&1 || docker network create pos-network > /dev/null
+
         echo "📦 Starting Docker services (PostgreSQL, Redis, Kafka, Minio, Mailhog)..."
         cd "$PROJECT_ROOT"
-        docker compose up -d
+        docker compose up -d postgres redis kafka minio mailhog
         echo "✅ Docker services started"
         echo ""
+
+        # Start vault from directory /vault if available
+        if [ "$WITH_VAULT" = true ] && [ -d "$PROJECT_ROOT/vault" ]; then
+            echo "🔐 Starting Vault server..."
+            cd "$PROJECT_ROOT/vault"
+            docker compose up -d
+            echo "✅ Vault server started"
+            echo ""
+        fi
+
+        if [ "$WITH_OBSERVABILITY" = true ] && [ -d "$PROJECT_ROOT/observability" ]; then
+            echo "📊 Starting Observability stack (Prometheus & Grafana)..."
+            cd "$PROJECT_ROOT/observability"
+            docker compose up -d
+            echo "✅ Observability stack started"
+            echo ""
+        fi
         
         # Wait for PostgreSQL to be ready
         echo "⏳ Waiting for PostgreSQL to be ready..."
@@ -258,7 +266,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "audit" || should_start_service "analytics"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then

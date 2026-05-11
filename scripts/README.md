@@ -34,7 +34,7 @@ Verifies environment configuration is correct.
 - Frontend API URL is configured
 
 ### `start-all.sh`
-Starts all backend services using their `.env` configuration files.
+Starts local development services using their `.env` configuration files.
 
 **Usage:**
 ```bash
@@ -44,8 +44,10 @@ Starts all backend services using their `.env` configuration files.
 **What it does:**
 1. Loads environment variables from root `.env`
 2. Checks all service `.env` files exist
-3. Builds all Go services
-4. Starts each service with its own `.env` file:
+3. Starts PostgreSQL, Redis, Kafka, MinIO, and MailHog in Docker
+4. Runs database migrations
+5. Builds all Go services
+6. Starts each service with its own `.env` file:
    - API Gateway (port 8080)
    - Auth Service (port 8082)
    - User Service (port 8083)
@@ -54,8 +56,10 @@ Starts all backend services using their `.env` configuration files.
    - Product Service (port 8086)
    - Order Service (port 8087)
    - Audit Service (port 8088)
-5. Stores PIDs in `/tmp/pos-services.pid`
-6. Creates log files in `/tmp/`
+   - Analytics Service (port 8089)
+7. Starts the Next.js frontend (port 3000)
+8. Stores PIDs in `/tmp/pos-services.pid`
+9. Creates log files in `/tmp/`
 
 **Environment Loading Order:**
 1. Root `.env` (global defaults)
@@ -71,6 +75,7 @@ Starts all backend services using their `.env` configuration files.
 - `/tmp/product-service.log`
 - `/tmp/order-service.log`
 - `/tmp/audit-service.log`
+- `/tmp/analytics-service.log`
 - `/tmp/frontend.log`
 
 ### `stop-all.sh`
@@ -99,6 +104,7 @@ Stops all running services and optionally cleans up log files.
 - Product Service: `${PRODUCT_SERVICE_PORT:-8086}`
 - Order Service: `${ORDER_SERVICE_PORT:-8087}`
 - Audit Service: `${AUDIT_SERVICE_PORT:-8088}`
+- Analytics Service: `${ANALYTICS_SERVICE_PORT:-8089}`
 - Frontend: `${FRONTEND_PORT:-3000}`
 
 **Log files managed:**
@@ -110,6 +116,7 @@ Stops all running services and optionally cleans up log files.
 - `/tmp/product-service.log`
 - `/tmp/order-service.log`
 - `/tmp/audit-service.log`
+- `/tmp/analytics-service.log`
 - `/tmp/frontend.log`
 
 ## Typical Workflow
@@ -129,6 +136,7 @@ vim backend/notification-service/.env
 vim backend/product-service/.env
 vim backend/order-service/.env
 vim backend/audit-service/.env
+vim backend/analytics-service/.env
 vim observability/.env
 vim vault/.env
 vim frontend/.env.local
@@ -214,18 +222,19 @@ export JWT_SECRET=system-secret
 
 Before running `start-all.sh`, ensure these exist:
 
-- ✅ `.env` (root)
-- ✅ `api-gateway/.env`
-- ✅ `backend/auth-service/.env`
-- ✅ `backend/user-service/.env`
-- ✅ `backend/tenant-service/.env`
-- ✅ `backend/notification-service/.env`
-- ✅ `backend/product-service/.env`
-- ✅ `backend/order-service/.env`
-- ✅ `backend/audit-service/.env`
-- ✅ `observability/.env`
-- ✅ `vault/.env`
-- ✅ `frontend/.env.local`
+- `.env` (root)
+- `api-gateway/.env`
+- `backend/auth-service/.env`
+- `backend/user-service/.env`
+- `backend/tenant-service/.env`
+- `backend/notification-service/.env`
+- `backend/product-service/.env`
+- `backend/order-service/.env`
+- `backend/audit-service/.env`
+- `backend/analytics-service/.env`
+- `observability/.env`
+- `vault/.env`
+- `frontend/.env.local`
 
 Run `./scripts/setup-env.sh` to create all files.
 
@@ -233,8 +242,8 @@ Run `./scripts/setup-env.sh` to create all files.
 
 - Services must be built before starting (script handles this)
 - Each service runs in background with logs to `/tmp/`
-- Frontend is not started automatically (run `npm run dev` separately)
-- Docker services (PostgreSQL, Redis) must be started separately
+- Frontend is started automatically when running all services
+- Docker infrastructure is started automatically by `start-all.sh`
 - Use `./scripts/stop-all.sh` to cleanly stop all services
 
 ## See Also

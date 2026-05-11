@@ -4,10 +4,14 @@ This directory contains all project documentation files.
 
 ## Contents
 
+### Product
+- [Product Requirements Document](./PRD.md)
+- [Architecture Design](./ARCHITECTURE.md)
+
 ### Implementation Guides
+- [Run and Deployment Guide](./QUICK_START.md)
 - [Hero Implementation Guide](./HERO_IMPLEMENTATION_GUIDE.md)
-- [Quick Start Guide](./QUICK_START_GUIDE.md)
-- [Quick Start](./QUICK_START.md)
+- [Frontend Quick Start Guide](./QUICK_START_GUIDE.md)
 
 ### Feature Documentation
 - [Email Verification Feature](./EMAIL_VERIFICATION_FEATURE.md)
