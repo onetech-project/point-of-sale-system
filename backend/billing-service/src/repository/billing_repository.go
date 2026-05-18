@@ -154,9 +154,9 @@ func (r *BillingRepository) queryTenants(ctx context.Context, query string, args
 func (r *BillingRepository) UpdateTenantSubscriptionStatus(ctx context.Context, tenantID, status string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE tenants
-		SET subscription_status = $2,
+		SET subscription_status = $2::varchar,
 		    subscription_retention_started_at = CASE
-		      WHEN $2 = 'grace_period' THEN COALESCE(subscription_retention_started_at, NOW())
+		      WHEN $2::varchar = 'grace_period' THEN COALESCE(subscription_retention_started_at, NOW())
 		      ELSE subscription_retention_started_at
 		    END,
 		    updated_at = NOW()

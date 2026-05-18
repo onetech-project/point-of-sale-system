@@ -3,12 +3,19 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/mail"
 	"os"
+	"strings"
 
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
 
 	"github.com/pos/billing-service/src/models"
+)
+
+const (
+	midtransItemNameMaxLength     = 50
+	midtransCustomerNameMaxLength = 255
 )
 
 // SnapPaymentResult holds the result of a Midtrans Snap payment creation.
@@ -37,6 +44,13 @@ func NewPaymentService() *PaymentService {
 // CreateSnapPayment creates a Midtrans Snap transaction for a billing invoice.
 // Order ID format: BILL-YYYYMM-{invoice_number_suffix}
 func (p *PaymentService) CreateSnapPayment(_ context.Context, inv *models.BillingInvoice, tenantEmail, tenantBusinessName string) (*SnapPaymentResult, error) {
+	if inv == nil {
+		return nil, fmt.Errorf("invoice is required")
+	}
+	if inv.AmountIDR <= 0 {
+		return nil, fmt.Errorf("invoice amount must be greater than zero")
+	}
+
 	var client snap.Client
 	client.New(p.serverKey, p.env)
 
@@ -51,33 +65,24 @@ func (p *PaymentService) CreateSnapPayment(_ context.Context, inv *models.Billin
 	if inv.BillingInterval == "annual" {
 		intervalLabel = "Annual"
 	}
-	itemName := fmt.Sprintf("POS Subscription - %s - %s to %s",
-		intervalLabel,
-		inv.PeriodStart.Format("2006-01-02"),
-		inv.PeriodEnd.Format("2006-01-02"),
-	)
+
+	item := buildSubscriptionItem(inv, intervalLabel)
 
 	req := &snap.Request{
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  orderID,
 			GrossAmt: int64(inv.AmountIDR),
 		},
-		CustomerDetail: &midtrans.CustomerDetails{
-			Email: tenantEmail,
-			FName: tenantBusinessName,
-		},
 		Items: &[]midtrans.ItemDetails{
-			{
-				ID:    inv.InvoiceNumber,
-				Price: int64(inv.AmountIDR),
-				Qty:   1,
-				Name:  itemName,
-			},
+			item,
 		},
 		Expiry: &snap.ExpiryDetails{
 			Duration: 24,
 			Unit:     "hour",
 		},
+	}
+	if customer := buildCustomerDetails(tenantEmail, tenantBusinessName); customer != nil {
+		req.CustomerDetail = customer
 	}
 
 	resp, midErr := client.CreateTransaction(req)
@@ -90,4 +95,48 @@ func (p *PaymentService) CreateSnapPayment(_ context.Context, inv *models.Billin
 		PaymentURL: resp.RedirectURL,
 		OrderID:    orderID,
 	}, nil
+}
+
+func buildSubscriptionItem(inv *models.BillingInvoice, intervalLabel string) midtrans.ItemDetails {
+	name := truncateForMidtrans(fmt.Sprintf("Posku %s Subscription", intervalLabel), midtransItemNameMaxLength)
+	return midtrans.ItemDetails{
+		ID:    inv.InvoiceNumber,
+		Price: int64(inv.AmountIDR),
+		Qty:   1,
+		Name:  name,
+	}
+}
+
+func buildCustomerDetails(email, businessName string) *midtrans.CustomerDetails {
+	customer := &midtrans.CustomerDetails{
+		FName: truncateForMidtrans(strings.TrimSpace(businessName), midtransCustomerNameMaxLength),
+	}
+	if validEmail := normalizeEmail(email); validEmail != "" {
+		customer.Email = validEmail
+	}
+	if customer.FName == "" && customer.Email == "" {
+		return nil
+	}
+	return customer
+}
+
+func normalizeEmail(email string) string {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return ""
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil {
+		return ""
+	}
+	return parsed.Address
+}
+
+func truncateForMidtrans(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }

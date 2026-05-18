@@ -364,6 +364,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
         fi
         
         # Wait for PostgreSQL to be ready
+        cd "$PROJECT_ROOT"
         echo "⏳ Waiting for PostgreSQL to be ready..."
         for i in {1..30}; do
             if docker compose exec -T postgres pg_isready -U pos_user -d pos_db > /dev/null 2>&1; then
