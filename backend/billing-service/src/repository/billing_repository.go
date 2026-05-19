@@ -304,11 +304,11 @@ func (r *BillingRepository) GetTenantPhotoStorageKeys(ctx context.Context, tenan
 func (r *BillingRepository) CreateInvoice(ctx context.Context, inv *models.BillingInvoice) error {
 	return r.db.QueryRowContext(ctx, `
 		INSERT INTO billing_invoices
-		  (tenant_id, invoice_number, amount_idr, billing_interval, period_start, period_end, status)
-		VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+		  (tenant_id, invoice_number, amount_idr, billing_interval, period_start, period_end, due_at, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
 		RETURNING id, created_at, updated_at`,
 		inv.TenantID, inv.InvoiceNumber, inv.AmountIDR, inv.BillingInterval,
-		inv.PeriodStart, inv.PeriodEnd,
+		inv.PeriodStart, inv.PeriodEnd, inv.DueAt,
 	).Scan(&inv.ID, &inv.CreatedAt, &inv.UpdatedAt)
 }
 
@@ -316,8 +316,9 @@ func (r *BillingRepository) CreateInvoice(ctx context.Context, inv *models.Billi
 func (r *BillingRepository) GetInvoiceByID(ctx context.Context, id string) (*models.BillingInvoice, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, tenant_id, invoice_number, amount_idr, billing_interval,
-		       period_start, period_end, status, paid_at,
-		       midtrans_order_id, midtrans_payment_url, created_at, updated_at
+		       period_start, period_end, due_at, status, paid_at,
+		       midtrans_order_id, midtrans_payment_url, payment_link_expires_at,
+		       created_at, updated_at
 		FROM billing_invoices WHERE id = $1`, id)
 	return scanInvoice(row)
 }
@@ -326,8 +327,9 @@ func (r *BillingRepository) GetInvoiceByID(ctx context.Context, id string) (*mod
 func (r *BillingRepository) GetInvoicesByTenantID(ctx context.Context, tenantID string) ([]*models.BillingInvoice, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, tenant_id, invoice_number, amount_idr, billing_interval,
-		       period_start, period_end, status, paid_at,
-		       midtrans_order_id, midtrans_payment_url, created_at, updated_at
+		       period_start, period_end, due_at, status, paid_at,
+		       midtrans_order_id, midtrans_payment_url, payment_link_expires_at,
+		       created_at, updated_at
 		FROM billing_invoices
 		WHERE tenant_id = $1
 		ORDER BY created_at DESC`, tenantID)
@@ -351,8 +353,9 @@ func (r *BillingRepository) GetInvoicesByTenantID(ctx context.Context, tenantID 
 func (r *BillingRepository) GetPendingInvoiceByTenantID(ctx context.Context, tenantID string) (*models.BillingInvoice, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, tenant_id, invoice_number, amount_idr, billing_interval,
-		       period_start, period_end, status, paid_at,
-		       midtrans_order_id, midtrans_payment_url, created_at, updated_at
+		       period_start, period_end, due_at, status, paid_at,
+		       midtrans_order_id, midtrans_payment_url, payment_link_expires_at,
+		       created_at, updated_at
 		FROM billing_invoices
 		WHERE tenant_id = $1 AND status = 'pending'
 		ORDER BY created_at DESC
@@ -364,17 +367,52 @@ func (r *BillingRepository) GetPendingInvoiceByTenantID(ctx context.Context, ten
 	return inv, err
 }
 
+// GetPendingInvoiceByTenantIDAndInterval returns the most recent pending invoice
+// for a tenant and billing interval.
+func (r *BillingRepository) GetPendingInvoiceByTenantIDAndInterval(ctx context.Context, tenantID, billingInterval string) (*models.BillingInvoice, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, tenant_id, invoice_number, amount_idr, billing_interval,
+		       period_start, period_end, due_at, status, paid_at,
+		       midtrans_order_id, midtrans_payment_url, payment_link_expires_at,
+		       created_at, updated_at
+		FROM billing_invoices
+		WHERE tenant_id = $1 AND billing_interval = $2 AND status = 'pending'
+		ORDER BY created_at DESC
+		LIMIT 1`, tenantID, billingInterval)
+	inv, err := scanInvoice(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return inv, err
+}
+
+// CancelPendingInvoicesByTenantIDExceptInterval cancels stale pending invoices
+// that no longer match the tenant's selected billing interval.
+func (r *BillingRepository) CancelPendingInvoicesByTenantIDExceptInterval(ctx context.Context, tenantID, billingInterval string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE billing_invoices
+		SET status = 'cancelled',
+		    updated_at = NOW()
+		WHERE tenant_id = $1
+		  AND status = 'pending'
+		  AND billing_interval <> $2`,
+		tenantID, billingInterval,
+	)
+	return err
+}
+
 // UpdateInvoiceStatus updates the status, paid_at, and Midtrans fields of an invoice.
-func (r *BillingRepository) UpdateInvoiceStatus(ctx context.Context, id, status string, paidAt *time.Time, midtransOrderID, paymentURL *string) error {
+func (r *BillingRepository) UpdateInvoiceStatus(ctx context.Context, id, status string, paidAt *time.Time, midtransOrderID, paymentURL *string, paymentLinkExpiresAt *time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE billing_invoices
 		SET status              = $2,
 		    paid_at             = $3,
-		    midtrans_order_id   = $4,
-		    midtrans_payment_url = $5,
+		    midtrans_order_id   = COALESCE($4, midtrans_order_id),
+		    midtrans_payment_url = COALESCE($5, midtrans_payment_url),
+		    payment_link_expires_at = COALESCE($6, payment_link_expires_at),
 		    updated_at          = NOW()
 		WHERE id = $1`,
-		id, status, paidAt, midtransOrderID, paymentURL,
+		id, status, paidAt, midtransOrderID, paymentURL, paymentLinkExpiresAt,
 	)
 	return err
 }
@@ -392,12 +430,50 @@ func (r *BillingRepository) CreatePaymentAttempt(ctx context.Context, attempt *m
 	).Scan(&attempt.ID, &attempt.CreatedAt)
 }
 
+// GetPaymentAttemptsByInvoiceID returns payment attempts for an invoice, newest first.
+func (r *BillingRepository) GetPaymentAttemptsByInvoiceID(ctx context.Context, tenantID, invoiceID string) ([]*models.BillingPaymentAttempt, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, invoice_id, tenant_id, amount_idr, midtrans_order_id,
+		       payment_method, status, error_msg, created_at
+		FROM billing_payment_attempts
+		WHERE tenant_id = $1 AND invoice_id = $2
+		ORDER BY created_at DESC`, tenantID, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attempts []*models.BillingPaymentAttempt
+	for rows.Next() {
+		attempt := &models.BillingPaymentAttempt{}
+		var midtransOrderID, paymentMethod, errorMsg sql.NullString
+		if err := rows.Scan(
+			&attempt.ID, &attempt.InvoiceID, &attempt.TenantID, &attempt.AmountIDR,
+			&midtransOrderID, &paymentMethod, &attempt.Status, &errorMsg, &attempt.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if midtransOrderID.Valid {
+			attempt.MidtransOrderID = &midtransOrderID.String
+		}
+		if paymentMethod.Valid {
+			attempt.PaymentMethod = &paymentMethod.String
+		}
+		if errorMsg.Valid {
+			attempt.ErrorMsg = &errorMsg.String
+		}
+		attempts = append(attempts, attempt)
+	}
+	return attempts, rows.Err()
+}
+
 // GetInvoiceByMidtransOrderID finds an invoice by its Midtrans order ID.
 func (r *BillingRepository) GetInvoiceByMidtransOrderID(ctx context.Context, midtransOrderID string) (*models.BillingInvoice, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, tenant_id, invoice_number, amount_idr, billing_interval,
-		       period_start, period_end, status, paid_at,
-		       midtrans_order_id, midtrans_payment_url, created_at, updated_at
+		       period_start, period_end, due_at, status, paid_at,
+		       midtrans_order_id, midtrans_payment_url, payment_link_expires_at,
+		       created_at, updated_at
 		FROM billing_invoices
 		WHERE midtrans_order_id = $1
 		LIMIT 1`, midtransOrderID)
@@ -448,11 +524,12 @@ func scanInvoice(row interface {
 }) (*models.BillingInvoice, error) {
 	inv := &models.BillingInvoice{}
 	var paidAt sql.NullTime
+	var paymentLinkExpiresAt sql.NullTime
 	var midtransOrderID, midtransPaymentURL sql.NullString
 	err := row.Scan(
 		&inv.ID, &inv.TenantID, &inv.InvoiceNumber, &inv.AmountIDR, &inv.BillingInterval,
-		&inv.PeriodStart, &inv.PeriodEnd, &inv.Status, &paidAt,
-		&midtransOrderID, &midtransPaymentURL, &inv.CreatedAt, &inv.UpdatedAt,
+		&inv.PeriodStart, &inv.PeriodEnd, &inv.DueAt, &inv.Status, &paidAt,
+		&midtransOrderID, &midtransPaymentURL, &paymentLinkExpiresAt, &inv.CreatedAt, &inv.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -465,6 +542,9 @@ func scanInvoice(row interface {
 	}
 	if midtransPaymentURL.Valid {
 		inv.MidtransPaymentURL = &midtransPaymentURL.String
+	}
+	if paymentLinkExpiresAt.Valid {
+		inv.PaymentLinkExpiresAt = &paymentLinkExpiresAt.Time
 	}
 	return inv, nil
 }

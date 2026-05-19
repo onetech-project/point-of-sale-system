@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '../../../src/components/layout/DashboardLayout';
 import { billingService, BillingInvoice } from '@/services/billing';
+import { redirectToPayment } from '@/utils/paymentRedirect';
 
 function formatCurrencyIDR(amount: number): string {
   return `Rp\u00a0${amount.toLocaleString('id-ID')}`;
@@ -47,7 +48,7 @@ export default function InvoicesPage() {
       setPayingId(invoice.id);
       const result = await billingService.initiatePayment(invoice.id);
       if (result.payment_url) {
-        window.location.href = result.payment_url;
+        redirectToPayment(result.payment_url);
       }
     } catch (err: any) {
       console.error('Payment initiation failed:', err);
@@ -122,7 +123,7 @@ export default function InvoicesPage() {
                     </th>
                     <th className="text-left px-4 py-3 font-semibold text-gray-700">Status</th>
                     <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden md:table-cell">
-                      Date
+                      Due
                     </th>
                     <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
                   </tr>
@@ -150,27 +151,28 @@ export default function InvoicesPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                          {formatDateIDR(invoice.created_at)}
+                          {invoice.due_at
+                            ? formatDateIDR(invoice.due_at)
+                            : formatDateIDR(invoice.created_at)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {invoice.status === 'pending' ? (
-                            <button
-                              onClick={() => handlePay(invoice)}
-                              disabled={payingId === invoice.id}
-                              className="text-xs font-semibold bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              {payingId === invoice.id ? 'Loading...' : 'Pay Now'}
-                            </button>
-                          ) : invoice.status === 'paid' ? (
+                          <div className="flex items-center justify-end gap-3">
                             <Link
                               href={`/subscription/invoices/${invoice.id}`}
                               className="text-xs text-primary-600 hover:underline"
                             >
                               View
                             </Link>
-                          ) : (
-                            <span className="text-xs text-gray-400">&mdash;</span>
-                          )}
+                            {invoice.status === 'pending' && (
+                              <button
+                                onClick={() => handlePay(invoice)}
+                                disabled={payingId === invoice.id}
+                                className="text-xs font-semibold bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                {payingId === invoice.id ? 'Loading...' : 'Pay Now'}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

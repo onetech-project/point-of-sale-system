@@ -43,7 +43,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const setSubscription = useCallback((next: BillingSubscriptionUI | null) => {
     subscriptionRef.current = next;
     setSubscriptionState(next);
-    setExpired(next?.subscription_status === 'expired' || next?.status === 'expired');
+    setExpired(
+      next?.subscription_status === 'expired' ||
+        next?.status === 'expired' ||
+        next?.subscription_status === 'cancelled' ||
+        next?.status === 'cancelled'
+    );
   }, []);
 
   const clearSubscription = useCallback(() => {

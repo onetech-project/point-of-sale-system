@@ -124,6 +124,15 @@ if ! grep -q "^REDIS_PASSWORD=" backend/billing-service/.env; then
     echo "✓ Added REDIS_PASSWORD to backend/billing-service/.env"
 fi
 
+# Platform Service
+if [ ! -f "backend/platform-service/.env" ]; then
+    echo "Creating backend/platform-service/.env file..."
+    cp backend/platform-service/.env.example backend/platform-service/.env
+    echo "✓ Created backend/platform-service/.env"
+else
+    echo "✓ backend/platform-service/.env already exists"
+fi
+
 # Observability
 if [ ! -f "observability/.env" ]; then
     echo "Creating observability/.env file..."
@@ -169,6 +178,7 @@ echo "  - backend/order-service/.env (Midtrans, Google Maps, Vault config)"
 echo "  - backend/audit-service/.env (Kafka, Vault config)"
 echo "  - backend/analytics-service/.env (analytics DB, Vault config)"
 echo "  - backend/billing-service/.env (Midtrans, billing plan config)"
+echo "  - backend/platform-service/.env (platform admin bootstrap credentials)"
 echo "  - observability/.env (Grafana, MinIO credentials)"
 echo "  - vault/.env (Vault token)"
 echo "  - frontend/.env.local (API URL)"

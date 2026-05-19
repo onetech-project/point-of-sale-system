@@ -83,6 +83,8 @@ func main() {
 	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
 	analyticsServiceURL := utils.GetEnv("ANALYTICS_SERVICE_URL")
 	billingServiceURL := utils.GetEnv("BILLING_SERVICE_URL")
+	platformServiceURL := utils.GetEnv("PLATFORM_SERVICE_URL")
+	tenantStatusEnforcer := middleware.NewTenantStatusEnforcer(tenantServiceURL)
 
 	registrationGroup := e.Group("")
 	registrationGroup.Use(rateLimiter.RateLimit(5, 30*time.Minute))
@@ -92,6 +94,7 @@ func main() {
 		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
 	})
 	public.GET("/api/v1/public/plans", proxyHandler(tenantServiceURL, "/public/plans"))
+	public.POST("/api/v1/platform/auth/login", proxyHandler(platformServiceURL, "/api/v1/platform/auth/login"))
 
 	// Public menu endpoint for guest ordering
 	public.GET("/api/public/menu/:tenant_id/products", func(c echo.Context) error {
@@ -113,7 +116,7 @@ func main() {
 		}
 		proxy.ServeHTTP(c.Response(), c.Request())
 		return nil
-	})
+	}, tenantStatusEnforcer.RequireActiveTenantParam("tenant_id"))
 
 	// Public product photo endpoint
 	public.GET("/api/public/products/:tenant_id/:id/photo", func(c echo.Context) error {
@@ -129,7 +132,7 @@ func main() {
 		}
 		proxy.ServeHTTP(c.Response(), c.Request())
 		return nil
-	})
+	}, tenantStatusEnforcer.RequireActiveTenantParam("tenant_id"))
 
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
 	public.POST("/api/auth/password-reset/request", proxyHandler(authServiceURL, "/password-reset/request"))
@@ -141,6 +144,7 @@ func main() {
 	protected := e.Group("")
 	protected.Use(middleware.JWTAuth())
 	protected.Use(middleware.TenantScope())
+	protected.Use(tenantStatusEnforcer.EnforceTenantAccount())
 	protected.Use(subscriptionEnforcer.EnforceSubscription())
 
 	// Refresh endpoint - outside protected group since it may not have valid JWT
@@ -177,6 +181,7 @@ func main() {
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
+	publicOrders.Use(tenantStatusEnforcer.RequireActiveTenantParam("tenantId"))
 	// publicOrders.Use(middleware.RateLimit()) // Rate limiting will be added later
 	publicOrders.Any("/*", proxyWildcard(orderServiceURL))
 
@@ -214,14 +219,17 @@ func main() {
 	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	auditGroup.Any("/audit-events*", proxyWildcard(auditServiceURL))
 	auditGroup.Any("/consent-records*", proxyWildcard(auditServiceURL))
-	auditGroup.Any("/audit/tenant*", proxyWildcard(auditServiceURL))            // Tenant audit trail (T110)
 	auditGroup.Any("/admin/compliance/report*", proxyWildcard(auditServiceURL)) // Compliance report (T201)
 
-	// Tenant data rights routes (owner only - UU PDP compliance)
-	tenantDataGroup := protected.Group("/api/v1/tenant")
-	tenantDataGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
-	tenantDataGroup.GET("/data", proxyHandler(tenantServiceURL, "/api/v1/tenant/data"))
-	tenantDataGroup.POST("/data/export", proxyHandler(tenantServiceURL, "/api/v1/tenant/data/export"))
+	// Read-only offboarding routes: active and deactivated tenants keep history/export access.
+	offboardingProtected := e.Group("")
+	offboardingProtected.Use(middleware.JWTAuth())
+	offboardingProtected.Use(middleware.TenantScope())
+	offboardingProtected.Use(tenantStatusEnforcer.AllowTenantStatuses("active", "inactive"))
+	offboardingProtected.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	offboardingProtected.Any("/api/v1/audit/tenant*", proxyWildcard(auditServiceURL)) // Tenant audit trail (T110)
+	offboardingProtected.GET("/api/v1/tenant/data", proxyHandler(tenantServiceURL, "/api/v1/tenant/data"))
+	offboardingProtected.POST("/api/v1/tenant/data/export", proxyHandler(tenantServiceURL, "/api/v1/tenant/data/export"))
 
 	// User deletion routes (owner only - UU PDP compliance)
 	userDeletionGroup := protected.Group("/api/v1/tenant/users")
@@ -263,10 +271,29 @@ func main() {
 	billingProtected.Use(middleware.TenantScope())
 	billingProtected.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	billingGroup := billingProtected.Group("/api/v1/billing")
+	billingGroup.POST("/subscription/cycle-switch", proxyHandler(billingServiceURL, "/api/v1/billing/subscription/cycle-switch"))
 	billingGroup.Any("/*", proxyWildcard(billingServiceURL))
 
 	// Billing webhook (no auth - signature verified by billing-service)
 	e.POST("/api/v1/billing/webhook", proxyHandler(billingServiceURL, "/webhook/billing"))
+
+	// Tenant support tickets bypass subscription/account-status enforcement so suspended tenants can reach support.
+	tenantSupport := e.Group("/api/v1/platform")
+	tenantSupport.Use(middleware.JWTAuth())
+	tenantSupport.Use(middleware.TenantScope())
+	tenantSupport.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	tenantSupport.POST("/tickets", proxyWildcard(platformServiceURL))
+
+	// Platform-owner routes use a separate platform cookie and never enter tenant scope.
+	platformProtected := e.Group("/api/v1/platform")
+	platformProtected.Use(middleware.PlatformAdminAuth())
+	platformProtected.GET("/auth/session", proxyHandler(platformServiceURL, "/api/v1/platform/auth/session"))
+	platformProtected.POST("/auth/logout", proxyHandler(platformServiceURL, "/api/v1/platform/auth/logout"))
+	platformProtected.Any("/analytics/*", proxyWildcard(platformServiceURL))
+	platformProtected.Any("/tenants*", proxyWildcard(platformServiceURL))
+	platformProtected.GET("/tickets", proxyWildcard(platformServiceURL))
+	platformProtected.PATCH("/tickets/:ticket_id", proxyWildcard(platformServiceURL))
+	platformProtected.POST("/tickets/:ticket_id/notes", proxyWildcard(platformServiceURL))
 
 	port := utils.GetEnv("PORT")
 	stdlog.Printf("API Gateway starting on port %s", port)
@@ -310,6 +337,21 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 			if role := c.Get("role"); role != nil {
 				req.Header.Set("X-User-Role", role.(string))
 			}
+			if email := c.Get("email"); email != nil {
+				req.Header.Set("X-User-Email", email.(string))
+			}
+			if platformSessionID := c.Get("platform_session_id"); platformSessionID != nil {
+				req.Header.Set("X-Platform-Session-ID", platformSessionID.(string))
+			}
+			if platformAdminID := c.Get("platform_admin_id"); platformAdminID != nil {
+				req.Header.Set("X-Platform-Admin-ID", platformAdminID.(string))
+			}
+			if platformEmail := c.Get("platform_email"); platformEmail != nil {
+				req.Header.Set("X-Platform-Email", platformEmail.(string))
+			}
+			if platformRole := c.Get("platform_role"); platformRole != nil {
+				req.Header.Set("X-Platform-Role", platformRole.(string))
+			}
 		}
 
 		proxy.ServeHTTP(c.Response(), c.Request())
@@ -345,6 +387,21 @@ func proxyWildcard(targetURL string) echo.HandlerFunc {
 			}
 			if role := c.Get("role"); role != nil {
 				req.Header.Set("X-User-Role", role.(string))
+			}
+			if email := c.Get("email"); email != nil {
+				req.Header.Set("X-User-Email", email.(string))
+			}
+			if platformSessionID := c.Get("platform_session_id"); platformSessionID != nil {
+				req.Header.Set("X-Platform-Session-ID", platformSessionID.(string))
+			}
+			if platformAdminID := c.Get("platform_admin_id"); platformAdminID != nil {
+				req.Header.Set("X-Platform-Admin-ID", platformAdminID.(string))
+			}
+			if platformEmail := c.Get("platform_email"); platformEmail != nil {
+				req.Header.Set("X-Platform-Email", platformEmail.(string))
+			}
+			if platformRole := c.Get("platform_role"); platformRole != nil {
+				req.Header.Set("X-Platform-Role", platformRole.(string))
 			}
 		}
 

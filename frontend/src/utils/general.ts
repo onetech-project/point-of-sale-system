@@ -9,7 +9,7 @@ export const PUBLIC_PAGES = {
     '/verify-email',
   ],
   GUEST_ORDER_PATTERN: /^\/orders\/[A-Z0-9-]+$/, // Matches /orders/{orderReference}
-  GUEST_PATHS: ['/menu/', '/checkout/', '/guest/'], // Any path containing these segments
+  GUEST_PATHS: ['/menu/', '/checkout/', '/guest/', '/platform'], // Any path containing these segments
   OTHERS: [
     '/',
     '/pricing',

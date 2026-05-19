@@ -15,7 +15,11 @@ import (
 	"github.com/pos/billing-service/src/utils"
 )
 
-const SubscriptionRetentionDays = 30
+const (
+	SubscriptionRetentionDays = 30
+	PaymentLinkTTLMinutes     = 15
+	PaymentLinkTTL            = PaymentLinkTTLMinutes * time.Minute
+)
 
 type SubscriptionCacheInvalidator interface {
 	InvalidateSubscriptionStatus(ctx context.Context, tenantID string) error
@@ -47,11 +51,48 @@ func (s *SubscriptionService) SetSubscriptionCacheInvalidator(invalidator Subscr
 
 // UpgradeResponse is returned by UpgradeSubscription.
 type UpgradeResponse struct {
-	InvoiceID     string `json:"invoice_id"`
-	InvoiceNumber string `json:"invoice_number"`
-	AmountIDR     int    `json:"amount_idr"`
-	SnapToken     string `json:"snap_token"`
-	PaymentURL    string `json:"payment_url"`
+	Invoice       *models.BillingInvoice `json:"invoice"`
+	InvoiceID     string                 `json:"invoice_id"`
+	InvoiceNumber string                 `json:"invoice_number"`
+	AmountIDR     int                    `json:"amount_idr"`
+	SnapToken     string                 `json:"snap_token"`
+	PaymentURL    string                 `json:"payment_url"`
+}
+
+// CycleSwitchResponse is returned when changing billing intervals requires payment.
+type CycleSwitchResponse struct {
+	Status                 string                 `json:"status"`
+	SubscriptionStatus     string                 `json:"subscription_status"`
+	CurrentBillingInterval string                 `json:"current_billing_interval"`
+	TargetBillingInterval  string                 `json:"billing_interval"`
+	SubscriptionEndsAt     *time.Time             `json:"subscription_ends_at,omitempty"`
+	Invoice                *models.BillingInvoice `json:"invoice"`
+	InvoiceID              string                 `json:"invoice_id"`
+	InvoiceNumber          string                 `json:"invoice_number"`
+	AmountIDR              int                    `json:"amount_idr"`
+	SnapToken              string                 `json:"snap_token"`
+	PaymentURL             string                 `json:"payment_url"`
+	DueAt                  time.Time              `json:"due_at"`
+	PaymentLinkExpiresAt   *time.Time             `json:"payment_link_expires_at,omitempty"`
+}
+
+// CycleSwitchLockedError is returned when an active annual subscription cannot
+// revert to monthly yet.
+type CycleSwitchLockedError struct {
+	SubscriptionEndsAt time.Time
+}
+
+func (e *CycleSwitchLockedError) Error() string {
+	return fmt.Sprintf("yearly subscription can be changed to monthly after %s", e.SubscriptionEndsAt.Format(time.RFC3339))
+}
+
+// AsCycleSwitchLockedError extracts the yearly lock error for HTTP mapping.
+func AsCycleSwitchLockedError(err error) (*CycleSwitchLockedError, bool) {
+	var locked *CycleSwitchLockedError
+	if errors.As(err, &locked) {
+		return locked, true
+	}
+	return nil, false
 }
 
 // MidtransWebhookPayload represents the Midtrans payment notification body.
@@ -82,6 +123,11 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 	status := computeSubscriptionStatus(tenant, graceDays)
 	days := computeDaysRemaining(tenant, status, graceDays)
 	retentionCleanupAt := computeRetentionCleanupAt(tenant)
+	pendingInvoice, err := s.repo.GetPendingInvoiceByTenantID(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current invoice: %w", err)
+	}
+	paymentDueAt := computePaymentDueAt(tenant, pendingInvoice)
 
 	return &models.SubscriptionStatusResponse{
 		TenantID:           tenant.ID,
@@ -93,6 +139,8 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 		RetentionStartedAt: tenant.RetentionStartedAt,
 		RetentionCleanupAt: retentionCleanupAt,
 		DataAnonymizedAt:   tenant.DataAnonymizedAt,
+		PaymentDueAt:       paymentDueAt,
+		CurrentInvoice:     pendingInvoice,
 		IsActive:           status != "expired" && status != "cancelled",
 		DaysRemaining:      days,
 	}, nil
@@ -100,16 +148,27 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 
 // UpdateBillingCycle updates the tenant's preferred billing cycle.
 func (s *SubscriptionService) UpdateBillingCycle(ctx context.Context, tenantID, billingInterval string) error {
-	if billingInterval != "monthly" && billingInterval != "annual" {
-		return errors.New("billing_interval must be 'monthly' or 'annual'")
+	if err := validateBillingInterval(billingInterval); err != nil {
+		return err
+	}
+
+	tenant, err := s.repo.GetTenantByID(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant: %w", err)
+	}
+	if tenant == nil {
+		return errors.New("tenant not found")
+	}
+	if tenant.BillingCycle != "" && tenant.BillingCycle != billingInterval {
+		return errors.New("billing cycle changes require payment; use the cycle switch endpoint")
 	}
 	return s.repo.UpdateTenantBillingCycle(ctx, tenantID, billingInterval)
 }
 
 // UpgradeSubscription creates an invoice and a Midtrans Snap payment for the tenant.
 func (s *SubscriptionService) UpgradeSubscription(ctx context.Context, tenantID, billingInterval string) (*UpgradeResponse, error) {
-	if billingInterval != "monthly" && billingInterval != "annual" {
-		return nil, errors.New("billing_interval must be 'monthly' or 'annual'")
+	if err := validateBillingInterval(billingInterval); err != nil {
+		return nil, err
 	}
 
 	tenant, err := s.repo.GetTenantByID(ctx, tenantID)
@@ -120,71 +179,124 @@ func (s *SubscriptionService) UpgradeSubscription(ctx context.Context, tenantID,
 		return nil, errors.New("tenant not found")
 	}
 
-	// Check for an existing pending invoice to avoid duplicates.
-	existing, err := s.repo.GetPendingInvoiceByTenantID(ctx, tenantID)
+	now := time.Now().UTC()
+	return s.createSubscriptionPayment(ctx, tenant, billingInterval, now, computeInvoiceDueAt(tenant, now), true)
+}
+
+// SwitchBillingCycle creates a payment-backed invoice for a billing-cycle change.
+func (s *SubscriptionService) SwitchBillingCycle(ctx context.Context, tenantID, billingInterval string) (*CycleSwitchResponse, error) {
+	if err := validateBillingInterval(billingInterval); err != nil {
+		return nil, err
+	}
+
+	tenant, err := s.repo.GetTenantByID(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+	if tenant == nil {
+		return nil, errors.New("tenant not found")
+	}
+
+	currentInterval := tenant.BillingCycle
+	if currentInterval == "" {
+		currentInterval = "monthly"
+	}
+
+	now := time.Now().UTC()
+	if err := validateBillingCycleSwitch(tenant, currentInterval, billingInterval, now); err != nil {
+		return nil, err
+	}
+
+	result, err := s.createSubscriptionPayment(ctx, tenant, billingInterval, now, now, true)
+	if err != nil {
+		return nil, err
+	}
+
+	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
+	return &CycleSwitchResponse{
+		Status:                 "payment_required",
+		SubscriptionStatus:     computeSubscriptionStatus(tenant, graceDays),
+		CurrentBillingInterval: currentInterval,
+		TargetBillingInterval:  billingInterval,
+		SubscriptionEndsAt:     tenant.SubscriptionEndsAt,
+		Invoice:                result.Invoice,
+		InvoiceID:              result.InvoiceID,
+		InvoiceNumber:          result.InvoiceNumber,
+		AmountIDR:              result.AmountIDR,
+		SnapToken:              result.SnapToken,
+		PaymentURL:             result.PaymentURL,
+		DueAt:                  result.Invoice.DueAt,
+		PaymentLinkExpiresAt:   result.Invoice.PaymentLinkExpiresAt,
+	}, nil
+}
+
+func (s *SubscriptionService) createSubscriptionPayment(ctx context.Context, tenant *models.Tenant, billingInterval string, periodStart, dueAt time.Time, cancelOtherIntervals bool) (*UpgradeResponse, error) {
+	if tenant == nil {
+		return nil, errors.New("tenant not found")
+	}
+	if cancelOtherIntervals {
+		if err := s.repo.CancelPendingInvoicesByTenantIDExceptInterval(ctx, tenant.ID, billingInterval); err != nil {
+			return nil, fmt.Errorf("failed to cancel stale pending invoices: %w", err)
+		}
+	}
+
+	existing, err := s.repo.GetPendingInvoiceByTenantIDAndInterval(ctx, tenant.ID, billingInterval)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing invoice: %w", err)
 	}
-	if existing != nil && existing.MidtransPaymentURL != nil {
-		// Return the existing payment URL.
-		snapToken := ""
-		return &UpgradeResponse{
-			InvoiceID:     existing.ID,
-			InvoiceNumber: existing.InvoiceNumber,
-			AmountIDR:     existing.AmountIDR,
-			SnapToken:     snapToken,
-			PaymentURL:    *existing.MidtransPaymentURL,
-		}, nil
+	if existing != nil {
+		if isPaymentLinkExpired(existing, time.Now().UTC()) {
+			if err := s.repo.UpdateInvoiceStatus(ctx, existing.ID, "expired", nil, nil, nil, nil); err != nil {
+				return nil, fmt.Errorf("failed to expire stale pending invoice: %w", err)
+			}
+		} else if existing.MidtransPaymentURL != nil {
+			return upgradeResponseFromInvoice(existing, "", *existing.MidtransPaymentURL), nil
+		} else {
+			return s.createPaymentForInvoice(ctx, tenant, existing)
+		}
 	}
 
 	amount := computeAmount(billingInterval)
-	now := time.Now().UTC()
-	periodStart := now
-	var periodEnd time.Time
-	if billingInterval == "annual" {
-		periodEnd = now.AddDate(1, 0, 0)
-	} else {
-		periodEnd = now.AddDate(0, 1, 0)
-	}
-
-	count, err := s.repo.CountInvoicesThisMonth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count invoices: %w", err)
-	}
-	invoiceNumber := fmt.Sprintf("INV-%s-%06d", now.Format("200601"), count+1)
+	periodStart = periodStart.UTC()
+	dueAt = dueAt.UTC()
+	periodEnd := computePeriodEnd(periodStart, billingInterval)
+	invoiceNumber := BuildBillingInvoiceNumber(time.Now().UTC())
 
 	inv := &models.BillingInvoice{
-		TenantID:        tenantID,
+		TenantID:        tenant.ID,
 		InvoiceNumber:   invoiceNumber,
 		AmountIDR:       amount,
 		BillingInterval: billingInterval,
 		PeriodStart:     periodStart,
 		PeriodEnd:       periodEnd,
+		DueAt:           dueAt,
 		Status:          "pending",
 	}
 	if err := s.repo.CreateInvoice(ctx, inv); err != nil {
 		return nil, fmt.Errorf("failed to create invoice: %w", err)
 	}
 
-	ownerEmail, _ := s.repo.GetTenantOwnerEmail(ctx, tenantID)
+	return s.createPaymentForInvoice(ctx, tenant, inv)
+}
 
+func (s *SubscriptionService) createPaymentForInvoice(ctx context.Context, tenant *models.Tenant, inv *models.BillingInvoice) (*UpgradeResponse, error) {
+	ownerEmail, _ := s.repo.GetTenantOwnerEmail(ctx, inv.TenantID)
 	snapResult, err := s.paymentSvc.CreateSnapPayment(ctx, inv, ownerEmail, tenant.BusinessName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
 	// Update invoice with Midtrans details.
-	if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "pending", nil, &snapResult.OrderID, &snapResult.PaymentURL); err != nil {
+	paymentLinkExpiresAt := time.Now().UTC().Add(PaymentLinkTTL)
+	if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "pending", nil, &snapResult.OrderID, &snapResult.PaymentURL, &paymentLinkExpiresAt); err != nil {
 		return nil, fmt.Errorf("failed to update invoice: %w", err)
 	}
+	inv.MidtransOrderID = &snapResult.OrderID
+	inv.MidtransPaymentURL = &snapResult.PaymentURL
+	inv.PaymentLinkExpiresAt = &paymentLinkExpiresAt
+	_ = s.recordPaymentAttempt(ctx, inv, &snapResult.OrderID, nil, "pending", nil)
 
-	return &UpgradeResponse{
-		InvoiceID:     inv.ID,
-		InvoiceNumber: inv.InvoiceNumber,
-		AmountIDR:     inv.AmountIDR,
-		SnapToken:     snapResult.Token,
-		PaymentURL:    snapResult.PaymentURL,
-	}, nil
+	return upgradeResponseFromInvoice(inv, snapResult.Token, snapResult.PaymentURL), nil
 }
 
 // InitiatePayment creates a new Midtrans Snap payment for an existing pending invoice.
@@ -205,23 +317,18 @@ func (s *SubscriptionService) InitiatePayment(ctx context.Context, tenantID, inv
 		return nil, errors.New("tenant not found")
 	}
 
-	ownerEmail, _ := s.repo.GetTenantOwnerEmail(ctx, tenantID)
-	snapResult, err := s.paymentSvc.CreateSnapPayment(ctx, inv, ownerEmail, tenant.BusinessName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payment: %w", err)
+	now := time.Now().UTC()
+	if isPaymentLinkExpired(inv, now) {
+		if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "expired", nil, nil, nil, nil); err != nil {
+			return nil, fmt.Errorf("failed to expire stale pending invoice: %w", err)
+		}
+		return s.createSubscriptionPayment(ctx, tenant, inv.BillingInterval, inv.PeriodStart, inv.DueAt, false)
+	}
+	if inv.MidtransPaymentURL != nil {
+		return upgradeResponseFromInvoice(inv, "", *inv.MidtransPaymentURL), nil
 	}
 
-	if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "pending", nil, &snapResult.OrderID, &snapResult.PaymentURL); err != nil {
-		return nil, fmt.Errorf("failed to update invoice: %w", err)
-	}
-
-	return &UpgradeResponse{
-		InvoiceID:     inv.ID,
-		InvoiceNumber: inv.InvoiceNumber,
-		AmountIDR:     inv.AmountIDR,
-		SnapToken:     snapResult.Token,
-		PaymentURL:    snapResult.PaymentURL,
-	}, nil
+	return s.createPaymentForInvoice(ctx, tenant, inv)
 }
 
 // GetInvoices returns all invoices for a tenant.
@@ -239,6 +346,15 @@ func (s *SubscriptionService) GetInvoice(ctx context.Context, tenantID, invoiceI
 		return nil, errors.New("invoice not found")
 	}
 	return inv, nil
+}
+
+// GetInvoicePaymentAttempts returns payment attempts for a tenant invoice.
+func (s *SubscriptionService) GetInvoicePaymentAttempts(ctx context.Context, tenantID, invoiceID string) ([]*models.BillingPaymentAttempt, error) {
+	inv, err := s.GetInvoice(ctx, tenantID, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaymentAttemptsByInvoiceID(ctx, tenantID, inv.ID)
 }
 
 // HandlePaymentWebhook processes an inbound Midtrans payment notification.
@@ -274,9 +390,12 @@ func (s *SubscriptionService) HandlePaymentWebhook(ctx context.Context, payload 
 		if inv.Status == "paid" {
 			return nil // idempotent
 		}
+		if inv.Status != "pending" {
+			return nil
+		}
 
 		now := time.Now().UTC()
-		if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "paid", &now, nil, nil); err != nil {
+		if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "paid", &now, nil, nil, nil); err != nil {
 			return fmt.Errorf("failed to update invoice: %w", err)
 		}
 
@@ -355,11 +474,7 @@ func (s *SubscriptionService) CreateNextPeriodInvoice(ctx context.Context, tenan
 		periodEnd = periodStart.AddDate(0, 1, 0)
 	}
 
-	count, err := s.repo.CountInvoicesThisMonth(ctx)
-	if err != nil {
-		return nil, err
-	}
-	invoiceNumber := fmt.Sprintf("INV-%s-%06d", time.Now().UTC().Format("200601"), count+1)
+	invoiceNumber := BuildBillingInvoiceNumber(time.Now().UTC())
 
 	inv := &models.BillingInvoice{
 		TenantID:        tenant.ID,
@@ -368,12 +483,29 @@ func (s *SubscriptionService) CreateNextPeriodInvoice(ctx context.Context, tenan
 		BillingInterval: billingInterval,
 		PeriodStart:     periodStart,
 		PeriodEnd:       periodEnd,
+		DueAt:           computeInvoiceDueAt(tenant, periodStart),
 		Status:          "pending",
 	}
 	if err := s.repo.CreateInvoice(ctx, inv); err != nil {
 		return nil, err
 	}
 	return inv, nil
+}
+
+func (s *SubscriptionService) recordPaymentAttempt(ctx context.Context, inv *models.BillingInvoice, orderID, paymentMethod *string, status string, errorMsg *string) error {
+	if inv == nil {
+		return nil
+	}
+	attempt := &models.BillingPaymentAttempt{
+		InvoiceID:       inv.ID,
+		TenantID:        inv.TenantID,
+		AmountIDR:       inv.AmountIDR,
+		MidtransOrderID: orderID,
+		PaymentMethod:   paymentMethod,
+		Status:          status,
+		ErrorMsg:        errorMsg,
+	}
+	return s.repo.CreatePaymentAttempt(ctx, attempt)
 }
 
 // --- helpers ---
@@ -436,6 +568,41 @@ func computeRetentionCleanupAt(tenant *models.Tenant) *time.Time {
 	return &cleanupAt
 }
 
+func computeInvoiceDueAt(tenant *models.Tenant, fallback time.Time) time.Time {
+	now := time.Now().UTC()
+	if tenant != nil {
+		if tenant.SubscriptionPlan == "trial" && tenant.TrialEndsAt != nil && tenant.TrialEndsAt.After(now) {
+			return tenant.TrialEndsAt.UTC()
+		}
+		if tenant.SubscriptionEndsAt != nil && tenant.SubscriptionEndsAt.After(now) {
+			return tenant.SubscriptionEndsAt.UTC()
+		}
+	}
+	if fallback.IsZero() {
+		return now
+	}
+	return fallback.UTC()
+}
+
+func computePaymentDueAt(tenant *models.Tenant, pendingInvoice *models.BillingInvoice) *time.Time {
+	if pendingInvoice != nil {
+		dueAt := pendingInvoice.DueAt
+		return &dueAt
+	}
+	if tenant == nil {
+		return nil
+	}
+	if tenant.SubscriptionPlan == "trial" && tenant.TrialEndsAt != nil {
+		dueAt := tenant.TrialEndsAt.UTC()
+		return &dueAt
+	}
+	if tenant.SubscriptionEndsAt != nil {
+		dueAt := tenant.SubscriptionEndsAt.UTC()
+		return &dueAt
+	}
+	return nil
+}
+
 func computeAmount(billingInterval string) int {
 	monthly := utils.GetEnvInt("PLAN_MONTHLY_PRICE_IDR", 299000)
 	if billingInterval == "annual" {
@@ -445,6 +612,59 @@ func computeAmount(billingInterval string) int {
 		return annual - discount
 	}
 	return monthly
+}
+
+func validateBillingInterval(billingInterval string) error {
+	if billingInterval != "monthly" && billingInterval != "annual" {
+		return errors.New("billing_interval must be 'monthly' or 'annual'")
+	}
+	return nil
+}
+
+func computePeriodEnd(periodStart time.Time, billingInterval string) time.Time {
+	if billingInterval == "annual" {
+		return periodStart.AddDate(1, 0, 0)
+	}
+	return periodStart.AddDate(0, 1, 0)
+}
+
+// BuildBillingInvoiceNumber returns an invoice number using the UTC month and
+// Unix epoch milliseconds as the unique suffix.
+func BuildBillingInvoiceNumber(now time.Time) string {
+	now = now.UTC()
+	return fmt.Sprintf("INV-%s-%d", now.Format("200601"), now.UnixMilli())
+}
+
+func isPaymentLinkExpired(inv *models.BillingInvoice, now time.Time) bool {
+	if inv == nil || inv.MidtransPaymentURL == nil {
+		return false
+	}
+	if inv.PaymentLinkExpiresAt == nil {
+		return true
+	}
+	return !inv.PaymentLinkExpiresAt.After(now)
+}
+
+func validateBillingCycleSwitch(tenant *models.Tenant, currentInterval, targetInterval string, now time.Time) error {
+	if currentInterval == targetInterval {
+		return fmt.Errorf("tenant is already using %s billing", targetInterval)
+	}
+	if currentInterval == "annual" && targetInterval == "monthly" &&
+		tenant != nil && tenant.SubscriptionEndsAt != nil && tenant.SubscriptionEndsAt.After(now) {
+		return &CycleSwitchLockedError{SubscriptionEndsAt: tenant.SubscriptionEndsAt.UTC()}
+	}
+	return nil
+}
+
+func upgradeResponseFromInvoice(inv *models.BillingInvoice, snapToken, paymentURL string) *UpgradeResponse {
+	return &UpgradeResponse{
+		Invoice:       inv,
+		InvoiceID:     inv.ID,
+		InvoiceNumber: inv.InvoiceNumber,
+		AmountIDR:     inv.AmountIDR,
+		SnapToken:     snapToken,
+		PaymentURL:    paymentURL,
+	}
 }
 
 func verifyMidtransSignature(orderID, statusCode, grossAmount, serverKey, received string) bool {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 
@@ -42,7 +43,7 @@ func (h *BillingHandler) GetInternalSubscriptionStatus(c echo.Context) error {
 	}
 	resp, err := h.svc.GetSubscriptionStatus(c.Request().Context(), tenantID)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		return c.JSON(subscriptionStatusErrorCode(err), map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, resp)
 }
@@ -56,9 +57,16 @@ func (h *BillingHandler) GetMySubscription(c echo.Context) error {
 	}
 	resp, err := h.svc.GetSubscriptionStatus(c.Request().Context(), tenantID)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		return c.JSON(subscriptionStatusErrorCode(err), map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, resp)
+}
+
+func subscriptionStatusErrorCode(err error) int {
+	if err != nil && strings.Contains(err.Error(), "tenant not found") {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }
 
 // UpdateBillingCycle updates the tenant's preferred billing cycle.
@@ -75,7 +83,7 @@ func (h *BillingHandler) UpdateBillingCycle(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 	if err := h.svc.UpdateBillingCycle(c.Request().Context(), tenantID, body.BillingInterval); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(billingActionErrorCode(err), map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"status": "updated"})
 }
@@ -98,6 +106,48 @@ func (h *BillingHandler) UpgradeSubscription(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, result)
+}
+
+// SwitchBillingCycle creates a payment-backed invoice for changing billing cycle.
+// POST /api/v1/billing/subscription/cycle-switch
+func (h *BillingHandler) SwitchBillingCycle(c echo.Context) error {
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing tenant ID"})
+	}
+	var body struct {
+		BillingInterval string `json:"billing_interval"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	result, err := h.svc.SwitchBillingCycle(c.Request().Context(), tenantID, body.BillingInterval)
+	if err != nil {
+		if locked, ok := services.AsCycleSwitchLockedError(err); ok {
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error":                err.Error(),
+				"subscription_ends_at": locked.SubscriptionEndsAt,
+			})
+		}
+		return c.JSON(billingActionErrorCode(err), map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
+func billingActionErrorCode(err error) int {
+	if err == nil {
+		return http.StatusInternalServerError
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "tenant not found") {
+		return http.StatusNotFound
+	}
+	if strings.Contains(msg, "billing_interval") ||
+		strings.Contains(msg, "already using") ||
+		strings.Contains(msg, "require payment") {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
 }
 
 // ListInvoices returns all invoices for the tenant.
@@ -130,6 +180,24 @@ func (h *BillingHandler) GetInvoice(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, inv)
+}
+
+// ListInvoicePaymentAttempts returns payment attempts for an invoice.
+// GET /api/v1/billing/invoices/:id/payments
+func (h *BillingHandler) ListInvoicePaymentAttempts(c echo.Context) error {
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing tenant ID"})
+	}
+	invoiceID := c.Param("id")
+	attempts, err := h.svc.GetInvoicePaymentAttempts(c.Request().Context(), tenantID, invoiceID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+	}
+	if attempts == nil {
+		attempts = []*models.BillingPaymentAttempt{}
+	}
+	return c.JSON(http.StatusOK, attempts)
 }
 
 // InitiatePayment creates (or re-creates) a Snap payment for an existing pending invoice.

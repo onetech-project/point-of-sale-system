@@ -76,3 +76,29 @@ func (h *TenantHandler) GetTenant(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, tenant)
 }
+
+// GetInternalTenantStatus returns the tenant account status for gateway enforcement.
+func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
+	}
+
+	var status string
+	err := h.db.QueryRowContext(c.Request().Context(), `
+		SELECT status
+		FROM tenants
+		WHERE id = $1`, tenantID).Scan(&status)
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
+	}
+	if err != nil {
+		c.Logger().Errorf("Failed to get tenant status: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to retrieve tenant status"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"tenant_id": tenantID,
+		"status":    status,
+	})
+}

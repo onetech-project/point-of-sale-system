@@ -3,7 +3,6 @@ package jobs
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/pos/billing-service/src/models"
 	"github.com/pos/billing-service/src/queue"
 	"github.com/pos/billing-service/src/repository"
+	"github.com/pos/billing-service/src/services"
 	"github.com/pos/billing-service/src/utils"
 )
 
@@ -21,6 +21,7 @@ type JobRunner struct {
 	db               *sql.DB
 	repo             *repository.BillingRepository
 	publisher        *queue.EventPublisher
+	paymentSvc       *services.PaymentService
 	cacheInvalidator SubscriptionCacheInvalidator
 }
 
@@ -29,8 +30,8 @@ type SubscriptionCacheInvalidator interface {
 }
 
 // NewJobRunner creates a new JobRunner.
-func NewJobRunner(db *sql.DB, repo *repository.BillingRepository, publisher *queue.EventPublisher) *JobRunner {
-	return &JobRunner{db: db, repo: repo, publisher: publisher}
+func NewJobRunner(db *sql.DB, repo *repository.BillingRepository, publisher *queue.EventPublisher, paymentSvc *services.PaymentService) *JobRunner {
+	return &JobRunner{db: db, repo: repo, publisher: publisher, paymentSvc: paymentSvc}
 }
 
 // SetSubscriptionCacheInvalidator wires gateway cache invalidation for status-changing jobs.
@@ -250,11 +251,7 @@ func (j *JobRunner) buildRenewalInvoice(ctx context.Context, t *models.Tenant) (
 		periodEnd = periodStart.AddDate(0, 1, 0)
 	}
 
-	count, err := j.repo.CountInvoicesThisMonth(ctx)
-	if err != nil {
-		return nil, err
-	}
-	invoiceNumber := fmt.Sprintf("INV-%s-%06d", time.Now().UTC().Format("200601"), count+1)
+	invoiceNumber := services.BuildBillingInvoiceNumber(time.Now().UTC())
 
 	inv := &models.BillingInvoice{
 		TenantID:        t.ID,
@@ -263,11 +260,35 @@ func (j *JobRunner) buildRenewalInvoice(ctx context.Context, t *models.Tenant) (
 		BillingInterval: billingInterval,
 		PeriodStart:     periodStart,
 		PeriodEnd:       periodEnd,
+		DueAt:           periodStart,
 		Status:          "pending",
 	}
 	if err := j.repo.CreateInvoice(ctx, inv); err != nil {
 		return nil, err
 	}
+	if j.paymentSvc == nil {
+		return inv, nil
+	}
+
+	email, _ := j.repo.GetTenantOwnerEmail(ctx, t.ID)
+	snapResult, err := j.paymentSvc.CreateSnapPayment(ctx, inv, email, t.BusinessName)
+	if err != nil {
+		return nil, err
+	}
+	paymentLinkExpiresAt := time.Now().UTC().Add(services.PaymentLinkTTL)
+	if err := j.repo.UpdateInvoiceStatus(ctx, inv.ID, "pending", nil, &snapResult.OrderID, &snapResult.PaymentURL, &paymentLinkExpiresAt); err != nil {
+		return nil, err
+	}
+	inv.MidtransOrderID = &snapResult.OrderID
+	inv.MidtransPaymentURL = &snapResult.PaymentURL
+	inv.PaymentLinkExpiresAt = &paymentLinkExpiresAt
+	_ = j.repo.CreatePaymentAttempt(ctx, &models.BillingPaymentAttempt{
+		InvoiceID:       inv.ID,
+		TenantID:        inv.TenantID,
+		AmountIDR:       inv.AmountIDR,
+		MidtransOrderID: &snapResult.OrderID,
+		Status:          "pending",
+	})
 	return inv, nil
 }
 

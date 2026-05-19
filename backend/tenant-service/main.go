@@ -77,6 +77,7 @@ func main() {
 
 	tenantHandler := api.NewTenantHandler(db)
 	e.GET("/tenant", tenantHandler.GetTenant)
+	e.GET("/internal/tenants/:tenant_id/status", tenantHandler.GetInternalTenantStatus)
 
 	// Tenant configuration routes
 	configRepo, err := repository.NewTenantConfigRepositoryWithVault(db, auditPublisher)

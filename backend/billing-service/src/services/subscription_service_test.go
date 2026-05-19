@@ -2,7 +2,9 @@ package services
 
 import (
 	"crypto/sha512"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,6 +140,142 @@ func TestComputeAmount(t *testing.T) {
 	}
 }
 
+func TestComputePeriodEnd(t *testing.T) {
+	start := time.Date(2026, 5, 19, 8, 0, 0, 0, time.UTC)
+
+	if got := computePeriodEnd(start, "monthly"); !got.Equal(start.AddDate(0, 1, 0)) {
+		t.Fatalf("monthly period end = %s, want %s", got, start.AddDate(0, 1, 0))
+	}
+	if got := computePeriodEnd(start, "annual"); !got.Equal(start.AddDate(1, 0, 0)) {
+		t.Fatalf("annual period end = %s, want %s", got, start.AddDate(1, 0, 0))
+	}
+}
+
+func TestBuildBillingInvoiceNumberUsesUnixMilliseconds(t *testing.T) {
+	now := time.Date(2026, 5, 19, 8, 9, 10, 123*int(time.Millisecond), time.UTC)
+
+	got := BuildBillingInvoiceNumber(now)
+
+	if got != "INV-202605-1779178150123" {
+		t.Fatalf("invoice number = %q, want Unix millisecond suffix", got)
+	}
+}
+
+func TestValidateBillingCycleSwitch(t *testing.T) {
+	now := time.Date(2026, 5, 19, 8, 0, 0, 0, time.UTC)
+	activeAnnualEnd := now.Add(24 * time.Hour)
+	expiredAnnualEnd := now.Add(-24 * time.Hour)
+
+	tests := []struct {
+		name            string
+		tenant          *models.Tenant
+		currentInterval string
+		targetInterval  string
+		wantLocked      bool
+		wantErr         string
+	}{
+		{
+			name:            "monthly can switch to annual immediately",
+			tenant:          &models.Tenant{SubscriptionEndsAt: &activeAnnualEnd},
+			currentInterval: "monthly",
+			targetInterval:  "annual",
+		},
+		{
+			name:            "active annual cannot switch to monthly before end",
+			tenant:          &models.Tenant{SubscriptionEndsAt: &activeAnnualEnd},
+			currentInterval: "annual",
+			targetInterval:  "monthly",
+			wantLocked:      true,
+		},
+		{
+			name:            "expired annual can switch to monthly",
+			tenant:          &models.Tenant{SubscriptionEndsAt: &expiredAnnualEnd},
+			currentInterval: "annual",
+			targetInterval:  "monthly",
+		},
+		{
+			name:            "same interval is rejected",
+			tenant:          &models.Tenant{SubscriptionEndsAt: &activeAnnualEnd},
+			currentInterval: "monthly",
+			targetInterval:  "monthly",
+			wantErr:         "already using monthly",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBillingCycleSwitch(tt.tenant, tt.currentInterval, tt.targetInterval, now)
+			if tt.wantLocked {
+				var locked *CycleSwitchLockedError
+				if !errors.As(err, &locked) {
+					t.Fatalf("expected CycleSwitchLockedError, got %v", err)
+				}
+				if !locked.SubscriptionEndsAt.Equal(activeAnnualEnd) {
+					t.Fatalf("locked until = %s, want %s", locked.SubscriptionEndsAt, activeAnnualEnd)
+				}
+				return
+			}
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestIsPaymentLinkExpired(t *testing.T) {
+	now := time.Date(2026, 5, 19, 8, 0, 0, 0, time.UTC)
+	url := "https://pay.example.test"
+	future := now.Add(time.Hour)
+	past := now.Add(-time.Second)
+
+	tests := []struct {
+		name string
+		inv  *models.BillingInvoice
+		want bool
+	}{
+		{
+			name: "invoice without payment url is not expired",
+			inv:  &models.BillingInvoice{},
+			want: false,
+		},
+		{
+			name: "payment url without expiry is expired",
+			inv:  &models.BillingInvoice{MidtransPaymentURL: &url},
+			want: true,
+		},
+		{
+			name: "future payment link is reusable",
+			inv:  &models.BillingInvoice{MidtransPaymentURL: &url, PaymentLinkExpiresAt: &future},
+			want: false,
+		},
+		{
+			name: "past payment link is expired",
+			inv:  &models.BillingInvoice{MidtransPaymentURL: &url, PaymentLinkExpiresAt: &past},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPaymentLinkExpired(tt.inv, now); got != tt.want {
+				t.Fatalf("isPaymentLinkExpired() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPaymentLinkTTLIsFifteenMinutes(t *testing.T) {
+	if PaymentLinkTTL != 15*time.Minute {
+		t.Fatalf("PaymentLinkTTL = %s, want 15m", PaymentLinkTTL)
+	}
+}
+
 func TestComputeRetentionCleanupAt(t *testing.T) {
 	startedAt := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	got := computeRetentionCleanupAt(&models.Tenant{RetentionStartedAt: &startedAt})
@@ -151,6 +289,36 @@ func TestComputeRetentionCleanupAt(t *testing.T) {
 
 	if got := computeRetentionCleanupAt(&models.Tenant{}); got != nil {
 		t.Fatalf("expected nil cleanup date without retention start, got %s", got.Format(time.RFC3339))
+	}
+}
+
+func TestComputeInvoiceDueAt(t *testing.T) {
+	now := time.Now().UTC()
+	trialEnd := now.Add(48 * time.Hour)
+	subscriptionEnd := now.Add(72 * time.Hour)
+	fallback := now.Add(24 * time.Hour)
+
+	if got := computeInvoiceDueAt(&models.Tenant{SubscriptionPlan: "trial", TrialEndsAt: &trialEnd}, fallback); !got.Equal(trialEnd) {
+		t.Fatalf("trial invoice due_at = %s, want %s", got, trialEnd)
+	}
+	if got := computeInvoiceDueAt(&models.Tenant{SubscriptionPlan: "starter", SubscriptionEndsAt: &subscriptionEnd}, fallback); !got.Equal(subscriptionEnd) {
+		t.Fatalf("subscription invoice due_at = %s, want %s", got, subscriptionEnd)
+	}
+	expiredTrial := now.Add(-24 * time.Hour)
+	if got := computeInvoiceDueAt(&models.Tenant{SubscriptionPlan: "trial", TrialEndsAt: &expiredTrial}, fallback); !got.Equal(fallback) {
+		t.Fatalf("expired invoice due_at = %s, want fallback %s", got, fallback)
+	}
+}
+
+func TestComputePaymentDueAtPrefersPendingInvoice(t *testing.T) {
+	trialEnd := time.Now().UTC().Add(48 * time.Hour)
+	invoiceDue := time.Now().UTC().Add(24 * time.Hour)
+	got := computePaymentDueAt(
+		&models.Tenant{SubscriptionPlan: "trial", TrialEndsAt: &trialEnd},
+		&models.BillingInvoice{DueAt: invoiceDue},
+	)
+	if got == nil || !got.Equal(invoiceDue) {
+		t.Fatalf("payment due_at = %v, want invoice due_at %s", got, invoiceDue)
 	}
 }
 

@@ -3,10 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import Modal from '@/components/ui/Modal';
 import DashboardLayout from '../../src/components/layout/DashboardLayout';
-import { billingService, BillingSubscriptionUI, PublicPlans } from '@/services/billing';
+import {
+  billingService,
+  BillingInvoice,
+  BillingSubscriptionUI,
+  PublicPlans,
+} from '@/services/billing';
 import { useAuth } from '@/store/auth';
 import { useSubscription } from '@/store/subscription';
+import { redirectToPayment } from '@/utils/paymentRedirect';
 
 type BillingInterval = 'monthly' | 'annual';
 
@@ -27,6 +34,17 @@ function formatOptionalDateIDR(dateStr?: string): string {
   return formatDateIDR(dateStr);
 }
 
+function formatDateTimeIDR(dateStr?: string): string {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 const FEATURES = [
   'Unlimited products & categories',
   'Multi-user support (up to 10 staff)',
@@ -37,6 +55,62 @@ const FEATURES = [
   'Inventory tracking',
   'Email invoices & notifications',
 ];
+
+function dateValue(dateStr?: string): number {
+  if (!dateStr) return 0;
+  const value = new Date(dateStr).getTime();
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function isFutureDate(dateStr?: string): boolean {
+  const value = dateValue(dateStr);
+  return value > Date.now();
+}
+
+function getRequestErrorMessage(err: any, fallback: string): string {
+  return err?.response?.data?.error ?? err?.response?.data?.message ?? fallback;
+}
+
+function PaymentReturnNotice() {
+  return (
+    <div className="rounded-lg border border-primary-200 bg-primary-50 p-4 text-sm text-primary-700">
+      Payment returned from Midtrans. We&apos;re checking your payment status and refreshing your
+      billing details.
+    </div>
+  );
+}
+
+function findLatestPendingInvoice(invoices: BillingInvoice[]): BillingInvoice | null {
+  return (
+    [...invoices]
+      .filter(invoice => invoice.status === 'pending')
+      .sort(
+        (a, b) =>
+          dateValue(b.due_at) - dateValue(a.due_at) ||
+          dateValue(b.created_at) - dateValue(a.created_at)
+      )[0] ?? null
+  );
+}
+
+function findLatestPaidInvoice(invoices: BillingInvoice[]): BillingInvoice | null {
+  return (
+    [...invoices]
+      .filter(invoice => invoice.status === 'paid')
+      .sort(
+        (a, b) =>
+          dateValue(b.paid_at) - dateValue(a.paid_at) ||
+          dateValue(b.created_at) - dateValue(a.created_at)
+      )[0] ?? null
+  );
+}
+
+function formatStatusLabel(status?: string): string {
+  if (!status) return '-';
+  return status
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 function StatusCard({ subscription }: { subscription: BillingSubscriptionUI }) {
   const statusConfig = {
@@ -57,6 +131,11 @@ function StatusCard({ subscription }: { subscription: BillingSubscriptionUI }) {
     },
     expired: {
       label: 'Suspended',
+      bgClass: 'bg-red-100 text-red-700',
+      borderClass: 'border-red-200',
+    },
+    cancelled: {
+      label: 'Cancelled',
       bgClass: 'bg-red-100 text-red-700',
       borderClass: 'border-red-200',
     },
@@ -120,7 +199,7 @@ function StatusCard({ subscription }: { subscription: BillingSubscriptionUI }) {
         </div>
       )}
 
-      {subscription.status === 'expired' && (
+      {(subscription.status === 'expired' || subscription.status === 'cancelled') && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-700 font-medium">
             Your account has been suspended. Please subscribe to reactivate.
@@ -128,6 +207,169 @@ function StatusCard({ subscription }: { subscription: BillingSubscriptionUI }) {
         </div>
       )}
     </div>
+  );
+}
+
+function BillingSummary({
+  subscription,
+  latestPendingInvoice,
+  latestPaidInvoice,
+  payingInvoiceId,
+  onPayInvoice,
+}: {
+  subscription: BillingSubscriptionUI | null;
+  latestPendingInvoice: BillingInvoice | null;
+  latestPaidInvoice: BillingInvoice | null;
+  payingInvoiceId: string | null;
+  onPayInvoice: (invoice: BillingInvoice) => void;
+}) {
+  const fallbackDueDate =
+    subscription?.payment_due_at ??
+    subscription?.subscription_ends_at ??
+    subscription?.trial_ends_at;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Subscription status
+        </p>
+        <p className="mt-3 text-xl font-bold text-gray-900">
+          {formatStatusLabel(subscription?.subscription_status)}
+        </p>
+        <p className="mt-1 text-sm text-gray-500">
+          {subscription?.subscription_plan ?? '-'} &middot; {subscription?.billing_cycle ?? '-'}
+        </p>
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Outstanding payment
+        </p>
+        {latestPendingInvoice ? (
+          <>
+            <p className="mt-3 text-lg font-bold text-gray-900">
+              {formatCurrencyIDR(latestPendingInvoice.amount_idr)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Due {formatDateTimeIDR(latestPendingInvoice.due_at)}
+            </p>
+            <div className="mt-3 flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <a
+                href={`/subscription/invoices/${latestPendingInvoice.id}`}
+                className="block max-w-full min-w-0 break-all font-mono text-sm font-medium text-primary-600 hover:underline"
+              >
+                {latestPendingInvoice.invoice_number}
+              </a>
+              <button
+                type="button"
+                onClick={() => onPayInvoice(latestPendingInvoice)}
+                disabled={payingInvoiceId === latestPendingInvoice.id}
+                className="w-full rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
+              >
+                {payingInvoiceId === latestPendingInvoice.id ? 'Opening...' : 'Pay now'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-3 text-lg font-bold text-gray-900">
+              {formatDateTimeIDR(fallbackDueDate)}
+            </p>
+            <p className="mt-2 text-sm text-gray-500">No outstanding invoice</p>
+          </>
+        )}
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Latest paid payment
+        </p>
+        {latestPaidInvoice ? (
+          <>
+            <p className="mt-3 text-lg font-bold text-gray-900">
+              {formatCurrencyIDR(latestPaidInvoice.amount_idr)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Paid {formatDateTimeIDR(latestPaidInvoice.paid_at ?? latestPaidInvoice.created_at)}
+            </p>
+            <a
+              href={`/subscription/invoices/${latestPaidInvoice.id}`}
+              className="mt-2 block max-w-full min-w-0 break-all font-mono text-sm font-medium text-primary-600 hover:underline"
+            >
+              {latestPaidInvoice.invoice_number}
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="mt-3 text-lg font-bold text-gray-900">-</p>
+            <p className="mt-1 text-sm text-gray-500">No paid invoice yet</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function YearlySwitchConfirmationModal({
+  isOpen,
+  annualTotal,
+  annualSavings,
+  upgrading,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  annualTotal: number;
+  annualSavings: number;
+  upgrading: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={upgrading ? () => {} : onClose}
+      title="Switch to Yearly"
+      size="sm"
+      showCloseButton={!upgrading}
+    >
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm text-gray-600">
+            Your current monthly subscription stays active until the yearly payment succeeds.
+          </p>
+          <p className="mt-3 text-2xl font-bold text-gray-900">{formatCurrencyIDR(annualTotal)}</p>
+          <p className="mt-1 text-sm text-green-600">
+            Save {formatCurrencyIDR(Math.max(0, annualSavings))} per year.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+          Midtrans payment links expire after 15 minutes. If the payment is abandoned, your monthly
+          plan remains unchanged.
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={upgrading}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={upgrading}
+            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
+          >
+            {upgrading ? 'Processing...' : 'Confirm and Pay'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -141,6 +383,7 @@ function ExpiredSubscriptionRecovery({
   annualTotal,
   upgrading,
   error,
+  showPaymentReturnNotice,
   onUpgrade,
   onLogout,
 }: {
@@ -153,6 +396,7 @@ function ExpiredSubscriptionRecovery({
   annualTotal: number;
   upgrading: boolean;
   error: string | null;
+  showPaymentReturnNotice: boolean;
   onUpgrade: () => void;
   onLogout: () => void;
 }) {
@@ -160,6 +404,13 @@ function ExpiredSubscriptionRecovery({
   const anonymizedDate = subscription?.data_anonymized_at
     ? formatDateIDR(subscription.data_anonymized_at)
     : null;
+  const isCycleChange =
+    Boolean(subscription?.billing_cycle) && subscription?.billing_cycle !== billingInterval;
+  const actionLabel = isCycleChange
+    ? billingInterval === 'monthly'
+      ? 'Switch to Monthly'
+      : 'Switch to Yearly'
+    : 'Complete Subscription';
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
@@ -190,6 +441,12 @@ function ExpiredSubscriptionRecovery({
             </div>
           )}
 
+          {showPaymentReturnNotice && (
+            <div className="mt-5">
+              <PaymentReturnNotice />
+            </div>
+          )}
+
           <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4">
             <p className="text-sm font-medium text-red-800">Data retention warning</p>
             {anonymizedDate ? (
@@ -200,8 +457,8 @@ function ExpiredSubscriptionRecovery({
             ) : (
               <p className="mt-1 text-sm text-red-700">
                 Operational workspace data is eligible for anonymization or deletion on{' '}
-                <span className="font-semibold">{cleanupDate}</span>. Billing, payment, consent,
-                and audit records are retained as historical/compliance records.
+                <span className="font-semibold">{cleanupDate}</span>. Billing, payment, consent, and
+                audit records are retained as historical/compliance records.
               </p>
             )}
           </div>
@@ -210,7 +467,10 @@ function ExpiredSubscriptionRecovery({
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900">Choose Billing</h2>
-            <a href="/subscription/invoices" className="text-sm font-medium text-primary-600 hover:text-primary-500">
+            <a
+              href="/subscription/invoices"
+              className="text-sm font-medium text-primary-600 hover:text-primary-500"
+            >
               View invoices
             </a>
           </div>
@@ -266,7 +526,7 @@ function ExpiredSubscriptionRecovery({
             disabled={upgrading || !plans}
             className="mt-6 w-full rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60"
           >
-            {upgrading ? 'Processing...' : 'Complete Subscription'}
+            {upgrading ? 'Processing...' : actionLabel}
           </button>
         </div>
       </div>
@@ -287,16 +547,28 @@ export default function SubscriptionPage() {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('reason') === 'expired';
   });
+  const [returnedFromMidtrans] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('payment_return') === 'midtrans';
+  });
   const [plans, setPlans] = useState<PublicPlans | null>(null);
+  const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
+  const [showYearlyConfirm, setShowYearlyConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([refreshSubscription({ force: true }), billingService.getPublicPlans()])
-      .then(([sub, p]) => {
+    Promise.all([
+      refreshSubscription({ force: true }),
+      billingService.getPublicPlans(),
+      billingService.getInvoices(),
+    ])
+      .then(([sub, p, inv]) => {
         setPlans(p);
+        setInvoices(inv);
         setBillingInterval(sub?.billing_interval ?? 'monthly');
       })
       .catch(err => {
@@ -306,28 +578,83 @@ export default function SubscriptionPage() {
       .finally(() => setLoading(false));
   }, [refreshSubscription]);
 
+  const isActive =
+    subscription?.status === 'active' || subscription?.subscription_status === 'active';
+  const isExpired =
+    subscription?.status === 'expired' ||
+    subscription?.subscription_status === 'expired' ||
+    subscription?.status === 'cancelled' ||
+    subscription?.subscription_status === 'cancelled';
   const annualPriceMonthly = plans
     ? Math.round((plans.monthly_price_idr * 12 * (1 - plans.annual_discount_pct / 100)) / 12)
     : 0;
   const annualTotal = annualPriceMonthly * 12;
+  const annualSavings = plans ? plans.monthly_price_idr * 12 - annualTotal : 0;
 
   const displayPrice =
     billingInterval === 'monthly' ? (plans?.monthly_price_idr ?? 0) : annualTotal;
+  const currentBillingCycle =
+    subscription?.billing_cycle ?? subscription?.billing_interval ?? 'monthly';
+  const selectedCycleDiffers = Boolean(subscription) && currentBillingCycle !== billingInterval;
+  const isYearlySwitchAction = selectedCycleDiffers && billingInterval === 'annual';
+  const monthlyRevertLocked =
+    currentBillingCycle === 'annual' && isFutureDate(subscription?.subscription_ends_at);
+  const yearlyMonthlyLocked = monthlyRevertLocked && billingInterval === 'monthly';
+  const billingActionLabel = selectedCycleDiffers
+    ? billingInterval === 'annual'
+      ? 'Switch to Yearly'
+      : 'Switch to Monthly'
+    : isActive
+      ? 'Current billing cycle'
+      : 'Start Subscription';
 
-  const handleUpgrade = async () => {
+  const runSubscriptionPayment = async () => {
     try {
       setUpgrading(true);
       setError(null);
-      const result = await billingService.upgradeSubscription(billingInterval);
+      const shouldSwitchCycle = subscription ? currentBillingCycle !== billingInterval : false;
+      const result = shouldSwitchCycle
+        ? await billingService.switchBillingCycle(billingInterval)
+        : await billingService.upgradeSubscription(billingInterval);
       invalidateSubscription();
       if (result.payment_url) {
-        window.location.href = result.payment_url;
+        redirectToPayment(result.payment_url);
       }
     } catch (err: any) {
       console.error('Upgrade failed:', err);
-      setError(err.response?.data?.message ?? 'Failed to initiate subscription. Please try again.');
+      setError(getRequestErrorMessage(err, 'Failed to initiate subscription. Please try again.'));
     } finally {
       setUpgrading(false);
+    }
+  };
+
+  const handleUpgrade = () => {
+    if (isYearlySwitchAction) {
+      setShowYearlyConfirm(true);
+      return;
+    }
+    runSubscriptionPayment();
+  };
+
+  const handleConfirmYearlySwitch = () => {
+    setShowYearlyConfirm(false);
+    runSubscriptionPayment();
+  };
+
+  const handlePayInvoice = async (invoice: BillingInvoice) => {
+    try {
+      setPayingInvoiceId(invoice.id);
+      setError(null);
+      const result = await billingService.initiatePayment(invoice.id);
+      invalidateSubscription();
+      if (result.payment_url) {
+        redirectToPayment(result.payment_url);
+      }
+    } catch (err: any) {
+      console.error('Payment initiation failed:', err);
+      setError(getRequestErrorMessage(err, 'Failed to open payment. Please try again.'));
+    } finally {
+      setPayingInvoiceId(null);
     }
   };
 
@@ -336,11 +663,8 @@ export default function SubscriptionPage() {
     router.replace('/login');
   };
 
-  const isActive =
-    subscription?.status === 'active' || subscription?.subscription_status === 'active';
-  const isExpired =
-    subscription?.status === 'expired' || subscription?.subscription_status === 'expired';
-  const buttonLabel = isActive ? 'Upgrade Now' : 'Start Subscription';
+  const latestPendingInvoice = findLatestPendingInvoice(invoices);
+  const latestPaidInvoice = findLatestPaidInvoice(invoices);
 
   if (loading || subscriptionLoading) {
     if (expiredReason) {
@@ -371,19 +695,30 @@ export default function SubscriptionPage() {
   if (isExpired || (expiredReason && !subscription)) {
     return (
       <ProtectedRoute>
-        <ExpiredSubscriptionRecovery
-          subscription={subscription}
-          plans={plans}
-          billingInterval={billingInterval}
-          setBillingInterval={setBillingInterval}
-          displayPrice={displayPrice}
-          annualPriceMonthly={annualPriceMonthly}
-          annualTotal={annualTotal}
-          upgrading={upgrading}
-          error={error}
-          onUpgrade={handleUpgrade}
-          onLogout={handleLogout}
-        />
+        <>
+          <ExpiredSubscriptionRecovery
+            subscription={subscription}
+            plans={plans}
+            billingInterval={billingInterval}
+            setBillingInterval={setBillingInterval}
+            displayPrice={displayPrice}
+            annualPriceMonthly={annualPriceMonthly}
+            annualTotal={annualTotal}
+            upgrading={upgrading}
+            error={error}
+            showPaymentReturnNotice={returnedFromMidtrans}
+            onUpgrade={handleUpgrade}
+            onLogout={handleLogout}
+          />
+          <YearlySwitchConfirmationModal
+            isOpen={showYearlyConfirm}
+            annualTotal={annualTotal}
+            annualSavings={annualSavings}
+            upgrading={upgrading}
+            onClose={() => setShowYearlyConfirm(false)}
+            onConfirm={handleConfirmYearlySwitch}
+          />
+        </>
       </ProtectedRoute>
     );
   }
@@ -405,7 +740,17 @@ export default function SubscriptionPage() {
             </div>
           )}
 
+          {returnedFromMidtrans && <PaymentReturnNotice />}
+
           {subscription && <StatusCard subscription={subscription} />}
+
+          <BillingSummary
+            subscription={subscription}
+            latestPendingInvoice={latestPendingInvoice}
+            latestPaidInvoice={latestPaidInvoice}
+            payingInvoiceId={payingInvoiceId}
+            onPayInvoice={handlePayInvoice}
+          />
 
           {subscription?.data_anonymized_at && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
@@ -423,12 +768,15 @@ export default function SubscriptionPage() {
             <h3 className="text-base font-semibold text-gray-900 mb-4">Billing</h3>
             <div className="flex gap-3">
               <button
-                onClick={() => setBillingInterval('monthly')}
+                onClick={() => {
+                  if (!monthlyRevertLocked) setBillingInterval('monthly');
+                }}
+                disabled={monthlyRevertLocked}
                 className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-colors ${
                   billingInterval === 'monthly'
                     ? 'border-primary-600 bg-primary-50 text-primary-700'
                     : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
+                } disabled:cursor-not-allowed disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-400`}
               >
                 Monthly
               </button>
@@ -463,16 +811,25 @@ export default function SubscriptionPage() {
                 {formatCurrencyIDR(plans.monthly_price_idr * 12 - annualTotal)} per year
               </p>
             )}
-
-            {!isActive && (
-              <button
-                onClick={handleUpgrade}
-                disabled={upgrading}
-                className="mt-6 w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-              >
-                {upgrading ? 'Processing...' : buttonLabel}
-              </button>
+            {monthlyRevertLocked && (
+              <p className="mt-3 text-sm text-gray-500">
+                Monthly billing is available after{' '}
+                {subscription?.subscription_ends_at
+                  ? formatDateIDR(subscription.subscription_ends_at)
+                  : '-'}
+                .
+              </p>
             )}
+
+            <button
+              onClick={handleUpgrade}
+              disabled={
+                upgrading || !plans || yearlyMonthlyLocked || (isActive && !selectedCycleDiffers)
+              }
+              className="mt-6 w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            >
+              {upgrading ? 'Processing...' : billingActionLabel}
+            </button>
           </div>
 
           {/* Features */}
@@ -501,6 +858,14 @@ export default function SubscriptionPage() {
           </div>
         </div>
       </DashboardLayout>
+      <YearlySwitchConfirmationModal
+        isOpen={showYearlyConfirm}
+        annualTotal={annualTotal}
+        annualSavings={annualSavings}
+        upgrading={upgrading}
+        onClose={() => setShowYearlyConfirm(false)}
+        onConfirm={handleConfirmYearlySwitch}
+      />
     </ProtectedRoute>
   );
 }

@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '../../../../src/components/layout/DashboardLayout';
 import { billingService, BillingInvoice } from '@/services/billing';
+import { redirectToPayment } from '@/utils/paymentRedirect';
 
 function formatCurrencyIDR(amount: number): string {
   return `Rp\u00a0${amount.toLocaleString('id-ID')}`;
@@ -43,7 +44,7 @@ export default function PayInvoicePage() {
 
         // Auto-redirect to payment page
         if (payResult.payment_url) {
-          window.open(payResult.payment_url, '_blank');
+          redirectToPayment(payResult.payment_url);
         }
       } catch (err: any) {
         console.error('Failed to initiate payment:', err);
@@ -118,13 +119,11 @@ export default function PayInvoicePage() {
               {paymentUrl && (
                 <div className="bg-primary-50 border border-primary-200 rounded-xl p-6 text-center space-y-4">
                   <p className="text-sm text-primary-700">
-                    A payment page has been opened in a new tab. If it didn&apos;t open
-                    automatically, use the button below.
+                    Redirecting to the payment page. If it didn&apos;t open automatically, use the
+                    button below.
                   </p>
                   <a
                     href={paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="inline-block bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
                   >
                     Open Payment Page

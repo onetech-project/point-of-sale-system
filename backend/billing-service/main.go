@@ -59,16 +59,18 @@ func main() {
 	billing := e.Group("/api/v1/billing")
 	billing.GET("/subscription", handler.GetMySubscription)
 	billing.PUT("/subscription/cycle", handler.UpdateBillingCycle)
+	billing.POST("/subscription/cycle-switch", handler.SwitchBillingCycle)
 	billing.POST("/subscription/upgrade", handler.UpgradeSubscription)
 	billing.GET("/invoices", handler.ListInvoices)
 	billing.GET("/invoices/:id", handler.GetInvoice)
+	billing.GET("/invoices/:id/payments", handler.ListInvoicePaymentAttempts)
 	billing.POST("/invoices/:id/pay", handler.InitiatePayment)
 
 	// Webhook (no auth, signature verified inside handler)
 	e.POST("/webhook/billing", handler.HandleMidtransWebhook)
 
 	// Start background jobs
-	jobRunner := jobs.NewJobRunner(db, repo, publisher)
+	jobRunner := jobs.NewJobRunner(db, repo, publisher, paymentSvc)
 	if subscriptionCache != nil {
 		jobRunner.SetSubscriptionCacheInvalidator(subscriptionCache)
 	}
