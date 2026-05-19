@@ -35,6 +35,7 @@ Recommended versions:
 | Order Service | http://localhost:8087 | Online and offline orders |
 | Audit Service | http://localhost:8088 | Audit log and observability events |
 | Analytics Service | http://localhost:8089 | Reporting and analytics |
+| Billing Service | http://localhost:8090 | Subscriptions, invoices, and billing webhooks |
 | PostgreSQL | localhost:5432 | Main relational database |
 | Redis | localhost:6379 | Cache, sessions, and rate limiting |
 | Kafka | localhost:9092 | Event streaming |
@@ -68,32 +69,30 @@ At minimum, make sure these values are intentional:
 - `NEXT_PUBLIC_API_URL` should point to `http://localhost:8080` for local development.
 - SMTP can use MailHog locally: host `localhost`, port `1025`.
 - Payment, map, production SMTP, and Vault secrets should be replaced before staging or production use.
+- Billing defaults include a 7-day grace period and 30-day operational-data retention window.
 
-## Option A: Full Docker Compose
+## Option A: Docker Infrastructure Only
 
-Use this when you want the whole system in containers.
+The root `docker-compose.yml` currently starts infrastructure only. Use it for PostgreSQL, Redis, Kafka, MinIO, and MailHog, then run application services with `./scripts/start-all.sh all` or your own process manager.
 
 ```bash
 docker network inspect pos-network >/dev/null 2>&1 || docker network create pos-network
 docker compose up -d postgres redis kafka minio mailhog
 ./scripts/run-migrations.sh
-docker compose up -d --build
 ```
 
-Check the stack:
+Check the infrastructure stack:
 
 ```bash
 docker compose ps
-curl http://localhost:8080/health
-curl http://localhost:3000
+docker compose exec -T postgres pg_isready -U pos_user -d pos_db
 ```
 
-View logs:
+View infrastructure logs:
 
 ```bash
-docker compose logs -f api-gateway
-docker compose logs -f order-service
-docker compose logs -f frontend
+docker compose logs -f postgres
+docker compose logs -f kafka
 ```
 
 Stop the stack:
@@ -115,9 +114,10 @@ Use this when you want infrastructure in Docker but Go services and the frontend
 The script will:
 
 - Load root and service-specific `.env` files
+- Apply root `.env` local overrides for service ports, localhost infrastructure, and gateway service URLs
 - Start PostgreSQL, Redis, Kafka, MinIO, and MailHog in Docker
 - Run database migrations
-- Build and start Go services locally
+- Build and start Go services locally, including Billing Service
 - Start the Next.js frontend locally
 - Write logs to `/tmp/*.log`
 - Store process IDs in `/tmp/pos-services.pid`
@@ -180,6 +180,7 @@ curl http://localhost:8086/health
 curl http://localhost:8087/health
 curl http://localhost:8088/health
 curl http://localhost:8089/health
+curl http://localhost:8090/health
 ```
 
 For local-process logs:
@@ -188,6 +189,7 @@ For local-process logs:
 tail -f /tmp/api-gateway.log
 tail -f /tmp/auth-service.log
 tail -f /tmp/order-service.log
+tail -f /tmp/billing-service.log
 tail -f /tmp/frontend.log
 ```
 
@@ -198,6 +200,8 @@ docker compose logs -f api-gateway
 docker compose logs -f auth-service
 docker compose logs -f order-service
 ```
+
+Those application container log commands only apply when app containers are enabled in Compose or in your deployment platform.
 
 ## Database Migrations
 
@@ -235,15 +239,14 @@ Use the same deployment order for staging and production:
 7. Enable proxy, TLS, Vault, and observability.
 8. Run health checks and smoke tests.
 
-Example Docker Compose deployment:
+Example local deployment bootstrap:
 
 ```bash
 ./scripts/verify-env.sh
-docker compose build
 docker network inspect pos-network >/dev/null 2>&1 || docker network create pos-network
 docker compose up -d postgres redis kafka minio mailhog
 ./scripts/run-migrations.sh
-docker compose up -d
+./scripts/start-all.sh all
 docker compose -f observability/docker-compose.yml up -d
 docker compose -f proxy/docker-compose.yml up -d
 ```
@@ -258,6 +261,7 @@ Before production release, verify:
 - MinIO or S3 buckets, credentials, and retention policies are configured.
 - SMTP credentials and sender domains are production-ready.
 - Payment provider keys and webhook URLs are production-ready.
+- Subscription retention policy and Terms of Service version are reviewed before launch.
 - CORS and frontend public URLs point to production domains.
 - TLS is enabled at the proxy/load balancer.
 - Grafana, Prometheus, Loki, Tempo, and OpenTelemetry endpoints are reachable.

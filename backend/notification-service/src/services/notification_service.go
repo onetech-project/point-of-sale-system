@@ -19,13 +19,23 @@ import (
 )
 
 type NotificationService struct {
-	repo          *repository.NotificationRepository
+	repo          notificationRepository
 	emailProvider providers.EmailProvider
 	pushProvider  providers.PushProvider
 	templates     map[string]*template.Template
 	frontendURL   string
 	db            *sql.DB
 	encryptor     utils.Encryptor
+}
+
+type notificationRepository interface {
+	Create(ctx context.Context, notification *models.Notification) error
+	HasSentOrderNotification(ctx context.Context, tenantID, transactionID string) (bool, error)
+	UpdateStatus(ctx context.Context, id string, status models.NotificationStatus, sentAt, failedAt *time.Time, errorMsg *string) error
+	GetNotificationHistory(filters map[string]interface{}) ([]map[string]interface{}, error)
+	CountNotifications(filters map[string]interface{}) (int, error)
+	GetByID(id string) (*models.Notification, error)
+	Update(notification *models.Notification) error
 }
 
 func NewNotificationService(db *sql.DB) (*NotificationService, error) {
@@ -71,6 +81,14 @@ func (s *NotificationService) loadTemplates() error {
 		"order_staff_notification.html",
 		"user_deletion_warning.html",
 		"guest_data_deleted.html",
+		"trial_started.html",
+		"trial_ending.html",
+		"payment_received.html",
+		"subscription_grace_period.html",
+		"subscription_expired.html",
+		"invoice_generated.html",
+		"invoice_paid.html",
+		"invoice_payment_failed.html",
 	}
 
 	// Get custom template functions
@@ -120,6 +138,22 @@ func (s *NotificationService) HandleEvent(ctx context.Context, eventData []byte)
 		return s.handleUserDeletionWarning(ctx, event)
 	case "guest_data_deleted":
 		return s.handleGuestDataDeleted(ctx, event)
+	case "subscription.trial_ending":
+		return s.handleTrialEnding(ctx, event)
+	case "subscription.payment_received":
+		return s.handlePaymentReceived(ctx, event)
+	case "subscription.trial_started":
+		return s.handleTrialStarted(ctx, event)
+	case "subscription.grace_period_started":
+		return s.handleGracePeriodStarted(ctx, event)
+	case "subscription.expired":
+		return s.handleSubscriptionExpired(ctx, event)
+	case "invoice.generated":
+		return s.handleInvoiceGenerated(ctx, event)
+	case "invoice.paid":
+		return s.handleInvoicePaid(ctx, event)
+	case "invoice.payment_failed":
+		return s.handleInvoicePaymentFailed(ctx, event)
 	default:
 		log.Printf("Unknown event type: %s", event.EventType)
 		return nil
@@ -819,6 +853,146 @@ func (s *NotificationService) sendCustomerReceipt(ctx context.Context, orderEven
 	return nil
 }
 
+func (s *NotificationService) handleTrialEnding(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	businessName, _ := event.Data["tenant_name"].(string)
+	if businessName == "" {
+		businessName, _ = event.Data["business_name"].(string)
+	}
+	daysRemaining, _ := event.Data["days_remaining"].(float64)
+	trialEndsAt, _ := event.Data["trial_ends_at"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for trial ending notification")
+	}
+
+	subject := fmt.Sprintf("Your Posku trial expires in %.0f day(s)", daysRemaining)
+	body := s.renderTemplate("trial_ending", map[string]interface{}{
+		"BusinessName":  businessName,
+		"DaysRemaining": int(daysRemaining),
+		"TrialEndsAt":   trialEndsAt,
+		"UpgradeURL":    fmt.Sprintf("%s/settings/subscription", s.frontendURL),
+		"SupportURL":    fmt.Sprintf("%s/pricing", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create trial ending notification: %w", err)
+	}
+
+	log.Printf("[TRIAL_ENDING] Sending trial ending notification to %s (days remaining: %.0f)", email, daysRemaining)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handlePaymentReceived(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	businessName, _ := event.Data["business_name"].(string)
+	ownerName, _ := event.Data["owner_name"].(string)
+	planName, _ := event.Data["plan_name"].(string)
+	billingCycle, _ := event.Data["billing_cycle"].(string)
+	amount, _ := event.Data["amount"].(string)
+	nextBillingDate, _ := event.Data["next_billing_date"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for payment received notification")
+	}
+
+	subject := fmt.Sprintf("Payment Confirmed - %s Plan", planName)
+	body := s.renderTemplate("payment_received", map[string]interface{}{
+		"BusinessName":    businessName,
+		"OwnerName":       ownerName,
+		"PlanName":        planName,
+		"BillingCycle":    billingCycle,
+		"Amount":          amount,
+		"NextBillingDate": nextBillingDate,
+		"InvoiceURL":      fmt.Sprintf("%s/settings/billing", s.frontendURL),
+		"DashboardURL":    fmt.Sprintf("%s/dashboard", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create payment received notification: %w", err)
+	}
+
+	log.Printf("[PAYMENT_RECEIVED] Sending payment confirmation to %s (plan: %s)", email, planName)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handleTrialStarted(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	if tenantName == "" {
+		tenantName, _ = event.Data["business_name"].(string)
+	}
+	trialEndsAt, _ := event.Data["trial_ends_at"].(string)
+
+	if email == "" {
+		log.Printf("[TRIAL_STARTED] No email provided, skipping notification")
+		return nil
+	}
+
+	subject := "Your 7-day free trial has started!"
+	body := s.renderTemplate("trial_started", map[string]interface{}{
+		"TenantName":   tenantName,
+		"TrialEndsAt":  trialEndsAt,
+		"DashboardURL": fmt.Sprintf("%s/dashboard", s.frontendURL),
+		"UpgradeURL":   fmt.Sprintf("%s/subscription", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create trial started notification: %w", err)
+	}
+
+	log.Printf("[TRIAL_STARTED] Trial started notification sent to %s", email)
+	return s.sendEmail(ctx, notification)
+}
+
 func (s *NotificationService) sendEmail(ctx context.Context, notification *models.Notification) error {
 	startTime := time.Now()
 	err := s.emailProvider.Send(notification.Recipient, notification.Subject, notification.Body, true)
@@ -1179,4 +1353,253 @@ func (s *NotificationService) ResendNotification(tenantID, notificationID string
 	}
 
 	return result, nil
+}
+
+func (s *NotificationService) handleGracePeriodStarted(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	graceEndsAtRaw, _ := event.Data["grace_ends_at"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for grace period started notification")
+	}
+
+	graceEndsAt := graceEndsAtRaw
+	if t, err := time.Parse(time.RFC3339, graceEndsAtRaw); err == nil {
+		graceEndsAt = t.Format("2 January 2006 15:04")
+	}
+
+	subject := "Action Required: Your trial has expired"
+	body := s.renderTemplate("subscription_grace_period", map[string]interface{}{
+		"TenantName":   tenantName,
+		"GraceEndsAt":  graceEndsAt,
+		"DashboardURL": fmt.Sprintf("%s/dashboard", s.frontendURL),
+		"SubscribeURL": fmt.Sprintf("%s/subscription", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create grace period notification: %w", err)
+	}
+
+	log.Printf("[GRACE_PERIOD_STARTED] Sending grace period notification to %s", email)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handleSubscriptionExpired(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for subscription expired notification")
+	}
+
+	subject := "Your POS account has been suspended"
+	body := s.renderTemplate("subscription_expired", map[string]interface{}{
+		"TenantName":   tenantName,
+		"SubscribeURL": fmt.Sprintf("%s/subscription", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create subscription expired notification: %w", err)
+	}
+
+	log.Printf("[SUBSCRIPTION_EXPIRED] Sending subscription expired notification to %s", email)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handleInvoiceGenerated(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	invoiceNumber, _ := event.Data["invoice_number"].(string)
+	billingInterval, _ := event.Data["billing_interval"].(string)
+	periodStartRaw, _ := event.Data["period_start"].(string)
+	periodEndRaw, _ := event.Data["period_end"].(string)
+	paymentURL, _ := event.Data["payment_url"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for invoice generated notification")
+	}
+
+	amountIDR := 0
+	if val, ok := event.Data["amount_idr"].(float64); ok {
+		amountIDR = int(val)
+	}
+
+	periodStart := periodStartRaw
+	if t, err := time.Parse(time.RFC3339, periodStartRaw); err == nil {
+		periodStart = t.Format("2 January 2006")
+	}
+	periodEnd := periodEndRaw
+	if t, err := time.Parse(time.RFC3339, periodEndRaw); err == nil {
+		periodEnd = t.Format("2 January 2006")
+	}
+
+	subject := fmt.Sprintf("Invoice %s - Subscription Payment Due", invoiceNumber)
+	body := s.renderTemplate("invoice_generated", map[string]interface{}{
+		"TenantName":      tenantName,
+		"InvoiceNumber":   invoiceNumber,
+		"AmountIDR":       utils.FormatCurrencyIDR(amountIDR),
+		"BillingInterval": billingInterval,
+		"PeriodStart":     periodStart,
+		"PeriodEnd":       periodEnd,
+		"PaymentURL":      paymentURL,
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create invoice generated notification: %w", err)
+	}
+
+	log.Printf("[INVOICE_GENERATED] Sending invoice generated notification to %s (invoice: %s)", email, invoiceNumber)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handleInvoicePaid(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	invoiceNumber, _ := event.Data["invoice_number"].(string)
+	billingInterval, _ := event.Data["billing_interval"].(string)
+	periodStartRaw, _ := event.Data["period_start"].(string)
+	periodEndRaw, _ := event.Data["period_end"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for invoice paid notification")
+	}
+
+	amountIDR := 0
+	if val, ok := event.Data["amount_idr"].(float64); ok {
+		amountIDR = int(val)
+	}
+
+	periodStart := periodStartRaw
+	if t, err := time.Parse(time.RFC3339, periodStartRaw); err == nil {
+		periodStart = t.Format("2 January 2006")
+	}
+	periodEnd := periodEndRaw
+	if t, err := time.Parse(time.RFC3339, periodEndRaw); err == nil {
+		periodEnd = t.Format("2 January 2006")
+	}
+
+	subject := fmt.Sprintf("Payment Confirmed - Invoice %s", invoiceNumber)
+	body := s.renderTemplate("invoice_paid", map[string]interface{}{
+		"TenantName":      tenantName,
+		"InvoiceNumber":   invoiceNumber,
+		"AmountIDR":       utils.FormatCurrencyIDR(amountIDR),
+		"BillingInterval": billingInterval,
+		"PeriodStart":     periodStart,
+		"PeriodEnd":       periodEnd,
+		"DashboardURL":    fmt.Sprintf("%s/dashboard", s.frontendURL),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create invoice paid notification: %w", err)
+	}
+
+	log.Printf("[INVOICE_PAID] Sending invoice paid notification to %s (invoice: %s)", email, invoiceNumber)
+	return s.sendEmail(ctx, notification)
+}
+
+func (s *NotificationService) handleInvoicePaymentFailed(ctx context.Context, event models.NotificationEvent) error {
+	email, _ := event.Data["email"].(string)
+	tenantName, _ := event.Data["tenant_name"].(string)
+	invoiceNumber, _ := event.Data["invoice_number"].(string)
+	errorMsg, _ := event.Data["error_msg"].(string)
+
+	if email == "" {
+		return fmt.Errorf("email is required for invoice payment failed notification")
+	}
+
+	subject := fmt.Sprintf("Payment Failed - Invoice %s", invoiceNumber)
+	body := s.renderTemplate("invoice_payment_failed", map[string]interface{}{
+		"TenantName":    tenantName,
+		"InvoiceNumber": invoiceNumber,
+		"ErrorMsg":      errorMsg,
+		"RetryURL":      fmt.Sprintf("%s/subscription/invoices/%s/pay", s.frontendURL, invoiceNumber),
+	})
+
+	metadata := event.Data
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["event_type"] = event.EventType
+
+	notification := &models.Notification{
+		TenantID:  event.TenantID,
+		Type:      models.NotificationTypeEmail,
+		Status:    models.NotificationStatusPending,
+		Subject:   subject,
+		Body:      body,
+		Recipient: email,
+		Metadata:  metadata,
+	}
+
+	if err := s.repo.Create(ctx, notification); err != nil {
+		return fmt.Errorf("failed to create invoice payment failed notification: %w", err)
+	}
+
+	log.Printf("[INVOICE_PAYMENT_FAILED] Sending invoice payment failed notification to %s (invoice: %s)", email, invoiceNumber)
+	return s.sendEmail(ctx, notification)
 }

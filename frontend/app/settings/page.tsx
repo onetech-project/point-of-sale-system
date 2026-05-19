@@ -76,6 +76,23 @@ export default function SettingsPage() {
         color: 'green',
       },
       {
+        title: 'Subscription & Billing',
+        description: 'View plan status, payment due dates, invoices, and receipts',
+        icon: (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 14h6m-6 4h6M9 10h1m4 0h1m-8 12h10a2 2 0 002-2V7.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 0013.586 2H7a2 2 0 00-2 2v16a2 2 0 002 2z"
+            />
+          </svg>
+        ),
+        href: '/subscription',
+        roles: [ROLES.OWNER],
+        color: 'indigo',
+      },
+      {
         title: 'Payment Settings',
         description: 'Configure payment gateways and methods',
         icon: (
@@ -142,6 +159,7 @@ export default function SettingsPage() {
       green: { bg: 'bg-green-100', text: 'text-green-600', hover: 'hover:bg-green-50' },
       yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600', hover: 'hover:bg-yellow-50' },
       red: { bg: 'bg-red-100', text: 'text-red-600', hover: 'hover:bg-red-50' },
+      indigo: { bg: 'bg-indigo-100', text: 'text-indigo-600', hover: 'hover:bg-indigo-50' },
       gray: { bg: 'bg-gray-100', text: 'text-gray-600', hover: 'hover:bg-gray-50' },
     };
     return colors[color] || colors.gray;

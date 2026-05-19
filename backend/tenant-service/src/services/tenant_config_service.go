@@ -38,7 +38,7 @@ type DeliveryConfig struct {
 func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug string) (*DeliveryConfig, error) {
 	// Fetch tenant information
 	var tenantID, tenantName sql.NullString
-	query := `SELECT id, business_name FROM tenants WHERE slug = $1`
+	query := `SELECT id, business_name FROM tenants WHERE slug = $1 AND status = 'active'`
 	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(&tenantID, &tenantName)
 	if err != nil && err != sql.ErrNoRows {
 		// Log error but continue with config data

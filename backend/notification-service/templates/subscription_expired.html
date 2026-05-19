@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your POS account has been suspended</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #C53030;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #C53030;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .highlight {
+            background-color: #FFF5F5;
+            padding: 15px;
+            border-left: 4px solid #C53030;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+
+        .button-group {
+            text-align: center;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Account Suspended</h1>
+    </div>
+    <div class="content">
+        <h2>Hi {{.TenantName}},</h2>
+        <p>Your Posku account has been suspended because your subscription has expired and the grace period has ended.</p>
+
+        <div class="highlight">
+            <strong>Your account is currently suspended.</strong><br>
+            You cannot access POS features until you reactivate your subscription.
+        </div>
+
+        <p>The good news is that <strong>your data is preserved for 30 days</strong>. Reactivate your account now to regain full access to all your business data and features.</p>
+
+        <p>Once you reactivate, you'll immediately have access to:</p>
+        <ul>
+            <li>All your historical orders and sales data</li>
+            <li>Product catalog and inventory</li>
+            <li>Team accounts and settings</li>
+            <li>Analytics and reports</li>
+        </ul>
+
+        <div class="button-group">
+            <a href="{{.SubscribeURL}}" class="button">Reactivate Account</a>
+        </div>
+
+        <p>If you need assistance or have questions about your account, please contact our support team.</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated email, please do not reply.</p>
+        <p>&copy; {{ now.Year }} Posku. All rights reserved.</p>
+    </div>
+</body>
+
+</html>

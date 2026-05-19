@@ -33,6 +33,7 @@ func (r *TaskRepository) GetDelayedOrders(ctx context.Context, tenantID string) 
 		SELECT 
 			o.id AS order_id,
 			o.order_reference,
+			0::bigint AS customer_id,
 			o.customer_phone,
 			o.customer_name,
 			o.customer_email,

@@ -242,12 +242,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-7 border-b border-gray-200">
             <Link href="/dashboard" className="flex items-center space-x-2" onClick={onClose}>
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xl">P</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">POS</span>
+              <span className="text-xl font-bold text-gray-900">Posku</span>
             </Link>
 
             {/* Close button for mobile */}

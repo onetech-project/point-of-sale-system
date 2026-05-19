@@ -13,6 +13,16 @@ vendor/
 # Go build binaries (*.bin extension)
 *.bin
 
+# Go service binary outputs (compiled service executables)
+backend/*/notification-service
+backend/*/tenant-service
+backend/*/auth-service
+backend/*/user-service
+backend/*/product-service
+backend/*/order-service
+backend/*/analytics-service
+backend/*/audit-service
+
 # Frontend (Node.js/Next.js)
 node_modules/
 .next/

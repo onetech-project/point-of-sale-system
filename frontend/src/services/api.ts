@@ -5,6 +5,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 class APIClient {
   private axiosInstance: AxiosInstance;
   private onAuthError?: () => void;
+  private onSubscriptionExpired?: () => void;
   private isRefreshing = false;
   private refreshPromise: Promise<boolean> | null = null;
 
@@ -24,6 +25,11 @@ class APIClient {
   // Set callback for authentication errors
   public setAuthErrorHandler(handler: () => void): void {
     this.onAuthError = handler;
+  }
+
+  // Set callback for subscription expiration (402)
+  public setSubscriptionExpiredHandler(handler: () => void): void {
+    this.onSubscriptionExpired = handler;
   }
 
   // Attempt to refresh the session
@@ -77,6 +83,15 @@ class APIClient {
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        // Handle 402 Payment Required (subscription expired)
+        if (error.response?.status === 402) {
+          // Trigger subscription expiration callback
+          if (this.onSubscriptionExpired) {
+            this.onSubscriptionExpired();
+          }
+          return Promise.reject(error);
+        }
 
         // Handle 401 authentication errors
         if (error.response?.status === 401 && !originalRequest._retry) {

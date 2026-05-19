@@ -77,6 +77,7 @@ func main() {
 
 	tenantHandler := api.NewTenantHandler(db)
 	e.GET("/tenant", tenantHandler.GetTenant)
+	e.GET("/internal/tenants/:tenant_id/status", tenantHandler.GetInternalTenantStatus)
 
 	// Tenant configuration routes
 	configRepo, err := repository.NewTenantConfigRepositoryWithVault(db, auditPublisher)
@@ -88,6 +89,7 @@ func main() {
 
 	// Public routes
 	e.GET("/public/tenants/:tenant_slug/config", configHandler.GetPublicTenantConfig)
+	e.GET("/public/plans", api.GetPublicPlan)
 
 	// Admin routes - match API Gateway pattern with /api/v1 prefix
 	admin := e.Group("/api/v1/admin/tenants")

@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { useAuth } from '@/store/auth';
 import PublicLayout from '@/components/layout/PublicLayout';
+import { useSubscription } from '@/store/subscription';
 
 interface FormData {
   email: string;
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const { t } = useTranslation(['auth', 'common']);
   const router = useRouter();
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { refreshSubscription } = useSubscription();
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -31,12 +33,28 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
-  // Redirect to dashboard if already authenticated
+  const redirectAfterLogin = React.useCallback(async () => {
+    try {
+      const subscription = await refreshSubscription({
+        force: true,
+        allowUnauthenticated: true,
+      });
+      if (subscription?.subscription_status === 'expired') {
+        router.replace('/subscription?reason=expired');
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check subscription after login:', error);
+    }
+    router.replace('/dashboard');
+  }, [refreshSubscription, router]);
+
+  // Redirect authenticated users based on subscription state.
   React.useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push('/dashboard');
+      void redirectAfterLogin();
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [isAuthenticated, authLoading, redirectAfterLogin]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -82,7 +100,7 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/dashboard');
+      await redirectAfterLogin();
     } catch (error) {
       console.error('Login error:', error);
       setServerError(error instanceof Error ? error.message : t('auth.login.errors.invalidCredentials'));

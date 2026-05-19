@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
+import TrialBanner from '@/components/subscription/TrialBanner';
+import { useSubscriptionErrorHandler } from '@/hooks/useSubscriptionErrorHandler';
+import { useSubscription } from '@/store/subscription';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -9,8 +13,21 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const { subscription, refreshSubscription } = useSubscription();
+  useSubscriptionErrorHandler();
   const appName = process.env.NEXT_PUBLIC_APP_NAME || 'POS';
   const appInitial = appName.charAt(0).toUpperCase();
+
+  React.useEffect(() => {
+    if (pathname?.startsWith('/subscription')) return;
+    void refreshSubscription().then((latest) => {
+      if ((latest ?? subscription)?.subscription_status === 'expired') {
+        router.replace('/subscription?reason=expired');
+      }
+    });
+  }, [pathname, refreshSubscription, router, subscription]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -48,6 +65,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             <span className="text-xl font-bold text-gray-900">{appName}</span>
           </div>
         </header>
+
+        {/* Trial / Grace Period Banner */}
+        <TrialBanner />
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">

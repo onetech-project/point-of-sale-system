@@ -9,6 +9,8 @@ export interface RegisterTenantData {
     lastName?: string;
   };
   consents?: string[];
+  termsAccepted: boolean;
+  termsVersion: string;
 }
 
 export interface LoginCredentials {
@@ -38,6 +40,8 @@ export const authService = {
         first_name: data.ownerProfile?.firstName || '',
         last_name: data.ownerProfile?.lastName || '',
         consents: data.consents || [],
+        terms_accepted: data.termsAccepted,
+        terms_version: data.termsVersion,
       });
 
       return response;

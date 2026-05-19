@@ -8,6 +8,8 @@ import { authService } from '@/services/auth';
 import PublicLayout from '@/components/layout/PublicLayout';
 import ConsentPurposeList from '@/components/consent/ConsentPurposeList';
 
+const TERMS_VERSION = '1.0.0';
+
 interface FormData {
   businessName: string;
   email: string;
@@ -51,6 +53,8 @@ export default function SignupPage() {
   });
   const [consents, setConsents] = useState<{ [key: string]: boolean }>({});
   const [consentError, setConsentError] = useState<string>('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -113,6 +117,7 @@ export default function SignupPage() {
     setServerError('');
     setStatus(null);
     setConsentError('');
+    setTermsError('');
 
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
@@ -129,6 +134,11 @@ export default function SignupPage() {
     const hasAllRequiredConsents = requiredConsents.every(([, value]) => value === true);
     if (!hasAllRequiredConsents) {
       setConsentError(t('consent_error_required', { ns: 'consent' }));
+      return;
+    }
+
+    if (!termsAccepted) {
+      setTermsError('You must accept the Terms of Service to create an account.');
       return;
     }
 
@@ -155,6 +165,8 @@ export default function SignupPage() {
           lastName: formData.lastName
         },
         consents: grantedOptionalConsents, // Simplified payload
+        termsAccepted,
+        termsVersion: TERMS_VERSION,
       });
 
       setStatus('success');
@@ -373,6 +385,35 @@ export default function SignupPage() {
                       showError={!!consentError}
                       errorMessage={consentError}
                     />
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(event) => {
+                          setTermsAccepted(event.target.checked);
+                          if (termsError) setTermsError('');
+                        }}
+                        disabled={isSubmitting}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        I accept the{' '}
+                        <Link href="/terms-of-service" className="font-medium text-primary-600 hover:text-primary-500">
+                          Terms of Service
+                        </Link>{' '}
+                        and understand the 7-day free trial, 7-day access grace period, and
+                        30-day operational-data retention window from grace start. After that
+                        window, operational data may be anonymized or deleted while billing,
+                        payment, consent, and audit records are retained for historical and
+                        compliance purposes.
+                      </span>
+                    </label>
+                    {termsError && (
+                      <p className="mt-2 text-sm text-red-600">{termsError}</p>
+                    )}
                   </div>
 
                   <button
