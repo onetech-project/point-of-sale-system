@@ -325,7 +325,7 @@ func (s *NotificationService) retryFailedNotifications(ctx context.Context) erro
 
 ### Decision: Verify existing customer_email field in guest_orders table
 
-**Finding**: Migration `000018_add_customer_email_to_guest_orders.up.sql` confirms field exists.
+**Finding**: Migration `000038_add_customer_email_to_guest_orders.up.sql` confirms field exists.
 
 **Validation**:
 ```sql

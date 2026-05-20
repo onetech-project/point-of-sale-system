@@ -28,10 +28,10 @@ Complete end-to-end implementation of an optional customer email field on the ch
 
 ### 2. Database Changes
 
-**Migration: `backend/migrations/000018_add_customer_email_to_guest_orders.up.sql`**
+**Migration: `backend/migrations/000038_add_customer_email_to_guest_orders.up.sql`**
 ```sql
-ALTER TABLE guest_orders ADD COLUMN customer_email VARCHAR(255);
-CREATE INDEX idx_guest_orders_customer_email ON guest_orders(customer_email) 
+ALTER TABLE guest_orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_guest_orders_customer_email ON guest_orders(customer_email)
   WHERE customer_email IS NOT NULL;
 ```
 
@@ -279,7 +279,7 @@ curl -X POST "http://localhost:8080/api/v1/public/${TENANT_ID}/checkout" \
 - **Check**: Frontend validation not passing
 - **Solution**: Verify email format matches regex: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`
 - **Check**: Database migration not applied
-- **Solution**: Run migration: `docker exec postgres-db psql -U pos_user -d pos_db < backend/migrations/000018_add_customer_email_to_guest_orders.up.sql`
+- **Solution**: Run migration: `docker exec postgres-db psql -U pos_user -d pos_db < backend/migrations/000038_add_customer_email_to_guest_orders.up.sql`
 
 ### Kafka Event Not Published
 - **Check**: Order service logs for errors
@@ -310,7 +310,7 @@ curl -X POST "http://localhost:8080/api/v1/public/${TENANT_ID}/checkout" \
 - `/backend/order-service/api/checkout_handler.go`
 - `/backend/order-service/src/models/order.go`
 - `/backend/order-service/src/queue/kafka.go`
-- `/backend/migrations/000018_add_customer_email_to_guest_orders.up.sql`
+- `/backend/migrations/000038_add_customer_email_to_guest_orders.up.sql`
 
 ### Backend - Notification Service
 - `/backend/notification-service/src/services/notification_service.go`
