@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { order, Order, OrderWithDetails } from '../../services/order';
+import { order, Order, OrderDocumentType, OrderWithDetails } from '../../services/order';
+import ActionMenu from '../ui/ActionMenu';
+import { documentErrorMessage } from '../../utils/documentErrors';
 import { renderTextWithLinks } from '../../utils/text';
 import { formatCurrency } from '../../utils/format';
 
@@ -26,6 +28,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [newStatus, setNewStatus] = useState('');
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [batchDocumentType, setBatchDocumentType] = useState<OrderDocumentType>('invoice');
+  const [documentAction, setDocumentAction] = useState<string | null>(null);
 
   const ITEMS_PER_PAGE = 20;
 
@@ -53,6 +58,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
       // Backend doesn't return total, use count from current page
       // If we get fewer items than limit, we're on the last page
       setTotalOrders(response.pagination?.count || (response.orders?.length || 0));
+      setSelectedOrderIds(new Set());
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
       setError('Failed to load orders. Please try again.');
@@ -70,6 +76,112 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     setNote('');
     setShowNoteDialog(false);
     setShowStatusDialog(false);
+  };
+
+  const isValidCustomerEmail = (email?: string): boolean => {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const canDownloadDocument = (orderDetails: OrderWithDetails, documentType: OrderDocumentType): boolean => {
+    if (documentType === 'invoice') {
+      return orderDetails.order.status !== 'CANCELLED';
+    }
+    return orderDetails.order.status === 'PAID' || orderDetails.order.status === 'COMPLETE';
+  };
+
+  const canResendDocument = (orderDetails: OrderWithDetails, documentType: OrderDocumentType): boolean => {
+    return canDownloadDocument(orderDetails, documentType) && isValidCustomerEmail(orderDetails.order.customer_email);
+  };
+
+  const selectedOrders = ordersWithDetails.filter(orderDetails =>
+    selectedOrderIds.has(orderDetails.order.id)
+  );
+
+  const selectedBatchIsValid =
+    selectedOrders.length > 0 &&
+    selectedOrders.every(orderDetails => canDownloadDocument(orderDetails, batchDocumentType));
+
+  const allCurrentPageSelected =
+    ordersWithDetails.length > 0 &&
+    ordersWithDetails.every(orderDetails => selectedOrderIds.has(orderDetails.order.id));
+
+  const toggleSelectAllCurrentPage = () => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (allCurrentPageSelected) {
+        ordersWithDetails.forEach(orderDetails => next.delete(orderDetails.order.id));
+      } else {
+        ordersWithDetails.forEach(orderDetails => next.add(orderDetails.order.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDocument = async (orderDetails: OrderWithDetails, documentType: OrderDocumentType) => {
+    try {
+      setDocumentAction(`${orderDetails.order.id}-${documentType}-download`);
+      const document = await order.downloadOrderDocument(orderDetails.order.id, documentType);
+      downloadBlob(document.blob, document.filename);
+    } catch (err) {
+      console.error('Failed to download order document:', err);
+      alert(await documentErrorMessage(err, 'Failed to download document. Please try again.'));
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
+  const handleResendDocument = async (orderDetails: OrderWithDetails, documentType: OrderDocumentType) => {
+    try {
+      setDocumentAction(`${orderDetails.order.id}-${documentType}-resend`);
+      await order.resendOrderDocument(orderDetails.order.id, documentType);
+      alert(`${documentType === 'invoice' ? 'Invoice' : 'Receipt'} resend queued.`);
+    } catch (err) {
+      console.error('Failed to resend order document:', err);
+      alert(await documentErrorMessage(err, 'Failed to resend document. Please check the customer email and try again.'));
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
+  const handleBatchDownload = async () => {
+    if (!selectedBatchIsValid) return;
+
+    try {
+      setDocumentAction('batch-download');
+      const document = await order.batchDownloadOrderDocuments(
+        selectedOrders.map(orderDetails => orderDetails.order.id),
+        batchDocumentType
+      );
+      downloadBlob(document.blob, document.filename);
+    } catch (err) {
+      console.error('Failed to batch download order documents:', err);
+      alert(await documentErrorMessage(err, 'Failed to download selected documents. Check that every selected order is eligible.'));
+    } finally {
+      setDocumentAction(null);
+    }
   };
 
   // T097: Status update functionality with confirmation dialog
@@ -208,6 +320,40 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
+
+        <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t pt-4">
+          <div className="text-sm text-gray-700">
+            {selectedOrders.length} selected
+            {selectedOrders.length > 0 && !selectedBatchIsValid && (
+              <span className="ml-2 text-red-600">Selection contains ineligible orders.</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={batchDocumentType}
+              onChange={(e) => setBatchDocumentType(e.target.value as OrderDocumentType)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="invoice">Invoices</option>
+              <option value="receipt">Receipts</option>
+            </select>
+            <button
+              onClick={handleBatchDownload}
+              disabled={!selectedBatchIsValid || documentAction === 'batch-download'}
+              className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {documentAction === 'batch-download' ? 'Preparing...' : 'Download ZIP'}
+            </button>
+            {selectedOrders.length > 0 && (
+              <button
+                onClick={() => setSelectedOrderIds(new Set())}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -228,6 +374,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allCurrentPageSelected}
+                        onChange={toggleSelectAllCurrentPage}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        aria-label="Select all orders on this page"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Order Reference
                     </th>
@@ -258,6 +413,16 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       className="hover:bg-gray-50 cursor-pointer"
                       onClick={() => handleOrderClick(orderDetails)}
                     >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrderIds.has(orderDetails.order.id)}
+                          onChange={() => toggleOrderSelection(orderDetails.order.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          aria-label={`Select order ${orderDetails.order.order_reference}`}
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="font-mono text-sm font-medium text-gray-900">
                           {orderDetails.order.order_reference}
@@ -293,16 +458,36 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(orderDetails.order.created_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOrderClick(orderDetails);
-                          }}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                        </button>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-medium">
+                        <ActionMenu
+                          ariaLabel={`Open actions for order ${orderDetails.order.order_reference}`}
+                          items={[
+                            {
+                              label: 'View Details',
+                              onSelect: () => handleOrderClick(orderDetails),
+                            },
+                            {
+                              label: 'Download Invoice',
+                              onSelect: () => handleDownloadDocument(orderDetails, 'invoice'),
+                              disabled: !canDownloadDocument(orderDetails, 'invoice'),
+                            },
+                            {
+                              label: 'Download Receipt',
+                              onSelect: () => handleDownloadDocument(orderDetails, 'receipt'),
+                              disabled: !canDownloadDocument(orderDetails, 'receipt'),
+                            },
+                            {
+                              label: 'Resend Invoice',
+                              onSelect: () => handleResendDocument(orderDetails, 'invoice'),
+                              disabled: !canResendDocument(orderDetails, 'invoice'),
+                            },
+                            {
+                              label: 'Resend Receipt',
+                              onSelect: () => handleResendDocument(orderDetails, 'receipt'),
+                              disabled: !canResendDocument(orderDetails, 'receipt'),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -346,24 +531,51 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               <h3 className="text-xl font-bold">
                 Order {selectedOrderDetails.order.order_reference}
               </h3>
-              <button
-                onClick={handleCloseDetail}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              <div className="flex items-center gap-2">
+                <ActionMenu
+                  ariaLabel={`Open document actions for order ${selectedOrderDetails.order.order_reference}`}
+                  items={[
+                    {
+                      label: 'Download Invoice',
+                      onSelect: () => handleDownloadDocument(selectedOrderDetails, 'invoice'),
+                      disabled: !canDownloadDocument(selectedOrderDetails, 'invoice'),
+                    },
+                    {
+                      label: 'Download Receipt',
+                      onSelect: () => handleDownloadDocument(selectedOrderDetails, 'receipt'),
+                      disabled: !canDownloadDocument(selectedOrderDetails, 'receipt'),
+                    },
+                    {
+                      label: 'Resend Invoice',
+                      onSelect: () => handleResendDocument(selectedOrderDetails, 'invoice'),
+                      disabled: !canResendDocument(selectedOrderDetails, 'invoice'),
+                    },
+                    {
+                      label: 'Resend Receipt',
+                      onSelect: () => handleResendDocument(selectedOrderDetails, 'receipt'),
+                      disabled: !canResendDocument(selectedOrderDetails, 'receipt'),
+                    },
+                  ]}
+                />
+                <button
+                  onClick={handleCloseDetail}
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
