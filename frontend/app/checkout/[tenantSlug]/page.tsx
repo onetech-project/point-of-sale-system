@@ -11,6 +11,7 @@ import { Cart } from '../../../src/types/cart';
 import PublicLayout from '../../../src/components/layout/PublicLayout';
 import { useTranslation } from 'react-i18next';
 import { formatPrice } from '../../../src/utils/format';
+import { getTenantUnavailableMessage } from '../../../src/utils/tenantAvailability';
 
 export default function CheckoutPage() {
   const { t } = useTranslation(['common']);
@@ -73,7 +74,7 @@ export default function CheckoutPage() {
     } catch (err: any) {
       console.error('Failed to load checkout data:', err);
       // Extract actual error message from backend response
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || t('common.checkout.loadError');
+      const errorMessage = getTenantUnavailableMessage(err, t('common.checkout.loadError'));
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -134,7 +135,7 @@ export default function CheckoutPage() {
     } catch (err: any) {
       console.error('Checkout failed:', err);
       // Extract actual error message from backend response
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || t('common.checkout.submitError');
+      const errorMessage = getTenantUnavailableMessage(err, t('common.checkout.submitError'));
       setError(errorMessage);
     } finally {
       setSubmitting(false);

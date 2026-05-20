@@ -38,7 +38,7 @@ func main() {
 		// OTEL
 		e.Use(otelecho.Middleware(utils.GetEnv("SERVICE_NAME")))
 
-		// Trace → Log bridge
+		// Trace to log bridge
 		e.Use(middleware.TraceLogger)
 
 		// Metrics
@@ -116,7 +116,7 @@ func main() {
 		}
 		proxy.ServeHTTP(c.Response(), c.Request())
 		return nil
-	}, tenantStatusEnforcer.RequireActiveTenantParam("tenant_id"))
+	}, tenantStatusEnforcer.RequirePublicTenantAvailableParam("tenant_id"))
 
 	// Public product photo endpoint
 	public.GET("/api/public/products/:tenant_id/:id/photo", func(c echo.Context) error {
@@ -132,7 +132,7 @@ func main() {
 		}
 		proxy.ServeHTTP(c.Response(), c.Request())
 		return nil
-	}, tenantStatusEnforcer.RequireActiveTenantParam("tenant_id"))
+	}, tenantStatusEnforcer.RequirePublicTenantAvailableParam("tenant_id"))
 
 	public.POST("/api/auth/login", proxyHandler(authServiceURL, "/login"))
 	public.POST("/api/auth/password-reset/request", proxyHandler(authServiceURL, "/password-reset/request"))
@@ -181,7 +181,7 @@ func main() {
 
 	// Public guest ordering routes (no auth required)
 	publicOrders := e.Group("/api/v1/public/:tenantId")
-	publicOrders.Use(tenantStatusEnforcer.RequireActiveTenantParam("tenantId"))
+	publicOrders.Use(tenantStatusEnforcer.RequirePublicTenantAvailableParam("tenantId"))
 	// publicOrders.Use(middleware.RateLimit()) // Rate limiting will be added later
 	publicOrders.Any("/*", proxyWildcard(orderServiceURL))
 
@@ -264,7 +264,7 @@ func main() {
 	analyticsGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	analyticsGroup.Any("/*", proxyWildcard(analyticsServiceURL))
 
-	// Billing service routes — use a separate group that skips the subscription enforcer
+	// Billing service routes use a separate group that skips the subscription enforcer
 	// (expired tenants must be able to reach billing endpoints to fix their subscription)
 	billingProtected := e.Group("")
 	billingProtected.Use(middleware.JWTAuth())
@@ -291,6 +291,7 @@ func main() {
 	platformProtected.POST("/auth/logout", proxyHandler(platformServiceURL, "/api/v1/platform/auth/logout"))
 	platformProtected.Any("/analytics/*", proxyWildcard(platformServiceURL))
 	platformProtected.Any("/tenants*", proxyWildcard(platformServiceURL))
+	platformProtected.GET("/audit-events", proxyWildcard(platformServiceURL))
 	platformProtected.GET("/tickets", proxyWildcard(platformServiceURL))
 	platformProtected.PATCH("/tickets/:ticket_id", proxyWildcard(platformServiceURL))
 	platformProtected.POST("/tickets/:ticket_id/notes", proxyWildcard(platformServiceURL))

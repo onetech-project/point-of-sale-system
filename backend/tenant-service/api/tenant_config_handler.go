@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -30,10 +31,20 @@ func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
 
 	config, err := h.configService.GetDeliveryConfig(c.Request().Context(), tenantSlug)
 
-	if (err != nil) && (err.Error() == "tenant not found") {
+	if errors.Is(err, services.ErrTenantNotFound) {
 		log.Warn().Str("tenant_slug", tenantSlug).Msg("Tenant not found")
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "Tenant not found",
+		})
+	}
+
+	var unavailable *services.TenantUnavailableError
+	if errors.As(err, &unavailable) {
+		return c.JSON(http.StatusForbidden, map[string]string{
+			"error":               "Tenant currently unavailable",
+			"message":             "This tenant is currently not available at this moment.",
+			"status":              unavailable.Status,
+			"subscription_status": unavailable.SubscriptionStatus,
 		})
 	}
 

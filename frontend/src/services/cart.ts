@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Cart, CartItem } from '../types/cart';
+import { isTenantUnavailableError } from '../utils/tenantAvailability';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -70,6 +71,9 @@ class CartService {
       this.saveLocalCart(cart);
       return cart;
     } catch (error) {
+      if (isTenantUnavailableError(error)) {
+        throw error;
+      }
       // Fallback to localStorage if server is unavailable
       const localCart = this.getLocalCart(tenantId);
       if (localCart) {

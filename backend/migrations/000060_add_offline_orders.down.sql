@@ -2,6 +2,8 @@
 -- Purpose: Rollback offline order support from guest_orders table
 
 -- Drop indexes first
+DROP INDEX IF EXISTS idx_guest_orders_offline_deleted;
+
 DROP INDEX IF EXISTS idx_offline_orders_pending_payment;
 
 DROP INDEX IF EXISTS idx_guest_orders_recorded_by;
@@ -15,6 +17,8 @@ DROP CONSTRAINT IF EXISTS check_order_type;
 
 -- Drop columns
 ALTER TABLE guest_orders
+DROP COLUMN IF EXISTS deleted_by_user_id,
+DROP COLUMN IF EXISTS deleted_at,
 DROP COLUMN IF EXISTS last_modified_at,
 DROP COLUMN IF EXISTS last_modified_by_user_id,
 DROP COLUMN IF EXISTS recorded_by_user_id,

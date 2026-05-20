@@ -53,6 +53,8 @@ export interface TenantData {
 export interface TenantConfig {
   tenant_id: string;
   tenant_name: string;
+  status?: string;
+  subscription_status?: string;
   logo_url?: string;
   description?: string;
   enabled_delivery_types: string[];

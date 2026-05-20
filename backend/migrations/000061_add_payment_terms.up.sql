@@ -41,9 +41,9 @@ CONSTRAINT check_payment_structure
 );
 
 -- Indexes for query performance
-CREATE INDEX idx_payment_terms_order_id ON payment_terms (order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_terms_order_id ON payment_terms (order_id);
 
-CREATE INDEX idx_payment_terms_balance ON payment_terms (remaining_balance, order_id)
+CREATE INDEX IF NOT EXISTS idx_payment_terms_balance ON payment_terms (remaining_balance, order_id)
 WHERE
     remaining_balance > 0;
 

@@ -3,10 +3,22 @@ package services
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/pos/tenant-service/src/repository"
 )
+
+var ErrTenantNotFound = errors.New("tenant not found")
+
+type TenantUnavailableError struct {
+	Status             string
+	SubscriptionStatus string
+}
+
+func (e *TenantUnavailableError) Error() string {
+	return "tenant unavailable"
+}
 
 type TenantConfigService struct {
 	configRepo *repository.TenantConfigRepository
@@ -37,16 +49,24 @@ type DeliveryConfig struct {
 
 func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug string) (*DeliveryConfig, error) {
 	// Fetch tenant information
-	var tenantID, tenantName sql.NullString
-	query := `SELECT id, business_name FROM tenants WHERE slug = $1 AND status = 'active'`
-	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(&tenantID, &tenantName)
-	if err != nil && err != sql.ErrNoRows {
-		// Log error but continue with config data
-		fmt.Printf("Warning: failed to fetch tenant info: %v\n", err)
+	var tenantID, tenantName, status, subscriptionStatus string
+	query := `SELECT id, business_name, status, subscription_status FROM tenants WHERE slug = $1 AND status != 'deleted'`
+	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(&tenantID, &tenantName, &status, &subscriptionStatus)
+	if err == sql.ErrNoRows {
+		return nil, ErrTenantNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tenant info: %w", err)
 	}
 
-	if !tenantID.Valid {
-		return nil, fmt.Errorf("tenant not found")
+	if subscriptionStatus == "" {
+		subscriptionStatus = "trial"
+	}
+	if status != "active" || (subscriptionStatus != "trial" && subscriptionStatus != "active") {
+		return nil, &TenantUnavailableError{
+			Status:             status,
+			SubscriptionStatus: subscriptionStatus,
+		}
 	}
 
 	// Fetch order settings from order_settings table
@@ -60,7 +80,7 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug 
 		FROM order_settings 
 		WHERE tenant_id = $1`
 
-	err = s.db.QueryRowContext(ctx, orderSettingsQuery, tenantID.String).Scan(
+	err = s.db.QueryRowContext(ctx, orderSettingsQuery, tenantID).Scan(
 		&deliveryEnabled, &pickupEnabled, &dineInEnabled,
 		&defaultDeliveryFee, &minOrderAmount, &estimatedPrepTime,
 		&chargeDeliveryFee,
@@ -88,8 +108,8 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug 
 	}
 
 	return &DeliveryConfig{
-		TenantID:             tenantID.String,
-		TenantName:           tenantName.String,
+		TenantID:             tenantID,
+		TenantName:           tenantName,
 		EnabledDeliveryTypes: enabledTypes,
 		ServiceArea:          map[string]interface{}{},
 		DeliveryFeeConfig:    map[string]interface{}{},

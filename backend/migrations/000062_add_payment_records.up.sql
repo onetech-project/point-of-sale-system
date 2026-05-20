@@ -30,11 +30,11 @@ CONSTRAINT check_payment_method
 );
 
 -- Indexes for query performance
-CREATE INDEX idx_payment_records_order_id ON payment_records (order_id, payment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_records_order_id ON payment_records (order_id, payment_date DESC);
 
-CREATE INDEX idx_payment_records_date ON payment_records (payment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_records_date ON payment_records (payment_date DESC);
 
-CREATE INDEX idx_payment_records_recorded_by ON payment_records (recorded_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_records_recorded_by ON payment_records (recorded_by_user_id);
 
 -- Column comments for documentation
 COMMENT ON TABLE payment_records IS 'Transaction log of payments received for offline orders';

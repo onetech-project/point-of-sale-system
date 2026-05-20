@@ -15,6 +15,12 @@ type TenantStatusEnforcer struct {
 	httpClient *http.Client
 }
 
+type TenantAvailability struct {
+	TenantID           string `json:"tenant_id"`
+	Status             string `json:"status"`
+	SubscriptionStatus string `json:"subscription_status"`
+}
+
 func NewTenantStatusEnforcer(tenantURL string) *TenantStatusEnforcer {
 	return &TenantStatusEnforcer{
 		tenantURL:  tenantURL,
@@ -54,8 +60,35 @@ func (e *TenantStatusEnforcer) RequireActiveTenantParam(paramName string) echo.M
 	}
 }
 
+func (e *TenantStatusEnforcer) RequirePublicTenantAvailableParam(paramName string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			tenantID := c.Param(paramName)
+			if tenantID == "" {
+				return next(c)
+			}
+			availability := e.fetchTenantAvailability(c, tenantID)
+			if availability.Status == "" {
+				availability.Status = "active"
+			}
+			if availability.SubscriptionStatus == "" {
+				availability.SubscriptionStatus = "active"
+			}
+			if availability.Status == "active" && (availability.SubscriptionStatus == "trial" || availability.SubscriptionStatus == "active") {
+				return next(c)
+			}
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error":               "Tenant currently unavailable",
+				"message":             "This tenant is currently not available at this moment.",
+				"status":              availability.Status,
+				"subscription_status": availability.SubscriptionStatus,
+			})
+		}
+	}
+}
+
 func (e *TenantStatusEnforcer) enforce(c echo.Context, tenantID string, allowed map[string]bool, next echo.HandlerFunc) error {
-	status := e.fetchTenantStatus(c, tenantID)
+	status := e.fetchTenantAvailability(c, tenantID).Status
 	if status == "" {
 		status = "active"
 	}
@@ -81,33 +114,40 @@ func (e *TenantStatusEnforcer) enforce(c echo.Context, tenantID string, allowed 
 	}
 }
 
-func (e *TenantStatusEnforcer) fetchTenantStatus(c echo.Context, tenantID string) string {
+func (e *TenantStatusEnforcer) fetchTenantAvailability(c echo.Context, tenantID string) TenantAvailability {
+	fallback := TenantAvailability{
+		TenantID:           tenantID,
+		Status:             "active",
+		SubscriptionStatus: "active",
+	}
 	if e == nil || e.tenantURL == "" {
-		return "active"
+		return fallback
 	}
 	resp, err := e.httpClient.Get(fmt.Sprintf("%s/internal/tenants/%s/status", e.tenantURL, tenantID)) //nolint:noctx
 	if err != nil {
 		c.Logger().Warnf("tenant-service unreachable for tenant %s, failing open: %v", tenantID, err)
-		return "active"
+		return fallback
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return "deleted"
+		return TenantAvailability{TenantID: tenantID, Status: "deleted", SubscriptionStatus: "active"}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.Logger().Warnf("tenant-service status read error for tenant %s, failing open: %v", tenantID, err)
-		return "active"
+		return fallback
 	}
-	var result struct {
-		Status string `json:"status"`
-	}
+	var result TenantAvailability
 	if err := json.Unmarshal(body, &result); err != nil {
 		c.Logger().Warnf("tenant-service status parse error for tenant %s, failing open: %v", tenantID, err)
-		return "active"
+		return fallback
 	}
+	result.TenantID = tenantID
 	if result.Status == "" {
-		return "active"
+		result.Status = "active"
 	}
-	return result.Status
+	if result.SubscriptionStatus == "" {
+		result.SubscriptionStatus = "active"
+	}
+	return result
 }

@@ -84,11 +84,11 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
 	}
 
-	var status string
+	var status, subscriptionStatus string
 	err := h.db.QueryRowContext(c.Request().Context(), `
-		SELECT status
+		SELECT status, subscription_status
 		FROM tenants
-		WHERE id = $1`, tenantID).Scan(&status)
+		WHERE id = $1`, tenantID).Scan(&status, &subscriptionStatus)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
 	}
@@ -98,7 +98,8 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
-		"tenant_id": tenantID,
-		"status":    status,
+		"tenant_id":           tenantID,
+		"status":              status,
+		"subscription_status": subscriptionStatus,
 	})
 }
