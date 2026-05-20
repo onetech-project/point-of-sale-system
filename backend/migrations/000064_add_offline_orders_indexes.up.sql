@@ -32,19 +32,44 @@ WHERE
     order_type = 'offline';
 
 -- Index for payment terms lookups by order
-CREATE INDEX IF NOT EXISTS idx_payment_terms_order ON payment_terms (order_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_terms_order ON payment_terms (order_id);
 
 -- Index for payment records by order (payment history)
 CREATE INDEX IF NOT EXISTS idx_payment_records_order ON payment_records (
     order_id,
-    tenant_id,
-    recorded_at DESC
+    payment_date DESC
 );
 
--- Index for pending installments (analytics and alerts)
-CREATE INDEX IF NOT EXISTS idx_installment_schedules_pending ON installment_schedules (tenant_id, status, due_date)
-WHERE
-    status = 'pending';
+-- Index for pending installments (analytics and alerts) when the table exists.
+DO $$
+BEGIN
+    IF to_regclass('installment_schedules') IS NOT NULL
+       AND EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'installment_schedules'
+             AND column_name = 'tenant_id'
+       )
+       AND EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'installment_schedules'
+             AND column_name = 'status'
+       )
+       AND EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'installment_schedules'
+             AND column_name = 'due_date'
+       )
+    THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_installment_schedules_pending ON installment_schedules (tenant_id, status, due_date) WHERE status = ''pending''';
+        COMMENT ON INDEX idx_installment_schedules_pending IS 'Optimizes pending installment analytics';
+    END IF;
+END $$;
 
 -- Index for analytics queries (order type breakdown by date)
 CREATE INDEX IF NOT EXISTS idx_guest_orders_analytics ON guest_orders (
@@ -77,8 +102,6 @@ COMMENT ON INDEX idx_guest_orders_offline_modified IS 'Optimizes edit audit trai
 COMMENT ON INDEX idx_payment_terms_order IS 'Optimizes payment terms lookups';
 
 COMMENT ON INDEX idx_payment_records_order IS 'Optimizes payment history retrieval';
-
-COMMENT ON INDEX idx_installment_schedules_pending IS 'Optimizes pending installment analytics';
 
 COMMENT ON INDEX idx_guest_orders_analytics IS 'Optimizes analytics queries for offline vs online breakdown';
 
