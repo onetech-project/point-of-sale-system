@@ -3,6 +3,7 @@ import { product } from '../../services/product';
 import ProductCard from './ProductCard';
 import { Product } from '../../types/cart';
 import { useTranslation } from 'react-i18next';
+import { getTenantUnavailableMessage } from '../../utils/tenantAvailability';
 
 interface Category {
   id: string;
@@ -69,7 +70,7 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({
 
     } catch (err: any) {
       console.error('Failed to fetch products:', err);
-      setError(err.response?.data?.message || 'Failed to load menu. Please try again.');
+      setError(getTenantUnavailableMessage(err, 'Failed to load menu. Please try again.'));
     } finally {
       setLoading(false);
     }

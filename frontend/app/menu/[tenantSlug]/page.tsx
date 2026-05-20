@@ -9,6 +9,7 @@ import { cart } from '../../../src/services/cart';
 import { tenant } from '../../../src/services/tenant';
 import { Cart, Product } from '../../../src/types/cart';
 import { useTranslation } from 'react-i18next';
+import { getTenantUnavailableMessage, isTenantUnavailableError, TENANT_UNAVAILABLE_MESSAGE } from '../../../src/utils/tenantAvailability';
 
 export default function PublicMenuPage() {
   const { t } = useTranslation(['common']);
@@ -83,8 +84,8 @@ export default function PublicMenuPage() {
       // T105: Handle invalid tenant error
       if (error.response?.status === 404) {
         setTenantError('Tenant not found. Please check the URL.');
-      } else if (error.response?.status === 403) {
-        setTenantError('This tenant is currently inactive.');
+      } else if (isTenantUnavailableError(error)) {
+        setTenantError(TENANT_UNAVAILABLE_MESSAGE);
       } else {
         setTenantError('Failed to load restaurant information.');
       }
@@ -167,7 +168,7 @@ export default function PublicMenuPage() {
     } catch (error: any) {
       console.error('Failed to add item to cart:', error);
       // Extract actual error message from backend
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to add item to cart';
+      const errorMessage = getTenantUnavailableMessage(error, 'Failed to add item to cart');
       setCartMessage({ type: 'error', text: errorMessage });
     }
     // Hide message after 2.5 seconds
@@ -184,7 +185,7 @@ export default function PublicMenuPage() {
     } catch (error: any) {
       console.error('Failed to update quantity:', error);
       // Extract actual error message from backend
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to update item quantity';
+      const errorMessage = getTenantUnavailableMessage(error, 'Failed to update item quantity');
       alert(errorMessage);
       // Reload cart to sync state
       await loadCart();
@@ -201,7 +202,7 @@ export default function PublicMenuPage() {
     } catch (error: any) {
       console.error('Failed to remove item:', error);
       // Extract actual error message from backend
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to remove item';
+      const errorMessage = getTenantUnavailableMessage(error, 'Failed to remove item');
       alert(errorMessage);
       // Reload cart to sync state
       await loadCart();
@@ -221,7 +222,7 @@ export default function PublicMenuPage() {
     } catch (error: any) {
       console.error('Failed to clear cart:', error);
       // Extract actual error message from backend
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to clear cart';
+      const errorMessage = getTenantUnavailableMessage(error, 'Failed to clear cart');
       alert(errorMessage);
     }
   };
@@ -247,7 +248,7 @@ export default function PublicMenuPage() {
           await cart.updateItem(tenantId, item.product_id, item.quantity);
         } catch (error: any) {
           hasErrors = true;
-          const errorMessage = error.response?.data?.message || error.message || 'Stock validation failed';
+          const errorMessage = getTenantUnavailableMessage(error, 'Stock validation failed');
           alert(`${item.product_name}: ${errorMessage}`);
         }
       }
@@ -261,7 +262,7 @@ export default function PublicMenuPage() {
       return true;
     } catch (error: any) {
       console.error('Failed to validate cart:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to validate cart';
+      const errorMessage = getTenantUnavailableMessage(error, 'Failed to validate cart');
       alert(errorMessage);
       return false;
     }
@@ -307,7 +308,7 @@ export default function PublicMenuPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               {tenantError.includes('not found')
                 ? 'Restaurant Not Found'
-                : tenantError.includes('inactive')
+                : tenantError === TENANT_UNAVAILABLE_MESSAGE
                   ? 'Restaurant Unavailable'
                   : 'Error Loading Restaurant'}
             </h2>

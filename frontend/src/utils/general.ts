@@ -7,6 +7,7 @@ export const PUBLIC_PAGES = {
     '/reset-password',
     '/accept-invitation',
     '/verify-email',
+    '/account-unavailable',
   ],
   GUEST_ORDER_PATTERN: /^\/orders\/[A-Z0-9-]+$/, // Matches /orders/{orderReference}
   GUEST_PATHS: ['/menu/', '/checkout/', '/guest/', '/platform'], // Any path containing these segments

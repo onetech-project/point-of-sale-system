@@ -14,12 +14,10 @@ CREATE TABLE IF NOT EXISTS event_outbox (
     last_error TEXT
 );
 
--- Index for efficient polling of unpublished events
-CREATE INDEX idx_outbox_pending ON event_outbox (created_at)
+CREATE INDEX IF NOT EXISTS idx_outbox_pending ON event_outbox (created_at)
 WHERE
     published_at IS NULL;
 
--- Column comments for documentation
 COMMENT ON TABLE event_outbox IS 'Transactional outbox for reliable Kafka event publishing';
 
 COMMENT ON COLUMN event_outbox.event_type IS 'Event type identifier (e.g., offline_order.created)';

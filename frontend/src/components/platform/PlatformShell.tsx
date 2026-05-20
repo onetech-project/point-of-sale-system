@@ -3,12 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { BarChart3, Building2, ClipboardList, LayoutDashboard, LogOut, ShieldCheck, Ticket } from 'lucide-react';
 import { platformService, PlatformAdmin } from '@/services/platform';
 
 const NAV_ITEMS = [
-  { href: '/platform/dashboard', label: 'Dashboard' },
-  { href: '/platform/tenants', label: 'Tenants' },
-  { href: '/platform/tickets', label: 'Tickets' },
+  { href: '/platform/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/platform/revenue', label: 'Revenue', icon: BarChart3 },
+  { href: '/platform/tenants', label: 'Tenants', icon: Building2 },
+  { href: '/platform/tickets', label: 'Tickets', icon: Ticket },
+  { href: '/platform/audit', label: 'Audit', icon: ClipboardList },
 ];
 
 export function PlatformShell({ children }: { children: React.ReactNode }) {
@@ -43,17 +46,19 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
           <div>
-            <Link href="/platform/dashboard" className="text-lg font-bold text-gray-900">
-              Posku Platform
+            <Link href="/platform/dashboard" className="flex items-center gap-2 text-lg font-bold text-gray-900">
+              <ShieldCheck className="h-5 w-5 text-gray-700" aria-hidden="true" />
+              <span>Posku Platform</span>
             </Link>
             {admin && <p className="text-sm text-gray-500">{admin.name}</p>}
           </div>
           <button
             type="button"
             onClick={logout}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Logout
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            <span>Logout</span>
           </button>
         </div>
       </header>
@@ -62,21 +67,43 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
           <nav className="space-y-1">
             {NAV_ITEMS.map(item => {
               const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`block rounded-lg px-3 py-2 text-sm font-medium ${
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                     active ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
         </aside>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          <nav className="mb-4 flex gap-2 overflow-x-auto lg:hidden">
+            {NAV_ITEMS.map(item => {
+              const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                    active ? 'bg-gray-900 text-white' : 'bg-white text-gray-700'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+          {children}
+        </main>
       </div>
     </div>
   );

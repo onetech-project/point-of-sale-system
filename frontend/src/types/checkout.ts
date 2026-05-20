@@ -11,6 +11,8 @@ export interface CheckoutData {
 
 export interface TenantConfig {
   tenant_id: string;
+  status?: string;
+  subscription_status?: string;
   enabled_delivery_types: string[];
   auto_calculate_fees: boolean;
   charge_delivery_fee?: boolean;

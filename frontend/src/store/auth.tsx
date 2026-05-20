@@ -65,10 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apiClient.clearAuth();
   }, []);
 
+  const handleTenantUnavailable = useCallback((status: 'suspended' | 'inactive') => {
+    setUser(null);
+    setIsAuthenticated(false);
+    apiClient.clearAuth();
+    router.replace(`/account-unavailable?status=${status}`);
+  }, [router]);
+
   // Register auth error handler with API client
   useEffect(() => {
     apiClient.setAuthErrorHandler(handleAuthError);
-  }, [handleAuthError]);
+    apiClient.setTenantUnavailableHandler(handleTenantUnavailable);
+  }, [handleAuthError, handleTenantUnavailable]);
 
   const checkAuth = useCallback(async () => {
     // Skip auth check for public routes (but don't clear auth state if already authenticated)

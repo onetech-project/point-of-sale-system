@@ -6,7 +6,7 @@ import { platformService } from '@/services/platform';
 
 export default function PlatformLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('platform@pos.local');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

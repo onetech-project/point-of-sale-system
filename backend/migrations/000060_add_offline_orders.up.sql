@@ -8,24 +8,40 @@ ADD COLUMN IF NOT EXISTS data_consent_given BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS consent_method VARCHAR(20),
 ADD COLUMN IF NOT EXISTS recorded_by_user_id UUID REFERENCES users (id),
 ADD COLUMN IF NOT EXISTS last_modified_by_user_id UUID REFERENCES users (id),
-ADD COLUMN IF NOT EXISTS last_modified_at TIMESTAMP;
+ADD COLUMN IF NOT EXISTS last_modified_at TIMESTAMP,
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP,
+ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID REFERENCES users (id);
 
 -- Add CHECK constraint for order_type
-ALTER TABLE guest_orders
-ADD CONSTRAINT check_order_type CHECK (
-    order_type IN ('online', 'offline')
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'check_order_type'
+          AND conrelid = 'guest_orders'::regclass
+    ) THEN
+        ALTER TABLE guest_orders
+        ADD CONSTRAINT check_order_type CHECK (order_type IN ('online', 'offline'));
+    END IF;
+END $$;
 
 -- Add CHECK constraint for consent_method
-ALTER TABLE guest_orders
-ADD CONSTRAINT check_consent_method CHECK (
-    consent_method IS NULL
-    OR consent_method IN (
-        'verbal',
-        'written',
-        'digital'
-    )
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'check_consent_method'
+          AND conrelid = 'guest_orders'::regclass
+    ) THEN
+        ALTER TABLE guest_orders
+        ADD CONSTRAINT check_consent_method CHECK (
+            consent_method IS NULL
+            OR consent_method IN ('verbal', 'written', 'digital')
+        );
+    END IF;
+END $$;
 
 -- Create index for offline order queries
 CREATE INDEX IF NOT EXISTS idx_guest_orders_type_status ON guest_orders (order_type, status, tenant_id);
@@ -41,6 +57,12 @@ WHERE
     order_type = 'offline'
     AND status = 'PENDING';
 
+-- Create partial index for soft-deleted offline orders
+CREATE INDEX IF NOT EXISTS idx_guest_orders_offline_deleted ON guest_orders (tenant_id, deleted_at)
+WHERE
+    order_type = 'offline'
+    AND deleted_at IS NOT NULL;
+
 -- Add column comments for documentation
 COMMENT ON COLUMN guest_orders.order_type IS 'Distinguishes online (public self-service) vs offline (staff-recorded) orders';
 
@@ -51,3 +73,7 @@ COMMENT ON COLUMN guest_orders.consent_method IS 'How consent was obtained: verb
 COMMENT ON COLUMN guest_orders.recorded_by_user_id IS 'Staff user who created the offline order';
 
 COMMENT ON COLUMN guest_orders.last_modified_by_user_id IS 'Staff user who last edited the order';
+
+COMMENT ON COLUMN guest_orders.deleted_at IS 'Soft delete timestamp for offline orders';
+
+COMMENT ON COLUMN guest_orders.deleted_by_user_id IS 'Staff user who soft-deleted the offline order';

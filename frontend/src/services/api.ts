@@ -6,6 +6,7 @@ class APIClient {
   private axiosInstance: AxiosInstance;
   private onAuthError?: () => void;
   private onSubscriptionExpired?: () => void;
+  private onTenantUnavailable?: (status: 'suspended' | 'inactive') => void;
   private isRefreshing = false;
   private refreshPromise: Promise<boolean> | null = null;
 
@@ -30,6 +31,10 @@ class APIClient {
   // Set callback for subscription expiration (402)
   public setSubscriptionExpiredHandler(handler: () => void): void {
     this.onSubscriptionExpired = handler;
+  }
+
+  public setTenantUnavailableHandler(handler: (status: 'suspended' | 'inactive') => void): void {
+    this.onTenantUnavailable = handler;
   }
 
   // Attempt to refresh the session
@@ -83,6 +88,17 @@ class APIClient {
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+        const responseData = error.response?.data as { status?: string; error?: string } | undefined;
+        const requestURL = originalRequest?.url ?? '';
+
+        if (
+          error.response?.status === 403 &&
+          (responseData?.status === 'suspended' || responseData?.status === 'inactive') &&
+          !isPublicTenantRoute(requestURL)
+        ) {
+          this.onTenantUnavailable?.(responseData.status);
+          return Promise.reject(error);
+        }
 
         // Handle 402 Payment Required (subscription expired)
         if (error.response?.status === 402) {
@@ -158,6 +174,10 @@ class APIClient {
   public getAxiosInstance(): AxiosInstance {
     return this.axiosInstance;
   }
+}
+
+function isPublicTenantRoute(url: string): boolean {
+  return url.includes('/api/public/') || url.includes('/api/v1/public/');
 }
 
 const apiClient = new APIClient();
