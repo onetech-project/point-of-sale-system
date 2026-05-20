@@ -63,6 +63,18 @@ jobs:
             context: backend/analytics-service
             dockerfile: backend/analytics-service/Dockerfile
 
+          - name: billing-service
+            context: backend/billing-service
+            dockerfile: backend/billing-service/Dockerfile
+
+          - name: platform-service
+            context: backend/platform-service
+            dockerfile: backend/platform-service/Dockerfile
+
+          - name: migrations
+            context: backend/migrations
+            dockerfile: backend/migrations/Dockerfile
+
           - name: frontend
             context: frontend
             dockerfile: frontend/Dockerfile
@@ -115,25 +127,48 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
+    env:
+      DEPLOY_ENV: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
-      - name: Deploy via SSH and Docker Compose
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          DEPLOY_ENV: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
-          envs: DEPLOY_ENV
-          script: |
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          sudo install -m 755 cloudflared /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.VPS_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          cat > ~/.ssh/config <<EOF
+          Host posku-vps
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking accept-new
+            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+          EOF
+
+      - name: Deploy via Cloudflare Tunnel SSH
+        run: |
+          ssh posku-vps '
             set -e
 
-            echo "🚀 Deploy environment: $DEPLOY_ENV"
+            echo "🚀 Deploy environment: '"$DEPLOY_ENV"'"
 
-            cd /srv/posku/$DEPLOY_ENV/app
+            cd /opt/posku/deploy/'"$DEPLOY_ENV"'
 
-            docker compose pull
-            docker compose up -d
+            docker compose -f docker-compose.migration.yml pull
+            docker compose -f docker-compose.migration.yml run --rm '"$DEPLOY_ENV"'-migration
+
+            docker compose -f docker-compose.yml pull
+            docker compose -f docker-compose.yml up -d
 
             docker image prune -f
+          '
