@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import offlineOrderService from '../../services/offlineOrders';
+import offlineOrderService, { OfflineOrderDocumentType } from '../../services/offlineOrders';
+import ActionMenu from '../ui/ActionMenu';
 import { formatCurrency } from '../../utils/format';
+import { documentErrorMessage } from '../../utils/documentErrors';
 import { OfflineOrder, OrderStatus, ListOfflineOrdersFilters } from '../../types/offlineOrder';
 
 interface OfflineOrderListProps {
@@ -16,6 +18,9 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [batchDocumentType, setBatchDocumentType] = useState<OfflineOrderDocumentType>('invoice');
+  const [documentAction, setDocumentAction] = useState<string | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
@@ -48,6 +53,7 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
       const response = await offlineOrderService.listOfflineOrders(filters);
       setOrders(response?.orders || []);
       setTotalCount(response?.total_count || 0);
+      setSelectedOrderIds(new Set());
     } catch (err: any) {
       console.error('Failed to fetch offline orders:', err);
       setError('Failed to load offline orders. Please try again.');
@@ -67,6 +73,109 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
 
   const handleCreateNew = () => {
     router.push('/orders/offline-orders/new');
+  };
+
+  const isValidCustomerEmail = (email?: string): boolean => {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const canDownloadDocument = (order: OfflineOrder, documentType: OfflineOrderDocumentType): boolean => {
+    if (documentType === 'invoice') {
+      return order.status !== 'CANCELLED';
+    }
+    return order.status === 'PAID' || order.status === 'COMPLETE';
+  };
+
+  const canResendDocument = (order: OfflineOrder, documentType: OfflineOrderDocumentType): boolean => {
+    return canDownloadDocument(order, documentType) && isValidCustomerEmail(order.customer_email);
+  };
+
+  const selectedOrders = orders.filter(order => selectedOrderIds.has(order.id));
+  const selectedBatchIsValid =
+    selectedOrders.length > 0 &&
+    selectedOrders.every(order => canDownloadDocument(order, batchDocumentType));
+  const allCurrentPageSelected =
+    orders.length > 0 && orders.every(order => selectedOrderIds.has(order.id));
+
+  const toggleSelectAllCurrentPage = () => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (allCurrentPageSelected) {
+        orders.forEach(order => next.delete(order.id));
+      } else {
+        orders.forEach(order => next.add(order.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDocument = async (order: OfflineOrder, documentType: OfflineOrderDocumentType) => {
+    try {
+      setDocumentAction(`${order.id}-${documentType}-download`);
+      const document = await offlineOrderService.downloadDocument(order.id, documentType);
+      downloadBlob(document.blob, document.filename);
+    } catch (err) {
+      console.error('Failed to download offline order document:', err);
+      setError(await documentErrorMessage(err, 'Failed to download document. Please try again.'));
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
+  const handleResendDocument = async (order: OfflineOrder, documentType: OfflineOrderDocumentType) => {
+    try {
+      setDocumentAction(`${order.id}-${documentType}-resend`);
+      await offlineOrderService.resendDocument(order.id, documentType);
+      setError(null);
+      alert(`${documentType === 'invoice' ? 'Invoice' : 'Receipt'} resend queued.`);
+    } catch (err) {
+      console.error('Failed to resend offline order document:', err);
+      setError(await documentErrorMessage(err, 'Failed to resend document. Check the customer email and try again.'));
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
+  const handleBatchDownload = async () => {
+    if (!selectedBatchIsValid) return;
+
+    try {
+      setDocumentAction('batch-download');
+      const document = await offlineOrderService.batchDownloadDocuments(
+        selectedOrders.map(order => order.id),
+        batchDocumentType
+      );
+      downloadBlob(document.blob, document.filename);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to batch download offline order documents:', err);
+      setError(await documentErrorMessage(err, 'Failed to download selected documents. Check that every selected order is eligible.'));
+    } finally {
+      setDocumentAction(null);
+    }
   };
 
   const getStatusColor = (status: OrderStatus): string => {
@@ -169,6 +278,40 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
             </div>
           </div>
         </div>
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t pt-4">
+          <div className="text-sm text-gray-700">
+            {selectedOrders.length} selected
+            {selectedOrders.length > 0 && !selectedBatchIsValid && (
+              <span className="ml-2 text-red-600">Selection contains ineligible orders.</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={batchDocumentType}
+              onChange={e => setBatchDocumentType(e.target.value as OfflineOrderDocumentType)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="invoice">Invoices</option>
+              <option value="receipt">Receipts</option>
+            </select>
+            <button
+              onClick={handleBatchDownload}
+              disabled={!selectedBatchIsValid || documentAction === 'batch-download'}
+              className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {documentAction === 'batch-download' ? 'Preparing...' : 'Download ZIP'}
+            </button>
+            {selectedOrders.length > 0 && (
+              <button
+                onClick={() => setSelectedOrderIds(new Set())}
+                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -195,6 +338,15 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={allCurrentPageSelected}
+                      onChange={toggleSelectAllCurrentPage}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      aria-label="Select all offline orders on this page"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Order Reference
                   </th>
@@ -226,6 +378,16 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
                     onClick={() => handleOrderClick(order.id)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedOrderIds.has(order.id)}
+                        onChange={() => toggleOrderSelection(order.id)}
+                        onClick={e => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        aria-label={`Select order ${order.order_reference}`}
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {order.order_reference}
                       </div>
@@ -248,16 +410,36 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(order.created_at)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleOrderClick(order.id);
-                        }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View Details
-                      </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-medium">
+                      <ActionMenu
+                        ariaLabel={`Open actions for order ${order.order_reference}`}
+                        items={[
+                          {
+                            label: 'View Details',
+                            onSelect: () => handleOrderClick(order.id),
+                          },
+                          {
+                            label: 'Download Invoice',
+                            onSelect: () => handleDownloadDocument(order, 'invoice'),
+                            disabled: !canDownloadDocument(order, 'invoice'),
+                          },
+                          {
+                            label: 'Download Receipt',
+                            onSelect: () => handleDownloadDocument(order, 'receipt'),
+                            disabled: !canDownloadDocument(order, 'receipt'),
+                          },
+                          {
+                            label: 'Resend Invoice',
+                            onSelect: () => handleResendDocument(order, 'invoice'),
+                            disabled: !canResendDocument(order, 'invoice'),
+                          },
+                          {
+                            label: 'Resend Receipt',
+                            onSelect: () => handleResendDocument(order, 'receipt'),
+                            disabled: !canResendDocument(order, 'receipt'),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

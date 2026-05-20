@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Order, OrderItem, OrderNote } from '../types/cart';
+import apiClient from './api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -19,6 +20,13 @@ export interface OrderListResponse {
     offset: number;
     count: number;
   };
+}
+
+export type OrderDocumentType = 'invoice' | 'receipt';
+
+export interface DownloadedOrderDocument {
+  blob: Blob;
+  filename: string;
 }
 
 /**
@@ -197,6 +205,52 @@ class GuestOrderService {
       throw error;
     }
   }
+
+  async downloadOrderDocument(
+    orderId: string,
+    documentType: OrderDocumentType
+  ): Promise<DownloadedOrderDocument> {
+    const response = await apiClient.getAxiosInstance().get(
+      `/api/v1/admin/orders/${orderId}/documents/${documentType}`,
+      { responseType: 'blob' }
+    );
+
+    const disposition = response.headers['content-disposition'];
+    return {
+      blob: response.data,
+      filename: filenameFromDisposition(typeof disposition === 'string' ? disposition : undefined) || `${documentType}-${orderId}.pdf`,
+    };
+  }
+
+  async resendOrderDocument(orderId: string, documentType: OrderDocumentType): Promise<void> {
+    await apiClient.post(`/api/v1/admin/orders/${orderId}/documents/${documentType}/resend`);
+  }
+
+  async batchDownloadOrderDocuments(
+    orderIds: string[],
+    documentType: OrderDocumentType
+  ): Promise<DownloadedOrderDocument> {
+    const response = await apiClient.getAxiosInstance().post(
+      '/api/v1/admin/orders/documents/batch',
+      {
+        document_type: documentType,
+        order_ids: orderIds,
+      },
+      { responseType: 'blob' }
+    );
+
+    const disposition = response.headers['content-disposition'];
+    return {
+      blob: response.data,
+      filename: filenameFromDisposition(typeof disposition === 'string' ? disposition : undefined) || `orders-${documentType}.zip`,
+    };
+  }
 }
+
+const filenameFromDisposition = (disposition?: string): string | null => {
+  if (!disposition) return null;
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return match?.[1] || null;
+};
 
 export const order = new GuestOrderService();

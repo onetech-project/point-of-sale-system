@@ -15,6 +15,13 @@ import {
   PaymentRecord,
 } from '../types/offlineOrder';
 
+export type OfflineOrderDocumentType = 'invoice' | 'receipt';
+
+export interface DownloadedOfflineOrderDocument {
+  blob: Blob;
+  filename: string;
+}
+
 class OfflineOrderService {
   /**
    * Create a new offline order
@@ -191,6 +198,46 @@ class OfflineOrderService {
     }
   }
 
+  async downloadDocument(
+    orderId: string,
+    documentType: OfflineOrderDocumentType
+  ): Promise<DownloadedOfflineOrderDocument> {
+    const response = await apiClient.getAxiosInstance().get(
+      `/api/v1/admin/offline-orders/${orderId}/documents/${documentType}`,
+      { responseType: 'blob' }
+    );
+
+    const disposition = response.headers['content-disposition'];
+    return {
+      blob: response.data,
+      filename: filenameFromDisposition(typeof disposition === 'string' ? disposition : undefined) || `${documentType}-${orderId}.pdf`,
+    };
+  }
+
+  async resendDocument(orderId: string, documentType: OfflineOrderDocumentType): Promise<void> {
+    await apiClient.post(`/api/v1/admin/offline-orders/${orderId}/documents/${documentType}/resend`);
+  }
+
+  async batchDownloadDocuments(
+    orderIds: string[],
+    documentType: OfflineOrderDocumentType
+  ): Promise<DownloadedOfflineOrderDocument> {
+    const response = await apiClient.getAxiosInstance().post(
+      '/api/v1/admin/offline-orders/documents/batch',
+      {
+        document_type: documentType,
+        order_ids: orderIds,
+      },
+      { responseType: 'blob' }
+    );
+
+    const disposition = response.headers['content-disposition'];
+    return {
+      blob: response.data,
+      filename: filenameFromDisposition(typeof disposition === 'string' ? disposition : undefined) || `offline-orders-${documentType}.zip`,
+    };
+  }
+
   /**
    * Generate order reference preview
    * Helper for displaying formatted order references
@@ -203,3 +250,9 @@ class OfflineOrderService {
 // Export singleton instance
 const offlineOrderService = new OfflineOrderService();
 export default offlineOrderService;
+
+const filenameFromDisposition = (disposition?: string): string | null => {
+  if (!disposition) return null;
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return match?.[1] || null;
+};

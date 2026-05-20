@@ -149,7 +149,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize OfflineOrderRepository")
 	}
-	
+
 	outboxRepo := repository.NewOutboxRepository(config.GetDB())
 	eventPublisherConfig := services.EventPublisherConfig{
 		KafkaBrokers: brokerList,
@@ -157,7 +157,7 @@ func main() {
 	}
 	eventPublisher := services.NewEventPublisher(config.GetDB(), eventPublisherConfig)
 	paymentCalculator := services.NewPaymentCalculator()
-	
+
 	offlineOrderService := services.NewOfflineOrderService(
 		config.GetDB(),
 		offlineOrderRepo,
@@ -167,8 +167,16 @@ func main() {
 		eventPublisher,
 		paymentCalculator,
 	)
-	
+
 	offlineOrderHandler := api.NewOfflineOrderHandler(offlineOrderService)
+	orderDocumentService := services.NewOrderDocumentService(
+		config.GetDB(),
+		orderService,
+		offlineOrderService,
+		paymentRepo,
+		kafkaProducer,
+	)
+	orderDocumentHandler := api.NewOrderDocumentHandler(orderDocumentService)
 
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
@@ -227,6 +235,7 @@ func main() {
 
 	// Admin routes (JWT auth will be added in future)
 	adminOrderHandler.RegisterRoutes(e)
+	orderDocumentHandler.RegisterRoutes(e)
 	orderSettingsHandler.RegisterRoutes(e)
 
 	// Offline order routes (US1-US4)
@@ -236,7 +245,7 @@ func main() {
 	noopJWTMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
 		return next
 	}
-	
+
 	requireRoleWrapper := func(roles ...string) echo.MiddlewareFunc {
 		rolesList := make([]customMiddleware.Role, len(roles))
 		for i, role := range roles {
@@ -244,7 +253,7 @@ func main() {
 		}
 		return customMiddleware.RequireRole(rolesList...)
 	}
-	
+
 	// T110: Pass rate limit middleware to offline order routes
 	api.RegisterOfflineOrderRoutes(e, offlineOrderHandler, noopJWTMiddleware, requireRoleWrapper, customMiddleware.RateLimit())
 

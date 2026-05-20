@@ -132,6 +132,8 @@ func (s *NotificationService) HandleEvent(ctx context.Context, eventData []byte)
 		return s.handleTeamInvitation(ctx, event)
 	case "order.invoice":
 		return s.handleOrderInvoice(ctx, event)
+	case "order.document.resend":
+		return s.handleOrderDocumentResend(ctx, event)
 	case "order.paid":
 		return s.handleOrderPaid(ctx, event)
 	case "user_deletion_warning":

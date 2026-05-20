@@ -12,7 +12,8 @@ import {
 } from '../../types/offlineOrder';
 import { AuditTrail } from './AuditTrail';
 import { DeleteOrderModal } from './DeleteOrderModal';
-import offlineOrderService from '../../services/offlineOrders';
+import offlineOrderService, { OfflineOrderDocumentType } from '../../services/offlineOrders';
+import ActionMenu from '../ui/ActionMenu';
 
 interface OfflineOrderDetailProps {
   order: OfflineOrder;
@@ -33,6 +34,8 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [documentAction, setDocumentAction] = useState<string | null>(null);
+  const [documentError, setDocumentError] = useState<string | null>(null);
 
   const getStatusColor = (status: OrderStatus): string => {
     switch (status) {
@@ -110,6 +113,60 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
     setDeleteError(null);
   };
 
+  const isValidCustomerEmail = (email?: string): boolean => {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const canDownloadDocument = (documentType: OfflineOrderDocumentType): boolean => {
+    if (documentType === 'invoice') {
+      return order.status !== 'CANCELLED';
+    }
+    return order.status === 'PAID' || order.status === 'COMPLETE';
+  };
+
+  const canResendDocument = (documentType: OfflineOrderDocumentType): boolean => {
+    return canDownloadDocument(documentType) && isValidCustomerEmail(order.customer_email);
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDocument = async (documentType: OfflineOrderDocumentType) => {
+    try {
+      setDocumentAction(`${documentType}-download`);
+      setDocumentError(null);
+      const document = await offlineOrderService.downloadDocument(order.id, documentType);
+      downloadBlob(document.blob, document.filename);
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      setDocumentError('Failed to download document. Please try again.');
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
+  const handleResendDocument = async (documentType: OfflineOrderDocumentType) => {
+    try {
+      setDocumentAction(`${documentType}-resend`);
+      setDocumentError(null);
+      await offlineOrderService.resendDocument(order.id, documentType);
+      alert(`${documentType === 'invoice' ? 'Invoice' : 'Receipt'} resend queued.`);
+    } catch (error) {
+      console.error('Failed to resend document:', error);
+      setDocumentError('Failed to resend document. Check the customer email and try again.');
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
   // Check if user can delete (owner/manager only)
   // Note: In a real app, get this from user context/auth
   const canDelete = true; // TODO: Replace with actual role check from auth context
@@ -136,6 +193,31 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
           >
             {order.status}
           </span>
+          <ActionMenu
+            ariaLabel={`Open document actions for order ${order.order_reference}`}
+            items={[
+              {
+                label: 'Download Invoice',
+                onSelect: () => handleDownloadDocument('invoice'),
+                disabled: !canDownloadDocument('invoice') || documentAction === 'invoice-download',
+              },
+              {
+                label: 'Download Receipt',
+                onSelect: () => handleDownloadDocument('receipt'),
+                disabled: !canDownloadDocument('receipt') || documentAction === 'receipt-download',
+              },
+              {
+                label: 'Resend Invoice',
+                onSelect: () => handleResendDocument('invoice'),
+                disabled: !canResendDocument('invoice') || documentAction === 'invoice-resend',
+              },
+              {
+                label: 'Resend Receipt',
+                onSelect: () => handleResendDocument('receipt'),
+                disabled: !canResendDocument('receipt') || documentAction === 'receipt-resend',
+              },
+            ]}
+          />
           {order.status === 'PENDING' && (
             <>
               <button
@@ -186,6 +268,12 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
           )}
         </div>
       </div>
+
+      {documentError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {documentError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
