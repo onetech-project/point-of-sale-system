@@ -12,19 +12,19 @@ jest.mock('next/navigation', () => ({
 }));
 
 describe('AccountUnavailablePage', () => {
-  it('shows suspended tenant account copy', () => {
+  it('shows suspended tenant account copy', async () => {
     mockStatus = 'suspended';
 
     render(<AccountUnavailablePage />);
 
-    expect(screen.getByText('This tenant account is suspended. Please contact platform support or your administrator.')).toBeInTheDocument();
+    expect(await screen.findByText('This tenant account is suspended. Please contact platform support or your administrator.')).toBeInTheDocument();
   });
 
-  it('shows inactive tenant account copy', () => {
+  it('shows inactive tenant account copy', async () => {
     mockStatus = 'inactive';
 
     render(<AccountUnavailablePage />);
 
-    expect(screen.getByText('This tenant account is inactive. Please contact platform support or your administrator.')).toBeInTheDocument();
+    expect(await screen.findByText('This tenant account is inactive. Please contact platform support or your administrator.')).toBeInTheDocument();
   });
 });

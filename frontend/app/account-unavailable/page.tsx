@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 
-export default function AccountUnavailablePage() {
+function AccountUnavailableContent() {
   const searchParams = useSearchParams();
   const status = searchParams?.get('status');
   const message = useMemo(() => {
@@ -31,5 +31,13 @@ export default function AccountUnavailablePage() {
         </Link>
       </section>
     </main>
+  );
+}
+
+export default function AccountUnavailablePage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountUnavailableContent />
+    </Suspense>
   );
 }
