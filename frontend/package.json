@@ -7,7 +7,9 @@
     "test": "tests"
   },
   "scripts": {
+    "predev": "node scripts/generate-build-version.js",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-build-version.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

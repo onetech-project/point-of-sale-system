@@ -397,14 +397,14 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
         echo ""
 
         # Apply latest database schema before services boot.
-        echo "🗃️  Running database migrations..."
-        if [ -x "$PROJECT_ROOT/scripts/run-migrations.sh" ]; then
-            "$PROJECT_ROOT/scripts/run-migrations.sh"
-        else
-            chmod +x "$PROJECT_ROOT/scripts/run-migrations.sh"
-            "$PROJECT_ROOT/scripts/run-migrations.sh"
-        fi
-        echo ""
+        # echo "🗃️  Running database migrations..."
+        # if [ -x "$PROJECT_ROOT/scripts/run-migrations.sh" ]; then
+        #     "$PROJECT_ROOT/scripts/run-migrations.sh"
+        # else
+        #     chmod +x "$PROJECT_ROOT/scripts/run-migrations.sh"
+        #     "$PROJECT_ROOT/scripts/run-migrations.sh"
+        # fi
+        # echo ""
     fi
 fi
 

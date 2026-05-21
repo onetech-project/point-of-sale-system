@@ -2,6 +2,7 @@ import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/store/auth';
 import { SubscriptionProvider } from '@/store/subscription';
 import { I18nProvider } from '@/i18n/provider';
+import { VersionUpdateBanner } from '@/components/common/VersionUpdateBanner';
 import '@/styles/globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <I18nProvider>
           <AuthProvider>
-            <SubscriptionProvider>{children}</SubscriptionProvider>
+            <SubscriptionProvider>
+              {children}
+              <VersionUpdateBanner />
+            </SubscriptionProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

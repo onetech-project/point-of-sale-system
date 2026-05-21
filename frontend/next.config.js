@@ -1,4 +1,21 @@
 /** @type {import('next').NextConfig} */
+const fs = require('fs');
+const path = require('path');
+
+const noStoreCacheHeader = 'no-cache, no-store, must-revalidate';
+const immutableAssetCacheHeader = 'public, max-age=31536000, immutable';
+const versionJsonPath = path.join(__dirname, 'public', 'version.json');
+const htmlRouteSource = '/((?!api|_next/static|_next/image|assets|version\\.json|.*\\..*).*)';
+
+const readBuildVersion = () => {
+  try {
+    return JSON.parse(fs.readFileSync(versionJsonPath, 'utf8'));
+  } catch {
+    return {};
+  }
+};
+
+const buildVersion = readBuildVersion();
 
 // Build remote patterns dynamically from environment variables
 const buildImageRemotePatterns = () => {
@@ -42,10 +59,45 @@ const buildImageRemotePatterns = () => {
 
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_BUILD_HASH: buildVersion.buildHash || '',
+    NEXT_PUBLIC_BUILD_TIME: buildVersion.buildTime || '',
+  },
   images: {
     remotePatterns: buildImageRemotePatterns(),
     // Disable optimization for external images with query params (presigned URLs)
     unoptimized: true,
+  },
+  async headers() {
+    return [
+      {
+        source: '/version.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: noStoreCacheHeader,
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: immutableAssetCacheHeader,
+          },
+        ],
+      },
+      {
+        source: htmlRouteSource,
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: noStoreCacheHeader,
+          },
+        ],
+      },
+    ];
   },
   async rewrites() {
     // Use API_GATEWAY_URL from environment, fallback to localhost
