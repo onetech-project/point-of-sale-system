@@ -16,6 +16,7 @@ const readBuildVersion = () => {
 };
 
 const buildVersion = readBuildVersion();
+const useStandaloneOutput = process.env.NEXT_OUTPUT === 'standalone';
 
 // Build remote patterns dynamically from environment variables
 const buildImageRemotePatterns = () => {
@@ -59,6 +60,7 @@ const buildImageRemotePatterns = () => {
 
 const nextConfig = {
   reactStrictMode: true,
+  ...(useStandaloneOutput ? { output: 'standalone' } : {}),
   env: {
     NEXT_PUBLIC_BUILD_HASH: buildVersion.buildHash || '',
     NEXT_PUBLIC_BUILD_TIME: buildVersion.buildTime || '',

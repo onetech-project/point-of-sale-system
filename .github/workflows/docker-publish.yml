@@ -106,6 +106,10 @@ jobs:
           context: ./${{ matrix.service.context }}
           file: ./${{ matrix.service.dockerfile }}
           push: true
+          cache-from: |
+            ${{ matrix.service.name == 'frontend' && 'type=gha,scope=frontend' || '' }}
+          cache-to: |
+            ${{ matrix.service.name == 'frontend' && 'type=gha,mode=max,scope=frontend' || '' }}
           build-args: |
             ${{ matrix.service.needs_env && format('NEXT_PUBLIC_API_URL={0}', secrets.NEXT_PUBLIC_API_URL) || '' }}
             ${{ matrix.service.needs_env && format('NEXT_PUBLIC_APP_NAME={0}', secrets.NEXT_PUBLIC_APP_NAME) || '' }}

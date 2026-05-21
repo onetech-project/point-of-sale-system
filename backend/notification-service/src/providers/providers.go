@@ -61,6 +61,7 @@ type SMTPEmailProvider struct {
 	from          string
 	enableTLS     bool
 	enable        bool
+	needAuth      bool
 	retryAttempts int
 	retryDelay    time.Duration
 }
@@ -79,6 +80,7 @@ func NewSMTPEmailProvider() *SMTPEmailProvider {
 		from:          utils.GetEnv("SMTP_FROM"),
 		enableTLS:     utils.GetEnv("SMTP_TLS") == "true",
 		enable:        utils.GetEnv("SMTP_ENABLE") == "true",
+		needAuth:      utils.GetEnv("SMTP_AUTH") == "true",
 		retryAttempts: retryAttempts,
 		retryDelay:    2 * time.Second,
 	}
@@ -103,7 +105,12 @@ func (p *SMTPEmailProvider) Send(to, subject, body string, isHTML bool) error {
 	}
 
 	addr := fmt.Sprintf("%s:%s", p.host, p.port)
-	auth := smtp.PlainAuth("", p.username, p.password, p.host)
+	auth := smtp.Auth(nil)
+
+	// For providers like MailHog that don't require auth, we should not set auth at all
+	if p.needAuth && p.username != "" && p.password != "" {
+		auth = smtp.PlainAuth("", p.username, p.password, p.host)
+	}
 
 	// Retry logic with exponential backoff
 	var lastErr error
