@@ -8,7 +8,18 @@ export interface AuditEvent {
   actor_id?: string;
   actor_email?: string; // Encrypted
   session_id?: string;
-  action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'GRANT' | 'REVOKE';
+  action:
+    | 'CREATE'
+    | 'READ'
+    | 'UPDATE'
+    | 'DELETE'
+    | 'ACCESS'
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'EXPORT'
+    | 'ANONYMIZE'
+    | 'GRANT'
+    | 'REVOKE';
   resource_type: string; // e.g., 'user', 'order', 'config', 'session'
   resource_id: string;
   ip_address?: string;

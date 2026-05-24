@@ -21,6 +21,8 @@ export interface TenantInfo {
   slug: string;
   status: string;
   createdAt: string;
+  midtrans_configured?: boolean;
+  midtrans_environment?: 'sandbox' | 'production';
 }
 
 export interface TeamMember {
@@ -55,6 +57,8 @@ export interface TenantConfig {
   tenant_name: string;
   status?: string;
   subscription_status?: string;
+  midtrans_configured?: boolean;
+  midtrans_environment?: 'sandbox' | 'production';
   logo_url?: string;
   description?: string;
   enabled_delivery_types: string[];

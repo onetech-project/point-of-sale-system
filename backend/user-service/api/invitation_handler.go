@@ -63,17 +63,16 @@ func (h *InvitationHandler) CreateInvitation(c echo.Context) error {
 
 	// Validate role
 	validRoles := map[string]bool{
-		"admin":   true,
 		"manager": true,
 		"cashier": true,
 	}
 	if !validRoles[req.Role] {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid role. Must be one of: admin, manager, cashier",
+			"error": "Invalid role. Must be one of: manager, cashier",
 		})
 	}
 
-	invitation, err := h.invitationService.Create(c.Request().Context(), tenantID, req.Email, req.Role, userID)
+	invitation, err := h.invitationService.Create(c.Request().Context(), tenantID, req.Email, req.Role, userID, auditContextFromRequest(c))
 	if err != nil {
 		if err == services.ErrEmailAlreadyExists {
 			return c.JSON(http.StatusConflict, map[string]string{
@@ -167,11 +166,7 @@ func (h *InvitationHandler) AcceptInvitation(c echo.Context) error {
 		})
 	}
 
-	// Extract IP address and user agent for consent recording
-	ipAddress := c.RealIP()
-	userAgent := c.Request().UserAgent()
-
-	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password, req.Consents, ipAddress, userAgent)
+	user, err := h.invitationService.Accept(c.Request().Context(), token, req.FirstName, req.LastName, req.Password, req.Consents, auditContextFromRequest(c))
 	if err != nil {
 		if err == services.ErrInvitationNotFound {
 			return c.JSON(http.StatusNotFound, map[string]string{
@@ -233,7 +228,7 @@ func (h *InvitationHandler) ResendInvitation(c echo.Context) error {
 		})
 	}
 
-	invitation, err := h.invitationService.Resend(c.Request().Context(), tenantID, invitationID, userID)
+	invitation, err := h.invitationService.Resend(c.Request().Context(), tenantID, invitationID, userID, auditContextFromRequest(c))
 	if err != nil {
 		if err == services.ErrInvitationNotFound {
 			return c.JSON(http.StatusNotFound, map[string]string{
@@ -244,6 +239,61 @@ func (h *InvitationHandler) ResendInvitation(c echo.Context) error {
 		c.Logger().Errorf("Failed to resend invitation: %v", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to resend invitation",
+		})
+	}
+
+	response := &models.InvitationResponse{
+		ID:        invitation.ID,
+		Email:     invitation.Email,
+		Role:      invitation.Role,
+		Status:    invitation.Status,
+		ExpiresAt: invitation.ExpiresAt,
+		InvitedBy: invitation.InvitedBy,
+		CreatedAt: invitation.CreatedAt,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// RevokeInvitation handles POST /invitations/:id/revoke
+func (h *InvitationHandler) RevokeInvitation(c echo.Context) error {
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized",
+		})
+	}
+
+	userID := c.Request().Header.Get("X-User-ID")
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Unauthorized",
+		})
+	}
+
+	invitationID := c.Param("id")
+	if invitationID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invitation ID is required",
+		})
+	}
+
+	invitation, err := h.invitationService.Revoke(c.Request().Context(), tenantID, invitationID, userID, auditContextFromRequest(c))
+	if err != nil {
+		if err == services.ErrInvitationNotFound {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Invitation not found",
+			})
+		}
+		if err == services.ErrInvitationInvalid {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Only pending invitations can be revoked",
+			})
+		}
+
+		c.Logger().Errorf("Failed to revoke invitation: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to revoke invitation",
 		})
 	}
 

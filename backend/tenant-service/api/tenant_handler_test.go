@@ -17,9 +17,14 @@ func TestGetInternalTenantStatusIncludesSubscriptionStatus(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT status, subscription_status\s+FROM tenants\s+WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT\s+t\.status,\s+t\.subscription_status,`).
 		WithArgs("tenant-1").
-		WillReturnRows(sqlmock.NewRows([]string{"status", "subscription_status"}).AddRow("active", "grace_period"))
+		WillReturnRows(sqlmock.NewRows([]string{
+			"status",
+			"subscription_status",
+			"midtrans_configured",
+			"midtrans_environment",
+		}).AddRow("active", "grace_period", false, "sandbox"))
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/internal/tenants/tenant-1/status", nil)
@@ -35,12 +40,15 @@ func TestGetInternalTenantStatusIncludesSubscriptionStatus(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	var body map[string]string
+	var body map[string]interface{}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	if body["tenant_id"] != "tenant-1" || body["status"] != "active" || body["subscription_status"] != "grace_period" {
 		t.Fatalf("unexpected response: %+v", body)
+	}
+	if body["midtrans_configured"] != false || body["midtrans_environment"] != "sandbox" {
+		t.Fatalf("unexpected midtrans response: %+v", body)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

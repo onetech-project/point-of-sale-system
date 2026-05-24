@@ -144,15 +144,9 @@ class GuestOrderService {
    * Get order details by ID (admin only)
    * Requires JWT authentication
    */
-  async getOrderById(orderId: string): Promise<Order> {
+  async getOrderById(orderId: string): Promise<OrderWithDetails> {
     try {
-      const response = await axios.get<Order>(
-        `${API_BASE_URL}/api/v1/admin/orders/${orderId}`,
-        {
-          withCredentials: true,
-        }
-      );
-      return response.data;
+      return await apiClient.get<OrderWithDetails>(`/api/v1/admin/orders/${orderId}`);
     } catch (error) {
       console.error('Failed to fetch order:', error);
       throw error;

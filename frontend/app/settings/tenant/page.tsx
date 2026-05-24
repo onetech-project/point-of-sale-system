@@ -64,7 +64,7 @@ export default function TenantSettingsPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={[ROLES.OWNER]}>
+    <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
       <DashboardLayout>
         <div className="max-w-4xl mx-auto">
           {/* Header */}

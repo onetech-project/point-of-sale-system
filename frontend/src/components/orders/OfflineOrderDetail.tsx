@@ -12,7 +12,8 @@ import {
 } from '../../types/offlineOrder';
 import { AuditTrail } from './AuditTrail';
 import { DeleteOrderModal } from './DeleteOrderModal';
-import offlineOrderService, { OfflineOrderDocumentType } from '../../services/offlineOrders';
+import offlineOrderService from '../../services/offlineOrders';
+import type { OfflineOrderDocumentType } from '../../services/offlineOrders';
 import ActionMenu from '../ui/ActionMenu';
 
 interface OfflineOrderDetailProps {
@@ -20,7 +21,7 @@ interface OfflineOrderDetailProps {
   items?: OfflineOrderItem[];
   paymentTerms?: PaymentTerms;
   paymentRecords?: PaymentRecord[];
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
 }
 
 export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
@@ -36,6 +37,8 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [documentAction, setDocumentAction] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
 
   const getStatusColor = (status: OrderStatus): string => {
     switch (status) {
@@ -167,6 +170,22 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
     }
   };
 
+  const handleCompleteOrder = async () => {
+    try {
+      setIsCompleting(true);
+      setCompletionError(null);
+      await offlineOrderService.completeOfflineOrder(order.id);
+      await onRefresh?.();
+    } catch (error: any) {
+      console.error('Failed to complete order:', error);
+      setCompletionError(
+        error?.response?.data?.error || error?.message || 'Failed to complete order'
+      );
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
   // Check if user can delete (owner/manager only)
   // Note: In a real app, get this from user context/auth
   const canDelete = true; // TODO: Replace with actual role check from auth context
@@ -250,6 +269,15 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
               )}
             </>
           )}
+          {order.status === 'PAID' && (
+            <button
+              onClick={handleCompleteOrder}
+              disabled={isCompleting}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+            >
+              {isCompleting ? 'Completing...' : 'Mark as Complete'}
+            </button>
+          )}
           {order.status === 'CANCELLED' && canDelete && (
             <button
               onClick={handleDelete}
@@ -272,6 +300,12 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
       {documentError && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {documentError}
+        </div>
+      )}
+
+      {completionError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {completionError}
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -23,37 +23,37 @@ export default function OfflineOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      if (!orderId) {
-        setError('Order ID is required');
-        setLoading(false);
-        return;
+  const fetchOrder = useCallback(async () => {
+    if (!orderId) {
+      setError('Order ID is required');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await offlineOrderService.getOfflineOrderWithDetails(orderId);
+      setOrder(data.order);
+      setItems(data.items || []);
+    } catch (err: any) {
+      console.error('Failed to fetch offline order:', err);
+      setError(err.response?.data?.message || 'Failed to load order details');
+
+      // Redirect to list if order not found (404)
+      if (err.response?.status === 404) {
+        setTimeout(() => {
+          router.push('/orders/offline-orders');
+        }, 2000);
       }
-
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await offlineOrderService.getOfflineOrderWithDetails(orderId);
-        setOrder(data.order);
-        setItems(data.items || []);
-      } catch (err: any) {
-        console.error('Failed to fetch offline order:', err);
-        setError(err.response?.data?.message || 'Failed to load order details');
-
-        // Redirect to list if order not found (404)
-        if (err.response?.status === 404) {
-          setTimeout(() => {
-            router.push('/orders/offline-orders');
-          }, 2000);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrder();
+    } finally {
+      setLoading(false);
+    }
   }, [orderId, router]);
+
+  useEffect(() => {
+    fetchOrder();
+  }, [fetchOrder]);
 
   return (
     <ProtectedRoute>
@@ -102,7 +102,9 @@ export default function OfflineOrderDetailPage() {
           )}
 
           {/* Order Detail Component */}
-          {order && !loading && !error && <OfflineOrderDetail order={order} items={items} />}
+          {order && !loading && !error && (
+            <OfflineOrderDetail order={order} items={items} onRefresh={fetchOrder} />
+          )}
         </div>
       </DashboardLayout>
     </ProtectedRoute>

@@ -6,6 +6,8 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '../../../src/components/layout/DashboardLayout';
 import { billingService, BillingInvoice } from '@/services/billing';
 import { redirectToPayment } from '@/utils/paymentRedirect';
+import { useAuth } from '@/store/auth';
+import { ROLES } from '@/constants/roles';
 
 function formatCurrencyIDR(amount: number): string {
   return `Rp\u00a0${amount.toLocaleString('id-ID')}`;
@@ -27,10 +29,12 @@ const STATUS_CONFIG: Record<BillingInvoice['status'], { label: string; className
 };
 
 export default function InvoicesPage() {
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const canManageSubscription = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
 
   useEffect(() => {
     billingService
@@ -44,6 +48,10 @@ export default function InvoicesPage() {
   }, []);
 
   const handlePay = async (invoice: BillingInvoice) => {
+    if (!canManageSubscription) {
+      setError('Subscription payments are managed by owners and managers.');
+      return;
+    }
     try {
       setPayingId(invoice.id);
       const result = await billingService.initiatePayment(invoice.id);
@@ -163,7 +171,7 @@ export default function InvoicesPage() {
                             >
                               View
                             </Link>
-                            {invoice.status === 'pending' && (
+                            {invoice.status === 'pending' && canManageSubscription && (
                               <button
                                 onClick={() => handlePay(invoice)}
                                 disabled={payingId === invoice.id}

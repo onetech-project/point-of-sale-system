@@ -132,8 +132,9 @@ export interface TopCustomersResponse {
 
 // Operational Tasks Types
 export interface DelayedOrder {
-  order_id: number;
+  order_id: string;
   order_number: string;
+  order_type?: 'online' | 'offline';
   customer_id: number;
   masked_phone: string;
   masked_name: string;

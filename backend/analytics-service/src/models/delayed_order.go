@@ -10,6 +10,7 @@ import (
 type DelayedOrder struct {
 	OrderID        uuid.UUID `json:"order_id" db:"order_id"`
 	OrderNumber    string    `json:"order_number" db:"order_number"`
+	OrderType      string    `json:"order_type" db:"order_type"`
 	CustomerID     int64     `json:"customer_id" db:"customer_id"`
 	CustomerPhone  string    `json:"customer_phone" db:"customer_phone"` // Encrypted phone
 	CustomerName   string    `json:"customer_name" db:"customer_name"`   // Encrypted name
@@ -17,6 +18,7 @@ type DelayedOrder struct {
 	MaskedPhone    string    `json:"masked_phone" db:"-"`                // Masked for display (last 4 digits)
 	MaskedName     string    `json:"masked_name" db:"-"`                 // Masked for display (first char)
 	MaskedEmail    string    `json:"masked_email" db:"-"`                // Masked for display (first char + domain)
+	ItemCount      int       `json:"item_count" db:"item_count"`
 	TotalAmount    float64   `json:"total_amount" db:"total_amount"`
 	Status         string    `json:"status" db:"status"` // e.g., "pending", "processing"
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`

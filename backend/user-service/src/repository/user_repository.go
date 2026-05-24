@@ -90,6 +90,14 @@ func (r *UserRepository) DecryptFieldWithContext(ctx context.Context, encrypted 
 	return r.encryptor.DecryptWithContext(ctx, encrypted, encryptionContext)
 }
 
+// EncryptFieldWithContext encrypts a single plaintext field with the specified context.
+func (r *UserRepository) EncryptFieldWithContext(ctx context.Context, plaintext string, encryptionContext string) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+	return r.encryptor.EncryptWithContext(ctx, plaintext, encryptionContext)
+}
+
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO users (id, tenant_id, email, password_hash, role, status, first_name, last_name, locale, created_at, updated_at)
@@ -372,6 +380,68 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	}
 
 	return nil
+}
+
+func (r *UserRepository) ListTeamMembers(ctx context.Context, tenantID string) ([]*models.User, error) {
+	query := `
+		SELECT id, tenant_id, email, password_hash, role, status, first_name, last_name, locale, last_login_at, created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1
+		  AND role IN ('manager', 'cashier')
+		  AND status IN ('active', 'suspended')
+		ORDER BY role, email
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := []*models.User{}
+	for rows.Next() {
+		user := &models.User{}
+		var encryptedEmailDB, encryptedFirstNameDB, encryptedLastNameDB string
+
+		err := rows.Scan(
+			&user.ID,
+			&user.TenantID,
+			&encryptedEmailDB,
+			&user.PasswordHash,
+			&user.Role,
+			&user.Status,
+			&encryptedFirstNameDB,
+			&encryptedLastNameDB,
+			&user.Locale,
+			&user.LastLoginAt,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		user.Email, err = r.encryptor.DecryptWithContext(ctx, encryptedEmailDB, "user:email")
+		if err != nil {
+			return nil, err
+		}
+		user.FirstName, err = r.decryptToStringPtrWithContext(ctx, encryptedFirstNameDB, "user:first_name")
+		if err != nil {
+			return nil, err
+		}
+		user.LastName, err = r.decryptToStringPtrWithContext(ctx, encryptedLastNameDB, "user:last_name")
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 // FindStaffWithOrderNotifications retrieves all active staff users who have opted in to receive order notifications

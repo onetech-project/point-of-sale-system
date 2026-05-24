@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/store/auth';
 import { useSubscription } from '@/store/subscription';
 import { redirectToPayment } from '@/utils/paymentRedirect';
+import { ROLES } from '@/constants/roles';
 
 type BillingInterval = 'monthly' | 'annual';
 
@@ -215,12 +216,14 @@ function BillingSummary({
   latestPendingInvoice,
   latestPaidInvoice,
   payingInvoiceId,
+  canManageSubscription,
   onPayInvoice,
 }: {
   subscription: BillingSubscriptionUI | null;
   latestPendingInvoice: BillingInvoice | null;
   latestPaidInvoice: BillingInvoice | null;
   payingInvoiceId: string | null;
+  canManageSubscription: boolean;
   onPayInvoice: (invoice: BillingInvoice) => void;
 }) {
   const fallbackDueDate =
@@ -261,14 +264,16 @@ function BillingSummary({
               >
                 {latestPendingInvoice.invoice_number}
               </a>
-              <button
-                type="button"
-                onClick={() => onPayInvoice(latestPendingInvoice)}
-                disabled={payingInvoiceId === latestPendingInvoice.id}
-                className="w-full rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
-              >
-                {payingInvoiceId === latestPendingInvoice.id ? 'Opening...' : 'Pay now'}
-              </button>
+              {canManageSubscription && (
+                <button
+                  type="button"
+                  onClick={() => onPayInvoice(latestPendingInvoice)}
+                  disabled={payingInvoiceId === latestPendingInvoice.id}
+                  className="w-full rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
+                >
+                  {payingInvoiceId === latestPendingInvoice.id ? 'Opening...' : 'Pay now'}
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -384,6 +389,7 @@ function ExpiredSubscriptionRecovery({
   upgrading,
   error,
   showPaymentReturnNotice,
+  canManageSubscription,
   onUpgrade,
   onLogout,
 }: {
@@ -397,6 +403,7 @@ function ExpiredSubscriptionRecovery({
   upgrading: boolean;
   error: string | null;
   showPaymentReturnNotice: boolean;
+  canManageSubscription: boolean;
   onUpgrade: () => void;
   onLogout: () => void;
 }) {
@@ -464,71 +471,86 @@ function ExpiredSubscriptionRecovery({
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">Choose Billing</h2>
+        {canManageSubscription ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Choose Billing</h2>
+              <a
+                href="/subscription/invoices"
+                className="text-sm font-medium text-primary-600 hover:text-primary-500"
+              >
+                View invoices
+              </a>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setBillingInterval('monthly')}
+                className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                  billingInterval === 'monthly'
+                    ? 'border-primary-600 bg-primary-50 text-primary-700'
+                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingInterval('annual')}
+                className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                  billingInterval === 'annual'
+                    ? 'border-primary-600 bg-primary-50 text-primary-700'
+                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Annual
+                {plans && (
+                  <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700">
+                    Save {plans.annual_discount_pct}%
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="mt-6 flex items-end gap-2">
+              <span className="text-3xl font-bold text-gray-900">
+                {formatCurrencyIDR(displayPrice)}
+              </span>
+              <span className="pb-1 text-gray-500">
+                /{billingInterval === 'monthly' ? 'month' : 'year'}
+              </span>
+            </div>
+            {billingInterval === 'annual' && plans && (
+              <p className="mt-1 text-sm text-green-600">
+                {formatCurrencyIDR(annualPriceMonthly)}/month - you save{' '}
+                {formatCurrencyIDR(plans.monthly_price_idr * 12 - annualTotal)} per year
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={onUpgrade}
+              disabled={upgrading || !plans}
+              className="mt-6 w-full rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60"
+            >
+              {upgrading ? 'Processing...' : actionLabel}
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-base font-semibold text-gray-900">Subscription Recovery</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Subscription payments and plan changes are managed by owners and managers.
+            </p>
             <a
               href="/subscription/invoices"
-              className="text-sm font-medium text-primary-600 hover:text-primary-500"
+              className="mt-4 inline-flex text-sm font-medium text-primary-600 hover:text-primary-500"
             >
               View invoices
             </a>
           </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setBillingInterval('monthly')}
-              className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                billingInterval === 'monthly'
-                  ? 'border-primary-600 bg-primary-50 text-primary-700'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingInterval('annual')}
-              className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                billingInterval === 'annual'
-                  ? 'border-primary-600 bg-primary-50 text-primary-700'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Annual
-              {plans && (
-                <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700">
-                  Save {plans.annual_discount_pct}%
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="mt-6 flex items-end gap-2">
-            <span className="text-3xl font-bold text-gray-900">
-              {formatCurrencyIDR(displayPrice)}
-            </span>
-            <span className="pb-1 text-gray-500">
-              /{billingInterval === 'monthly' ? 'month' : 'year'}
-            </span>
-          </div>
-          {billingInterval === 'annual' && plans && (
-            <p className="mt-1 text-sm text-green-600">
-              {formatCurrencyIDR(annualPriceMonthly)}/month - you save{' '}
-              {formatCurrencyIDR(plans.monthly_price_idr * 12 - annualTotal)} per year
-            </p>
-          )}
-
-          <button
-            type="button"
-            onClick={onUpgrade}
-            disabled={upgrading || !plans}
-            className="mt-6 w-full rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-60"
-          >
-            {upgrading ? 'Processing...' : actionLabel}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -536,7 +558,7 @@ function ExpiredSubscriptionRecovery({
 
 export default function SubscriptionPage() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const {
     subscription,
     refreshSubscription,
@@ -559,6 +581,7 @@ export default function SubscriptionPage() {
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
   const [showYearlyConfirm, setShowYearlyConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canManageSubscription = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
 
   useEffect(() => {
     Promise.all([
@@ -609,6 +632,10 @@ export default function SubscriptionPage() {
       : 'Start Subscription';
 
   const runSubscriptionPayment = async () => {
+    if (!canManageSubscription) {
+      setError('Subscription payments and plan changes are managed by owners and managers.');
+      return;
+    }
     try {
       setUpgrading(true);
       setError(null);
@@ -629,6 +656,10 @@ export default function SubscriptionPage() {
   };
 
   const handleUpgrade = () => {
+    if (!canManageSubscription) {
+      setError('Subscription payments and plan changes are managed by owners and managers.');
+      return;
+    }
     if (isYearlySwitchAction) {
       setShowYearlyConfirm(true);
       return;
@@ -642,6 +673,10 @@ export default function SubscriptionPage() {
   };
 
   const handlePayInvoice = async (invoice: BillingInvoice) => {
+    if (!canManageSubscription) {
+      setError('Subscription payments are managed by owners and managers.');
+      return;
+    }
     try {
       setPayingInvoiceId(invoice.id);
       setError(null);
@@ -707,17 +742,20 @@ export default function SubscriptionPage() {
             upgrading={upgrading}
             error={error}
             showPaymentReturnNotice={returnedFromMidtrans}
+            canManageSubscription={canManageSubscription}
             onUpgrade={handleUpgrade}
             onLogout={handleLogout}
           />
-          <YearlySwitchConfirmationModal
-            isOpen={showYearlyConfirm}
-            annualTotal={annualTotal}
-            annualSavings={annualSavings}
-            upgrading={upgrading}
-            onClose={() => setShowYearlyConfirm(false)}
-            onConfirm={handleConfirmYearlySwitch}
-          />
+          {canManageSubscription && (
+            <YearlySwitchConfirmationModal
+              isOpen={showYearlyConfirm}
+              annualTotal={annualTotal}
+              annualSavings={annualSavings}
+              upgrading={upgrading}
+              onClose={() => setShowYearlyConfirm(false)}
+              onConfirm={handleConfirmYearlySwitch}
+            />
+          )}
         </>
       </ProtectedRoute>
     );
@@ -749,6 +787,7 @@ export default function SubscriptionPage() {
             latestPendingInvoice={latestPendingInvoice}
             latestPaidInvoice={latestPaidInvoice}
             payingInvoiceId={payingInvoiceId}
+            canManageSubscription={canManageSubscription}
             onPayInvoice={handlePayInvoice}
           />
 
@@ -763,74 +802,79 @@ export default function SubscriptionPage() {
             </div>
           )}
 
-          {/* Billing Interval Toggle */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Billing</h3>
-            <div className="flex gap-3">
+          {canManageSubscription ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Billing</h3>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (!monthlyRevertLocked) setBillingInterval('monthly');
+                  }}
+                  disabled={monthlyRevertLocked}
+                  className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                    billingInterval === 'monthly'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  } disabled:cursor-not-allowed disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-400`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingInterval('annual')}
+                  className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-colors relative ${
+                    billingInterval === 'annual'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Annual
+                  {plans && (
+                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
+                      Save {plans.annual_discount_pct}%
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="mt-6 flex items-end gap-2">
+                <span className="text-3xl font-bold text-gray-900">
+                  {formatCurrencyIDR(displayPrice)}
+                </span>
+                <span className="text-gray-500 pb-1">
+                  /{billingInterval === 'monthly' ? 'month' : 'year'}
+                </span>
+              </div>
+              {billingInterval === 'annual' && plans && (
+                <p className="mt-1 text-sm text-green-600">
+                  {formatCurrencyIDR(annualPriceMonthly)}/month &mdash; you save{' '}
+                  {formatCurrencyIDR(plans.monthly_price_idr * 12 - annualTotal)} per year
+                </p>
+              )}
+              {monthlyRevertLocked && (
+                <p className="mt-3 text-sm text-gray-500">
+                  Monthly billing is available after{' '}
+                  {subscription?.subscription_ends_at
+                    ? formatDateIDR(subscription.subscription_ends_at)
+                    : '-'}
+                  .
+                </p>
+              )}
+
               <button
-                onClick={() => {
-                  if (!monthlyRevertLocked) setBillingInterval('monthly');
-                }}
-                disabled={monthlyRevertLocked}
-                className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-colors ${
-                  billingInterval === 'monthly'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                } disabled:cursor-not-allowed disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-400`}
+                onClick={handleUpgrade}
+                disabled={
+                  upgrading || !plans || yearlyMonthlyLocked || (isActive && !selectedCycleDiffers)
+                }
+                className="mt-6 w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
               >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingInterval('annual')}
-                className={`flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-colors relative ${
-                  billingInterval === 'annual'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                Annual
-                {plans && (
-                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
-                    Save {plans.annual_discount_pct}%
-                  </span>
-                )}
+                {upgrading ? 'Processing...' : billingActionLabel}
               </button>
             </div>
-
-            <div className="mt-6 flex items-end gap-2">
-              <span className="text-3xl font-bold text-gray-900">
-                {formatCurrencyIDR(displayPrice)}
-              </span>
-              <span className="text-gray-500 pb-1">
-                /{billingInterval === 'monthly' ? 'month' : 'year'}
-              </span>
+          ) : (
+            <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">
+              Subscription payments and plan changes are managed by owners and managers.
             </div>
-            {billingInterval === 'annual' && plans && (
-              <p className="mt-1 text-sm text-green-600">
-                {formatCurrencyIDR(annualPriceMonthly)}/month &mdash; you save{' '}
-                {formatCurrencyIDR(plans.monthly_price_idr * 12 - annualTotal)} per year
-              </p>
-            )}
-            {monthlyRevertLocked && (
-              <p className="mt-3 text-sm text-gray-500">
-                Monthly billing is available after{' '}
-                {subscription?.subscription_ends_at
-                  ? formatDateIDR(subscription.subscription_ends_at)
-                  : '-'}
-                .
-              </p>
-            )}
-
-            <button
-              onClick={handleUpgrade}
-              disabled={
-                upgrading || !plans || yearlyMonthlyLocked || (isActive && !selectedCycleDiffers)
-              }
-              className="mt-6 w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              {upgrading ? 'Processing...' : billingActionLabel}
-            </button>
-          </div>
+          )}
 
           {/* Features */}
           <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -858,14 +902,16 @@ export default function SubscriptionPage() {
           </div>
         </div>
       </DashboardLayout>
-      <YearlySwitchConfirmationModal
-        isOpen={showYearlyConfirm}
-        annualTotal={annualTotal}
-        annualSavings={annualSavings}
-        upgrading={upgrading}
-        onClose={() => setShowYearlyConfirm(false)}
-        onConfirm={handleConfirmYearlySwitch}
-      />
+      {canManageSubscription && (
+        <YearlySwitchConfirmationModal
+          isOpen={showYearlyConfirm}
+          annualTotal={annualTotal}
+          annualSavings={annualSavings}
+          upgrading={upgrading}
+          onClose={() => setShowYearlyConfirm(false)}
+          onConfirm={handleConfirmYearlySwitch}
+        />
+      )}
     </ProtectedRoute>
   );
 }

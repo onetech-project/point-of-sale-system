@@ -6,6 +6,7 @@
 import apiClient from './api';
 import {
   OfflineOrder,
+  OrderStatus,
   OfflineOrderWithDetails,
   CreateOfflineOrderRequest,
   UpdateOfflineOrderRequest,
@@ -172,6 +173,18 @@ class OfflineOrderService {
       return response;
     } catch (error) {
       console.error('Failed to update offline order:', error);
+      throw error;
+    }
+  }
+
+  async completeOfflineOrder(orderId: string): Promise<{ message: string; status: OrderStatus }> {
+    try {
+      return await apiClient.patch<{ message: string; status: OrderStatus }>(
+        `/api/v1/admin/orders/${orderId}/status`,
+        { status: 'COMPLETE' }
+      );
+    } catch (error) {
+      console.error('Failed to complete offline order:', error);
       throw error;
     }
   }

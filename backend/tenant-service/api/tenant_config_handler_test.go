@@ -35,9 +35,16 @@ func TestGetPublicTenantConfigAvailability(t *testing.T) {
 			}
 			defer db.Close()
 
-			mock.ExpectQuery(`SELECT id, business_name, status, subscription_status FROM tenants WHERE slug = \$1 AND status != 'deleted'`).
+			mock.ExpectQuery(`SELECT\s+t\.id,\s+t\.business_name,\s+t\.status,\s+t\.subscription_status,`).
 				WithArgs("bistro-one").
-				WillReturnRows(sqlmock.NewRows([]string{"id", "business_name", "status", "subscription_status"}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus))
+				WillReturnRows(sqlmock.NewRows([]string{
+					"id",
+					"business_name",
+					"status",
+					"subscription_status",
+					"midtrans_configured",
+					"midtrans_environment",
+				}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus, true, "sandbox"))
 			if tt.wantCode == http.StatusOK {
 				mock.ExpectQuery(`SELECT delivery_enabled, pickup_enabled, dine_in_enabled,`).
 					WithArgs("tenant-1").
@@ -72,6 +79,40 @@ func TestGetPublicTenantConfigAvailability(t *testing.T) {
 	}
 }
 
+func TestGetPublicTenantConfigReturnsMidtransNotConfigured(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("failed to create sql mock: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`SELECT\s+t\.id,\s+t\.business_name,\s+t\.status,\s+t\.subscription_status,`).
+		WithArgs("bistro-one").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"business_name",
+			"status",
+			"subscription_status",
+			"midtrans_configured",
+			"midtrans_environment",
+		}).AddRow("tenant-1", "Bistro One", "active", "active", false, "sandbox"))
+
+	rec := callGetPublicTenantConfig(t, db, "bistro-one")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body["reason"] != "midtrans_not_configured" || body["midtrans_configured"] != false {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestGetPublicTenantConfigReturnsNotFoundForUnknownTenant(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
@@ -79,7 +120,7 @@ func TestGetPublicTenantConfigReturnsNotFoundForUnknownTenant(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT id, business_name, status, subscription_status FROM tenants WHERE slug = \$1 AND status != 'deleted'`).
+	mock.ExpectQuery(`SELECT\s+t\.id,\s+t\.business_name,\s+t\.status,\s+t\.subscription_status,`).
 		WithArgs("missing").
 		WillReturnError(sql.ErrNoRows)
 
@@ -89,6 +130,62 @@ func TestGetPublicTenantConfigReturnsNotFoundForUnknownTenant(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestGetMidtransConfigRejectsCrossTenantHeader(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/tenant-2/midtrans-config", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-1")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("tenant_id")
+	c.SetParamValues("tenant-2")
+
+	handler := &TenantConfigHandler{}
+	if err := handler.GetMidtransConfig(c); err != nil {
+		t.Fatalf("GetMidtransConfig returned error: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+func TestEnsureTenantPathMatchesHeaderAllowsInternalNoHeader(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/tenant-2/midtrans-config", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("tenant_id")
+	c.SetParamValues("tenant-2")
+
+	ok, err := ensureTenantPathMatchesHeader(c, c.Param("tenant_id"))
+	if err != nil {
+		t.Fatalf("ensureTenantPathMatchesHeader returned error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("ensureTenantPathMatchesHeader blocked an internal no-header request")
+	}
+}
+
+func TestEnsureTenantPathMatchesHeaderRejectsMismatch(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/tenant-2/midtrans-config", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-1")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("tenant_id")
+	c.SetParamValues("tenant-2")
+
+	ok, err := ensureTenantPathMatchesHeader(c, c.Param("tenant_id"))
+	if err != nil {
+		t.Fatalf("ensureTenantPathMatchesHeader returned error: %v", err)
+	}
+	if ok {
+		t.Fatalf("ensureTenantPathMatchesHeader allowed a mismatched tenant header")
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
 	}
 }
 

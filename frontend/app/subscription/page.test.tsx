@@ -6,6 +6,7 @@ import SubscriptionPage from './page';
 import { billingService } from '@/services/billing';
 import { useSubscription } from '@/store/subscription';
 import { redirectToPayment } from '@/utils/paymentRedirect';
+import { useAuth } from '@/store/auth';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -24,9 +25,7 @@ jest.mock('../../src/components/layout/DashboardLayout', () => ({
 }));
 
 jest.mock('@/store/auth', () => ({
-  useAuth: () => ({
-    logout: jest.fn(),
-  }),
+  useAuth: jest.fn(),
 }));
 
 jest.mock('@/store/subscription', () => ({
@@ -67,6 +66,7 @@ const publicPlans = {
 };
 
 const mockUseSubscription = useSubscription as jest.MockedFunction<typeof useSubscription>;
+const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockBillingService = billingService as jest.Mocked<typeof billingService>;
 const mockRedirectToPayment = redirectToPayment as jest.MockedFunction<typeof redirectToPayment>;
 let refreshSubscriptionMock: jest.Mock;
@@ -93,6 +93,10 @@ describe('SubscriptionPage billing payments', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.history.pushState({}, '', '/subscription');
+    mockUseAuth.mockReturnValue({
+      logout: jest.fn(),
+      user: { role: 'manager' },
+    } as any);
   });
 
   it('opens confirmation before switching monthly tenants to yearly', async () => {
@@ -211,5 +215,31 @@ describe('SubscriptionPage billing payments', () => {
     expect(await screen.findByText(/payment returned from midtrans/i)).toBeInTheDocument();
     expect(mockBillingService.getInvoices).toHaveBeenCalled();
     expect(refreshSubscriptionMock).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('lets cashiers view billing without payment or plan-change actions', async () => {
+    mockUseAuth.mockReturnValue({
+      logout: jest.fn(),
+      user: { role: 'cashier' },
+    } as any);
+
+    renderMonthlySubscriptionPage([
+      {
+        id: 'invoice-1',
+        invoice_number: 'INV-202605-000001',
+        amount_idr: 299000,
+        billing_interval: 'monthly',
+        period_start: '2026-05-19T00:00:00Z',
+        period_end: '2026-06-19T00:00:00Z',
+        due_at: '2026-05-19T00:00:00Z',
+        status: 'pending',
+        created_at: '2026-05-19T00:00:00Z',
+      },
+    ]);
+
+    expect(await screen.findByText('INV-202605-000001')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /pay now/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /annual/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/managed by owners and managers/i)).toBeInTheDocument();
   });
 });

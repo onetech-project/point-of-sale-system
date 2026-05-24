@@ -196,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {
         name: 'Settings',
         href: '/settings',
-        roles: [ROLES.OWNER],
+        roles: [ROLES.OWNER, ROLES.MANAGER],
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

@@ -161,6 +161,51 @@ func TestTenantStatusEnforcerPublicAvailability(t *testing.T) {
 	}
 }
 
+func TestTenantStatusEnforcerBlocksPublicGuestOrderingWhenMidtransMissing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/tenants/tenant-1/status" {
+			t.Fatalf("unexpected tenant status path: %s", r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, `{"status":"active","subscription_status":"active","midtrans_configured":false,"midtrans_environment":"sandbox"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	enforcer := &TenantStatusEnforcer{
+		tenantURL:  server.URL,
+		httpClient: server.Client(),
+	}
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/public/menu/tenant-1/products", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("tenant_id")
+	c.SetParamValues("tenant-1")
+
+	nextRan := false
+	next := func(c echo.Context) error {
+		nextRan = true
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	if err := enforcer.RequirePublicTenantAvailableParam("tenant_id")(next)(c); err != nil {
+		t.Fatalf("middleware returned error: %v", err)
+	}
+	if nextRan {
+		t.Fatal("expected missing Midtrans config to block public guest ordering")
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body["reason"] != "midtrans_not_configured" || body["midtrans_configured"] != false {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+}
+
 func newTenantStatusTestEnforcer(t *testing.T, status, subscriptionStatus string) *TenantStatusEnforcer {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from '@/i18n/provider';
 import { product } from '@/services/product';
 import { InventorySummary } from '@/types/product';
-import { formatNumber, formatCompactNumber, formatPrice } from '@/utils/format';
+import { formatPrice } from '@/utils/format';
 
 const InventoryDashboard: React.FC = () => {
   const { t } = useTranslation(['products', 'common']);
@@ -132,15 +132,24 @@ const InventoryDashboard: React.FC = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card, index) => (
-        <div key={index} className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-600">{card.title}</h3>
+        <div key={index} className="bg-white rounded-lg shadow p-4 sm:p-6 min-w-0">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h3 className="text-sm font-medium text-gray-600 min-w-0">{card.title}</h3>
             <div className={`p-2 rounded-lg ${card.bgColor} ${card.color}`}>{card.icon}</div>
           </div>
-          {/* Show compact value on small screens, full value on larger screens */}
-          <p className="text-3xl font-bold text-gray-900">
-            <span className="hidden sm:inline">{card.value}</span>
-            <span className="sm:hidden">{card.compactValue || card.value}</span>
+          <p
+            className="max-w-full text-xl lg:text-2xl xl:text-3xl font-bold leading-tight text-gray-900 break-words [overflow-wrap:anywhere]"
+            data-testid={`inventory-kpi-value-${index}`}
+            title={String(card.value)}
+          >
+            {card.compactValue ? (
+              <>
+                <span className="hidden xl:inline">{card.value}</span>
+                <span className="xl:hidden">{card.compactValue}</span>
+              </>
+            ) : (
+              card.value
+            )}
           </p>
         </div>
       ))}

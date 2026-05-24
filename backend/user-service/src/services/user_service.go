@@ -3,16 +3,25 @@ package services
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
+	"github.com/pos/user-service/src/models"
 	"github.com/pos/user-service/src/repository"
 	"github.com/pos/user-service/src/utils"
 )
 
+var (
+	ErrTeamMemberNotFound      = errors.New("team member not found")
+	ErrTeamMemberForbidden     = errors.New("team member update forbidden")
+	ErrInvalidTeamMemberUpdate = errors.New("invalid team member update")
+)
+
 // UserService handles user-related business logic
 type UserService struct {
-	userRepo *repository.UserRepository
-	db       *sql.DB
+	userRepo       *repository.UserRepository
+	db             *sql.DB
+	auditPublisher utils.AuditPublisherInterface
 }
 
 // NewUserService creates a new user service with a real VaultClient (production use)
@@ -22,8 +31,9 @@ func NewUserService(db *sql.DB, auditPublisher utils.AuditPublisherInterface) (*
 		return nil, fmt.Errorf("failed to create user repository: %w", err)
 	}
 	return &UserService{
-		userRepo: userRepo,
-		db:       db,
+		userRepo:       userRepo,
+		db:             db,
+		auditPublisher: auditPublisher,
 	}, nil
 }
 
@@ -33,6 +43,14 @@ func NewUserServiceWithRepository(db *sql.DB, userRepo *repository.UserRepositor
 	return &UserService{
 		userRepo: userRepo,
 		db:       db,
+	}
+}
+
+func NewUserServiceWithRepositoryAndAuditPublisher(db *sql.DB, userRepo *repository.UserRepository, auditPublisher utils.AuditPublisherInterface) *UserService {
+	return &UserService{
+		userRepo:       userRepo,
+		db:             db,
+		auditPublisher: auditPublisher,
 	}
 }
 
@@ -119,6 +137,147 @@ func (s *UserService) GetUsersWithNotificationPreferences(tenantID string) ([]ma
 	}
 
 	return users, nil
+}
+
+func (s *UserService) ListTeamMembers(ctx context.Context, tenantID string) ([]*models.User, error) {
+	users, err := s.userRepo.ListTeamMembers(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list team members: %w", err)
+	}
+	return users, nil
+}
+
+func (s *UserService) UpdateTeamMember(ctx context.Context, tenantID, actorID, actorRole, userID string, role, status *string, auditCtx AuditContext) (*models.User, error) {
+	if role == nil && status == nil {
+		return nil, ErrInvalidTeamMemberUpdate
+	}
+	if auditCtx.ActorID == "" {
+		auditCtx.ActorID = actorID
+	}
+	if auditCtx.ActorRole == "" {
+		auditCtx.ActorRole = actorRole
+	}
+
+	target, err := s.userRepo.FindByID(ctx, tenantID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find team member: %w", err)
+	}
+	if target == nil {
+		return nil, ErrTeamMemberNotFound
+	}
+
+	if !canManageTeamMember(actorID, actorRole, target) {
+		s.publishTeamMemberDeniedAudit(ctx, target, role, status, auditCtx)
+		return nil, ErrTeamMemberForbidden
+	}
+
+	previousRole := target.Role
+	previousStatus := target.Status
+
+	if role != nil {
+		if *role != string(models.RoleManager) && *role != string(models.RoleCashier) {
+			return nil, ErrInvalidTeamMemberUpdate
+		}
+		target.Role = *role
+	}
+
+	if status != nil {
+		if *status != string(models.UserStatusActive) && *status != string(models.UserStatusSuspended) {
+			return nil, ErrInvalidTeamMemberUpdate
+		}
+		target.Status = *status
+	}
+
+	if err := s.userRepo.Update(ctx, target); err != nil {
+		return nil, fmt.Errorf("failed to update team member: %w", err)
+	}
+
+	s.publishTeamMemberChangeAuditEvents(ctx, target, previousRole, previousStatus, auditCtx)
+
+	return target, nil
+}
+
+func (s *UserService) publishTeamMemberDeniedAudit(ctx context.Context, target *models.User, role, status *string, auditCtx AuditContext) {
+	metadata := map[string]interface{}{
+		"reason":        "insufficient_permissions",
+		"target_role":   target.Role,
+		"target_status": target.Status,
+	}
+	if role != nil {
+		metadata["requested_role"] = *role
+	}
+	if status != nil {
+		metadata["requested_status"] = *status
+	}
+
+	publishTeamAuditEvent(
+		ctx,
+		s.auditPublisher,
+		s.userRepo,
+		auditCtx,
+		target.TenantID,
+		"ACCESS",
+		"user",
+		target.ID,
+		"team.member.update_denied",
+		nil,
+		nil,
+		metadata,
+	)
+}
+
+func (s *UserService) publishTeamMemberChangeAuditEvents(ctx context.Context, target *models.User, previousRole, previousStatus string, auditCtx AuditContext) {
+	if previousRole != target.Role {
+		publishTeamAuditEvent(
+			ctx,
+			s.auditPublisher,
+			s.userRepo,
+			auditCtx,
+			target.TenantID,
+			"UPDATE",
+			"user",
+			target.ID,
+			"team.member.role_changed",
+			map[string]interface{}{"role": previousRole},
+			map[string]interface{}{"role": target.Role},
+			nil,
+		)
+	}
+
+	if previousStatus != target.Status {
+		publishTeamAuditEvent(
+			ctx,
+			s.auditPublisher,
+			s.userRepo,
+			auditCtx,
+			target.TenantID,
+			"UPDATE",
+			"user",
+			target.ID,
+			"team.member.status_changed",
+			map[string]interface{}{"status": previousStatus},
+			map[string]interface{}{"status": target.Status},
+			nil,
+		)
+	}
+}
+
+func canManageTeamMember(actorID, actorRole string, target *models.User) bool {
+	if target == nil || actorID == "" || actorID == target.ID {
+		return false
+	}
+	if target.Role == string(models.RoleOwner) {
+		return false
+	}
+
+	switch actorRole {
+	case string(models.RoleOwner):
+		return target.Role == string(models.RoleManager) || target.Role == string(models.RoleCashier)
+	case string(models.RoleManager):
+		return target.Role == string(models.RoleCashier)
+	default:
+		return false
+	}
 }
 
 // UpdateUserNotificationPreference updates a user's notification preference

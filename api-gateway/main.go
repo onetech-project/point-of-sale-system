@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -155,26 +156,33 @@ func main() {
 
 	protected.GET("/api/tenant", proxyHandler(tenantServiceURL, "/tenant"))
 
+	// Tenant Midtrans credentials can be managed only by owners for guest ordering.
+	midtransConfig := protected.Group("/api/v1/admin/tenants")
+	midtransConfig.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	midtransConfig.GET("/:tenant_id/midtrans-config", proxyWildcard(tenantServiceURL))
+	midtransConfig.PATCH("/:tenant_id/midtrans-config", proxyWildcard(tenantServiceURL))
+
 	// Admin tenant configuration routes (owner only)
 	adminTenantConfig := protected.Group("/api/v1/admin/tenants")
 	adminTenantConfig.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	adminTenantConfig.Any("/*", proxyWildcard(tenantServiceURL))
 
-	// Invitation endpoints - only owner and manager can create/resend
+	// Invitation endpoints - only owner and manager can create/resend/revoke
 	inviteGroup := protected.Group("")
 	inviteGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	inviteGroup.POST("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
 	inviteGroup.POST("/api/invitations/:id/resend", proxyHandler(userServiceURL, "/invitations/:id/resend"))
+	inviteGroup.POST("/api/invitations/:id/revoke", proxyHandler(userServiceURL, "/invitations/:id/revoke"))
+
+	teamGroup := protected.Group("")
+	teamGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	teamGroup.GET("/api/team/users", proxyHandler(userServiceURL, "/team/users"))
+	teamGroup.PATCH("/api/team/users/:user_id", proxyHandler(userServiceURL, "/team/users/:user_id"))
 
 	// All authenticated users can list invitations
 	protected.GET("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
 
-	// Product service routes - only owner and manager can manage products
-	productGroup := protected.Group("")
-	productGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
-	productGroup.Any("/api/v1/products*", proxyWildcard(productServiceURL))
-	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
-	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+	registerProductRoutes(protected, productServiceURL)
 
 	// Order service routes
 	orderServiceURL := utils.GetEnv("ORDER_SERVICE_URL")
@@ -259,6 +267,11 @@ func main() {
 	protected.POST("/api/v1/consent/revoke", proxyHandler(auditServiceURL, "/api/v1/consent/revoke"))
 	protected.GET("/api/v1/consent/history", proxyHandler(auditServiceURL, "/api/v1/consent/history"))
 
+	// Cashiers can read operational task alerts; business analytics stay owner/manager only.
+	analyticsTasks := protected.Group("/api/v1/analytics")
+	analyticsTasks.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
+	analyticsTasks.GET("/tasks", proxyWildcard(analyticsServiceURL))
+
 	// Analytics service routes (owner and manager only)
 	analyticsGroup := protected.Group("/api/v1/analytics")
 	analyticsGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
@@ -269,10 +282,19 @@ func main() {
 	billingProtected := e.Group("")
 	billingProtected.Use(middleware.JWTAuth())
 	billingProtected.Use(middleware.TenantScope())
-	billingProtected.Use(middleware.RBACMiddleware(middleware.RoleOwner))
-	billingGroup := billingProtected.Group("/api/v1/billing")
-	billingGroup.POST("/subscription/cycle-switch", proxyHandler(billingServiceURL, "/api/v1/billing/subscription/cycle-switch"))
-	billingGroup.Any("/*", proxyWildcard(billingServiceURL))
+	billingReadGroup := billingProtected.Group("/api/v1/billing")
+	billingReadGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
+	billingReadGroup.GET("/subscription", proxyHandler(billingServiceURL, "/api/v1/billing/subscription"))
+	billingReadGroup.GET("/invoices", proxyHandler(billingServiceURL, "/api/v1/billing/invoices"))
+	billingReadGroup.GET("/invoices/:id", proxyWildcard(billingServiceURL))
+	billingReadGroup.GET("/invoices/:id/payments", proxyWildcard(billingServiceURL))
+
+	billingManageGroup := billingProtected.Group("/api/v1/billing")
+	billingManageGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	billingManageGroup.PUT("/subscription/cycle", proxyHandler(billingServiceURL, "/api/v1/billing/subscription/cycle"))
+	billingManageGroup.POST("/subscription/cycle-switch", proxyHandler(billingServiceURL, "/api/v1/billing/subscription/cycle-switch"))
+	billingManageGroup.POST("/subscription/upgrade", proxyHandler(billingServiceURL, "/api/v1/billing/subscription/upgrade"))
+	billingManageGroup.POST("/invoices/:id/pay", proxyWildcard(billingServiceURL))
 
 	// Billing webhook (no auth - signature verified by billing-service)
 	e.POST("/api/v1/billing/webhook", proxyHandler(billingServiceURL, "/webhook/billing"))
@@ -301,6 +323,23 @@ func main() {
 	e.Logger.Fatal(e.Start(":" + port))
 }
 
+func registerProductRoutes(protected *echo.Group, productServiceURL string) {
+	// Product reads are needed by cashier offline-order creation; mutations remain owner/manager only.
+	productReadGroup := protected.Group("")
+	productReadGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
+	productReadGroup.GET("/api/v1/products*", proxyWildcard(productServiceURL))
+
+	// Product service routes - only owner and manager can manage products.
+	productGroup := protected.Group("")
+	productGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	productGroup.POST("/api/v1/products*", proxyWildcard(productServiceURL))
+	productGroup.PUT("/api/v1/products*", proxyWildcard(productServiceURL))
+	productGroup.PATCH("/api/v1/products*", proxyWildcard(productServiceURL))
+	productGroup.DELETE("/api/v1/products*", proxyWildcard(productServiceURL))
+	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
+	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+}
+
 func proxyHandler(targetURL, path string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		target, err := url.Parse(targetURL)
@@ -312,20 +351,21 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
+		resolvedPath, resolvedQuery := resolveProxyPath(c, path)
 		originalPath := c.Request().URL.Path
-		c.Request().URL.Path = path
+		originalRawQuery := c.Request().URL.RawQuery
+		c.Request().URL.Path = resolvedPath
+		if resolvedQuery != "" {
+			c.Request().URL.RawQuery = resolvedQuery
+		}
 
 		proxy.Director = func(req *http.Request) {
 			req.Host = target.Host
 			req.URL.Scheme = target.Scheme
 			req.URL.Host = target.Host
-			req.URL.Path = path
-
-			if c.Param("token") != "" {
-				req.URL.Path = "/invitations/" + c.Param("token") + "/accept"
-			}
-			if c.Param("id") != "" {
-				req.URL.Path = "/invitations/" + c.Param("id") + "/resend"
+			req.URL.Path = resolvedPath
+			if resolvedQuery != "" {
+				req.URL.RawQuery = resolvedQuery
 			}
 
 			// Forward context values as headers
@@ -358,9 +398,23 @@ func proxyHandler(targetURL, path string) echo.HandlerFunc {
 		proxy.ServeHTTP(c.Response(), c.Request())
 
 		c.Request().URL.Path = originalPath
+		c.Request().URL.RawQuery = originalRawQuery
 
 		return nil
 	}
+}
+
+func resolveProxyPath(c echo.Context, path string) (string, string) {
+	resolvedPath := path
+	for _, name := range c.ParamNames() {
+		resolvedPath = strings.ReplaceAll(resolvedPath, ":"+name, url.PathEscape(c.Param(name)))
+	}
+
+	if parts := strings.SplitN(resolvedPath, "?", 2); len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+
+	return resolvedPath, ""
 }
 
 func proxyWildcard(targetURL string) echo.HandlerFunc {

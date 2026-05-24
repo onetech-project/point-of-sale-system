@@ -29,7 +29,7 @@ type Invitation struct {
 
 type InvitationRequest struct {
 	Email string `json:"email" validate:"required,email"`
-	Role  string `json:"role" validate:"required,oneof=admin manager cashier"`
+	Role  string `json:"role" validate:"required,oneof=manager cashier"`
 }
 
 type InvitationAcceptRequest struct {

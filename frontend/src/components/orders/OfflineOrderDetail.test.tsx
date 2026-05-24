@@ -1,14 +1,28 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { OfflineOrderDetail } from './OfflineOrderDetail';
 import { OfflineOrder } from '../../types/offlineOrder';
+import offlineOrderService from '../../services/offlineOrders';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: jest.fn(),
   }),
 }));
+
+jest.mock('../../services/offlineOrders', () => ({
+  __esModule: true,
+  default: {
+    batchDownloadDocuments: jest.fn(),
+    completeOfflineOrder: jest.fn(),
+    deleteOfflineOrder: jest.fn(),
+    downloadDocument: jest.fn(),
+    resendDocument: jest.fn(),
+  },
+}));
+
+const mockOfflineOrderService = offlineOrderService as jest.Mocked<typeof offlineOrderService>;
 
 const pendingOrder: OfflineOrder = {
   id: 'order-1',
@@ -28,6 +42,16 @@ const pendingOrder: OfflineOrder = {
   created_at: '2026-05-20T02:00:00Z',
 };
 
+const paidOrder: OfflineOrder = {
+  ...pendingOrder,
+  status: 'PAID',
+  paid_at: '2026-05-20T02:15:00Z',
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 describe('OfflineOrderDetail document menu', () => {
   it('moves document actions into the three-dot menu and keeps workflow buttons visible', () => {
     render(<OfflineOrderDetail order={pendingOrder} />);
@@ -43,5 +67,36 @@ describe('OfflineOrderDetail document menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Download Receipt' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Resend Invoice' })).toBeEnabled();
     expect(screen.getByRole('menuitem', { name: 'Resend Receipt' })).toBeDisabled();
+  });
+});
+
+describe('OfflineOrderDetail completion action', () => {
+  it('shows the completion button only for paid orders', () => {
+    const { rerender } = render(<OfflineOrderDetail order={pendingOrder} />);
+
+    expect(screen.queryByRole('button', { name: 'Mark as Complete' })).not.toBeInTheDocument();
+
+    rerender(<OfflineOrderDetail order={paidOrder} />);
+
+    expect(screen.getByRole('button', { name: 'Mark as Complete' })).toBeInTheDocument();
+  });
+
+  it('completes a paid order and refreshes the detail page', async () => {
+    mockOfflineOrderService.completeOfflineOrder.mockResolvedValue({
+      message: 'Order status updated successfully',
+      status: 'COMPLETE',
+    });
+    const onRefresh = jest.fn().mockResolvedValue(undefined);
+
+    render(<OfflineOrderDetail order={paidOrder} onRefresh={onRefresh} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as Complete' }));
+
+    await waitFor(() => {
+      expect(mockOfflineOrderService.completeOfflineOrder).toHaveBeenCalledWith('order-1');
+    });
+    await waitFor(() => {
+      expect(onRefresh).toHaveBeenCalled();
+    });
   });
 });

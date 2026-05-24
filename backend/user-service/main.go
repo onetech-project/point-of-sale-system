@@ -80,6 +80,7 @@ func main() {
 	e.GET("/invitations", invitationHandler.ListInvitations)
 	e.POST("/invitations/:token/accept", invitationHandler.AcceptInvitation)
 	e.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
+	e.POST("/invitations/:id/revoke", invitationHandler.RevokeInvitation)
 
 	// Notification preferences endpoints
 	userService, err := services.NewUserService(db, auditPublisher)
@@ -89,6 +90,10 @@ func main() {
 	notificationPrefsHandler := api.NewNotificationPreferencesHandler(userService)
 	e.GET("/api/v1/users/notification-preferences", notificationPrefsHandler.GetNotificationPreferences)
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
+
+	teamHandler := api.NewTeamHandler(userService)
+	e.GET("/team/users", teamHandler.ListTeamMembers)
+	e.PATCH("/team/users/:user_id", teamHandler.UpdateTeamMember)
 
 	// User deletion endpoints - UU PDP compliance (owner only via API Gateway RBAC)
 	userDeletionHandler, err := api.NewUserDeletionHandler(db, auditPublisher)

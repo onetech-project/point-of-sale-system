@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { OrderManagement } from '@/components/admin/OrderManagement';
@@ -10,7 +11,10 @@ import { OrderManagement } from '@/components/admin/OrderManagement';
  * Main order management interface for tracking and managing customer orders
  * Accessible via Orders menu in the sidebar navigation
  */
-export default function OrdersPage() {
+function OrdersPageContent() {
+  const searchParams = useSearchParams();
+  const initialOrderId = searchParams.get('order_id') || undefined;
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
@@ -25,9 +29,17 @@ export default function OrdersPage() {
 
           {/* Order Management Component */}
           {/* Tenant ID is extracted from session by API Gateway */}
-          <OrderManagement />
+          <OrderManagement initialOrderId={initialOrderId} />
         </div>
       </DashboardLayout>
     </ProtectedRoute>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrdersPageContent />
+    </Suspense>
   );
 }

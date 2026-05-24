@@ -33,10 +33,16 @@ func (r *TaskRepository) GetDelayedOrders(ctx context.Context, tenantID string) 
 		SELECT 
 			o.id AS order_id,
 			o.order_reference,
+			COALESCE(o.order_type, 'online') AS order_type,
 			0::bigint AS customer_id,
 			o.customer_phone,
 			o.customer_name,
 			o.customer_email,
+			(
+				SELECT COUNT(*)::integer
+				FROM order_items oi
+				WHERE oi.order_id = o.id
+			) AS item_count,
 			o.total_amount,
 			o.status,
 			(o.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' AS created_at,
@@ -67,10 +73,12 @@ func (r *TaskRepository) GetDelayedOrders(ctx context.Context, tenantID string) 
 		err := rows.Scan(
 			&order.OrderID,
 			&order.OrderNumber,
+			&order.OrderType,
 			&order.CustomerID,
 			&order.CustomerPhone,
 			&order.CustomerName,
 			&order.CustomerEmail,
+			&order.ItemCount,
 			&order.TotalAmount,
 			&order.Status,
 			&order.CreatedAt,

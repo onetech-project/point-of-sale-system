@@ -117,6 +117,7 @@ export const AuditLog: React.FC = () => {
             <option value="READ">READ</option>
             <option value="UPDATE">UPDATE</option>
             <option value="DELETE">DELETE</option>
+            <option value="ACCESS">ACCESS</option>
             <option value="LOGIN">LOGIN</option>
             <option value="LOGOUT">LOGOUT</option>
             <option value="GRANT">GRANT</option>
@@ -135,6 +136,7 @@ export const AuditLog: React.FC = () => {
           >
             <option value="">{t('audit.filter.all_resources') || 'All Resources'}</option>
             <option value="user">User</option>
+            <option value="invitation">Invitation</option>
             <option value="order">Order</option>
             <option value="product">Product</option>
             <option value="config">Configuration</option>

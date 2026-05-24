@@ -7,6 +7,8 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '../../../../src/components/layout/DashboardLayout';
 import { billingService, BillingInvoice } from '@/services/billing';
 import { redirectToPayment } from '@/utils/paymentRedirect';
+import { ROLES } from '@/constants/roles';
+import { useAuth } from '@/store/auth';
 
 function formatCurrencyIDR(amount: number): string {
   return `Rp\u00a0${amount.toLocaleString('id-ID')}`;
@@ -23,6 +25,8 @@ function formatDateIDR(dateStr: string): string {
 export default function PayInvoicePage() {
   const params = useParams();
   const invoiceId = params?.invoiceId as string;
+  const { user, isLoading: authLoading } = useAuth();
+  const canManageSubscription = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
 
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
@@ -30,7 +34,13 @@ export default function PayInvoicePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading || !user?.role) return;
     if (!invoiceId) return;
+    if (!canManageSubscription) {
+      setError('Subscription payments are managed by owners and managers.');
+      setLoading(false);
+      return;
+    }
 
     const init = async () => {
       try {
@@ -55,10 +65,10 @@ export default function PayInvoicePage() {
     };
 
     init();
-  }, [invoiceId]);
+  }, [authLoading, canManageSubscription, invoiceId, user?.role]);
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
       <DashboardLayout>
         <div className="max-w-lg mx-auto py-8 space-y-6">
           <div className="flex items-center gap-4">

@@ -7,6 +7,8 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { billingService, BillingInvoice, BillingPaymentAttempt } from '@/services/billing';
 import { redirectToPayment } from '@/utils/paymentRedirect';
+import { useAuth } from '@/store/auth';
+import { ROLES } from '@/constants/roles';
 
 function formatCurrencyIDR(amount: number): string {
   return `Rp\u00a0${amount.toLocaleString('id-ID')}`;
@@ -33,11 +35,13 @@ function statusClass(status: string): string {
 export default function InvoiceDetailPage() {
   const params = useParams();
   const invoiceId = params?.invoiceId as string;
+  const { user } = useAuth();
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [attempts, setAttempts] = useState<BillingPaymentAttempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canManageSubscription = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
 
   useEffect(() => {
     if (!invoiceId) return;
@@ -58,6 +62,10 @@ export default function InvoiceDetailPage() {
 
   const handlePay = async () => {
     if (!invoice) return;
+    if (!canManageSubscription) {
+      setError('Subscription payments are managed by owners and managers.');
+      return;
+    }
     try {
       setPaying(true);
       const result = await billingService.initiatePayment(invoice.id);
@@ -177,7 +185,7 @@ export default function InvoiceDetailPage() {
                   </div>
                 </div>
 
-                {invoice.status === 'pending' && (
+                {invoice.status === 'pending' && canManageSubscription && (
                   <button
                     type="button"
                     onClick={handlePay}

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import TrialBanner from '@/components/subscription/TrialBanner';
+import MidtransConfigBanner from '@/components/payment/MidtransConfigBanner';
 import { useSubscriptionErrorHandler } from '@/hooks/useSubscriptionErrorHandler';
 import { useSubscription } from '@/store/subscription';
 
@@ -22,7 +23,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   React.useEffect(() => {
     if (pathname?.startsWith('/subscription')) return;
-    void refreshSubscription().then((latest) => {
+    void refreshSubscription().then(latest => {
       if ((latest ?? subscription)?.subscription_status === 'expired') {
         router.replace('/subscription?reason=expired');
       }
@@ -68,6 +69,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
         {/* Trial / Grace Period Banner */}
         <TrialBanner />
+        <MidtransConfigBanner />
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">

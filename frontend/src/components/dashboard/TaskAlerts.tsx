@@ -8,7 +8,7 @@ export interface TaskAlertsProps {
   delayedOrders: DelayedOrder[];
   restockAlerts: RestockAlert[];
   loading?: boolean;
-  onNavigateToOrder?: (orderId: number) => void;
+  onNavigateToOrder?: (order: DelayedOrder) => void;
   onNavigateToProduct?: (productId: number) => void;
 }
 
@@ -28,7 +28,7 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
             <div className="h-6 bg-gray-200 rounded w-1/3"></div>
           </div>
           <div className="divide-y divide-gray-200">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="p-4 animate-pulse flex items-center gap-4">
                 <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
                 <div className="flex-1 space-y-2">
@@ -46,7 +46,7 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
             <div className="h-6 bg-gray-200 rounded w-1/3"></div>
           </div>
           <div className="divide-y divide-gray-200">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="p-4 animate-pulse flex items-center gap-4">
                 <div className="w-12 h-12 bg-gray-200 rounded"></div>
                 <div className="flex-1 space-y-2">
@@ -67,9 +67,7 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Delayed Orders
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900">Delayed Orders</h3>
             {delayedOrders.length > 0 && (
               <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm font-medium rounded-full">
                 {delayedOrders.length}
@@ -97,19 +95,23 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
               <p className="text-sm">No delayed orders</p>
             </div>
           ) : (
-            delayedOrders.map((order) => {
+            delayedOrders.map(order => {
               const isUrgent = order.elapsed_minutes > 30;
-              const badgeColor = isUrgent ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700';
+              const badgeColor = isUrgent
+                ? 'bg-red-100 text-red-700'
+                : 'bg-orange-100 text-orange-700';
 
               return (
                 <div
                   key={order.order_id}
                   className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => onNavigateToOrder?.(order.order_id)}
+                  onClick={() => onNavigateToOrder?.(order)}
                 >
                   <div className="flex items-start gap-4">
                     {/* Urgency Badge */}
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${badgeColor}`}>
+                    <div
+                      className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${badgeColor}`}
+                    >
                       {order.elapsed_minutes}m
                     </div>
 
@@ -134,7 +136,12 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
 
                       {isUrgent && (
                         <div className="mt-2 flex items-center gap-1 text-xs text-red-600">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -173,9 +180,7 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Low Stock Alerts
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
             {restockAlerts.length > 0 && (
               <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded-full">
                 {restockAlerts.length}
@@ -203,14 +208,19 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
               <p className="text-sm">All products are well stocked</p>
             </div>
           ) : (
-            restockAlerts.map((alert) => {
+            restockAlerts.map(alert => {
               const isCritical = alert.status === 'critical';
-              const badgeColor = isCritical ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+              const badgeColor = isCritical
+                ? 'bg-red-100 text-red-700'
+                : 'bg-yellow-100 text-yellow-700';
+              const canNavigate = Boolean(onNavigateToProduct);
 
               return (
                 <div
                   key={alert.product_id}
-                  className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className={`p-4 transition-colors ${
+                    canNavigate ? 'cursor-pointer hover:bg-gray-50' : ''
+                  }`}
                   onClick={() => onNavigateToProduct?.(alert.product_id)}
                 >
                   <div className="flex items-center gap-4">
@@ -268,20 +278,21 @@ export const TaskAlerts: React.FC<TaskAlertsProps> = ({
                       </p>
                     </div>
 
-                    {/* Navigation Arrow */}
-                    <svg
-                      className="w-5 h-5 text-gray-400 flex-shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
+                    {canNavigate && (
+                      <svg
+                        className="w-5 h-5 text-gray-400 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    )}
                   </div>
                 </div>
               );

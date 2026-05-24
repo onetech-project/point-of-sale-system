@@ -3,7 +3,10 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PublicMenuPage from './page';
 import { tenant } from '../../../src/services/tenant';
-import { TENANT_UNAVAILABLE_MESSAGE } from '../../../src/utils/tenantAvailability';
+import {
+  MIDTRANS_NOT_CONFIGURED_MESSAGE,
+  TENANT_UNAVAILABLE_MESSAGE,
+} from '../../../src/utils/tenantAvailability';
 
 jest.mock('next/navigation', () => ({
   useParams: () => ({ tenantSlug: 'bistro-one' }),
@@ -35,6 +38,10 @@ jest.mock('../../../src/services/cart', () => ({
 
 const mockTenant = tenant as jest.Mocked<typeof tenant>;
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 it('renders unavailable copy when the public menu tenant is blocked', async () => {
   mockTenant.getTenantConfig.mockRejectedValueOnce({
     response: {
@@ -51,5 +58,26 @@ it('renders unavailable copy when the public menu tenant is blocked', async () =
   render(<PublicMenuPage />);
 
   expect(await screen.findByText(TENANT_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
+  expect(screen.getByText('Restaurant Unavailable')).toBeInTheDocument();
+});
+
+it('renders Midtrans configuration copy when guest ordering is blocked', async () => {
+  mockTenant.getTenantConfig.mockRejectedValueOnce({
+    response: {
+      status: 403,
+      data: {
+        error: 'Midtrans is not configured',
+        message: MIDTRANS_NOT_CONFIGURED_MESSAGE,
+        reason: 'midtrans_not_configured',
+        status: 'active',
+        subscription_status: 'active',
+        midtrans_configured: false,
+      },
+    },
+  });
+
+  render(<PublicMenuPage />);
+
+  expect(await screen.findByText(MIDTRANS_NOT_CONFIGURED_MESSAGE)).toBeInTheDocument();
   expect(screen.getByText('Restaurant Unavailable')).toBeInTheDocument();
 });

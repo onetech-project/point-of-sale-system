@@ -31,10 +31,15 @@ export default function PaymentSettingsPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    if (user?.role && user.role !== ROLES.OWNER) {
+      setLoading(false);
+      return;
+    }
+
     if (user?.tenantId) {
       fetchMidtransConfig();
     }
-  }, [user?.tenantId]);
+  }, [user?.role, user?.tenantId]);
 
   const fetchMidtransConfig = async () => {
     if (!user?.tenantId) return;
@@ -76,9 +81,7 @@ export default function PaymentSettingsPage() {
       await fetchMidtransConfig(); // Refresh config
     } catch (error: any) {
       console.error('Failed to save Midtrans config:', error);
-      setErrorMessage(
-        error.response?.data?.error || 'Failed to save payment configuration'
-      );
+      setErrorMessage(error.response?.data?.error || 'Failed to save payment configuration');
       setTimeout(() => setErrorMessage(''), 5000);
     } finally {
       setSaving(false);
@@ -86,7 +89,7 @@ export default function PaymentSettingsPage() {
   };
 
   const handleInputChange = (field: keyof MidtransConfig, value: string) => {
-    setConfig((prev) => ({
+    setConfig(prev => ({
       ...prev,
       [field]: value,
     }));
@@ -102,12 +105,7 @@ export default function PaymentSettingsPage() {
               onClick={() => router.push('/settings')}
               className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
             >
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -119,19 +117,15 @@ export default function PaymentSettingsPage() {
             </button>
             <h1 className="text-3xl font-bold text-gray-900">Payment Settings</h1>
             <p className="mt-2 text-gray-600">
-              Configure your Midtrans payment gateway credentials for QRIS and other
-              payment methods.
+              Configure your Midtrans payment gateway credentials for QRIS and other payment
+              methods.
             </p>
           </div>
 
           {/* Status Messages */}
           {successMessage && (
             <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center">
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -144,11 +138,7 @@ export default function PaymentSettingsPage() {
 
           {errorMessage && (
             <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center">
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -171,9 +161,7 @@ export default function PaymentSettingsPage() {
               <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Configuration Status
-                    </h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Configuration Status</h3>
                     <p className="text-sm text-gray-600 mt-1">
                       {config.is_configured
                         ? 'Midtrans is configured and ready to process payments'
@@ -206,11 +194,8 @@ export default function PaymentSettingsPage() {
                     </label>
                     <select
                       value={config.environment}
-                      onChange={(e) =>
-                        handleInputChange(
-                          'environment',
-                          e.target.value as 'sandbox' | 'production'
-                        )
+                      onChange={e =>
+                        handleInputChange('environment', e.target.value as 'sandbox' | 'production')
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
@@ -231,9 +216,7 @@ export default function PaymentSettingsPage() {
                       <input
                         type={showServerKey ? 'text' : 'password'}
                         value={config.server_key}
-                        onChange={(e) =>
-                          handleInputChange('server_key', e.target.value)
-                        }
+                        onChange={e => handleInputChange('server_key', e.target.value)}
                         placeholder="SB-Mid-server-xxxxxxxxxxxxx"
                         required
                         className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -244,13 +227,38 @@ export default function PaymentSettingsPage() {
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                       >
                         {showServerKey ? (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
                           </svg>
                         ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                            />
                           </svg>
                         )}
                       </button>
@@ -269,9 +277,7 @@ export default function PaymentSettingsPage() {
                       <input
                         type={showClientKey ? 'text' : 'password'}
                         value={config.client_key}
-                        onChange={(e) =>
-                          handleInputChange('client_key', e.target.value)
-                        }
+                        onChange={e => handleInputChange('client_key', e.target.value)}
                         placeholder="SB-Mid-client-xxxxxxxxxxxxx"
                         required
                         className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -282,13 +288,38 @@ export default function PaymentSettingsPage() {
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                       >
                         {showClientKey ? (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
                           </svg>
                         ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                            />
                           </svg>
                         )}
                       </button>
@@ -306,9 +337,7 @@ export default function PaymentSettingsPage() {
                     <input
                       type="text"
                       value={config.merchant_id}
-                      onChange={(e) =>
-                        handleInputChange('merchant_id', e.target.value)
-                      }
+                      onChange={e => handleInputChange('merchant_id', e.target.value)}
                       placeholder="M999999"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
@@ -336,7 +365,17 @@ export default function PaymentSettingsPage() {
                           How to get your Midtrans credentials:
                         </h4>
                         <ol className="mt-2 text-sm text-blue-800 list-decimal list-inside space-y-1">
-                          <li>Sign up at <a href="https://dashboard.midtrans.com" target="_blank" rel="noopener noreferrer" className="underline">dashboard.midtrans.com</a></li>
+                          <li>
+                            Sign up at{' '}
+                            <a
+                              href="https://dashboard.midtrans.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline"
+                            >
+                              dashboard.midtrans.com
+                            </a>
+                          </li>
                           <li>Go to Settings → Access Keys</li>
                           <li>Copy your Server Key and Client Key</li>
                           <li>Start with Sandbox for testing, switch to Production when ready</li>

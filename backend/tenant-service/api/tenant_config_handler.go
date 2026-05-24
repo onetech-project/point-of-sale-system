@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
@@ -45,6 +46,19 @@ func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
 			"message":             "This tenant is currently not available at this moment.",
 			"status":              unavailable.Status,
 			"subscription_status": unavailable.SubscriptionStatus,
+		})
+	}
+
+	var midtransMissing *services.MidtransNotConfiguredError
+	if errors.As(err, &midtransMissing) {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":                "Midtrans is not configured",
+			"message":              "Guest ordering is unavailable until Midtrans is configured.",
+			"reason":               "midtrans_not_configured",
+			"status":               midtransMissing.Status,
+			"subscription_status":  midtransMissing.SubscriptionStatus,
+			"midtrans_configured":  false,
+			"midtrans_environment": midtransMissing.MidtransEnvironment,
 		})
 	}
 
@@ -95,6 +109,9 @@ func (h *TenantConfigHandler) GetMidtransConfig(c echo.Context) error {
 			"error": "tenant_id is required",
 		})
 	}
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
 
 	config, err := h.configService.GetMidtransConfig(c.Request().Context(), tenantID)
 	if err != nil {
@@ -115,6 +132,9 @@ func (h *TenantConfigHandler) UpdateMidtransConfig(c echo.Context) error {
 			"error": "tenant_id is required",
 		})
 	}
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
 
 	var req services.MidtransConfig
 	if err := c.Bind(&req); err != nil {
@@ -133,5 +153,15 @@ func (h *TenantConfigHandler) UpdateMidtransConfig(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Midtrans configuration updated successfully",
+	})
+}
+
+func ensureTenantPathMatchesHeader(c echo.Context, tenantID string) (bool, error) {
+	requestTenantID := strings.TrimSpace(c.Request().Header.Get("X-Tenant-ID"))
+	if requestTenantID == "" || requestTenantID == tenantID {
+		return true, nil
+	}
+	return false, c.JSON(http.StatusForbidden, map[string]string{
+		"error": "Cannot access Midtrans configuration for another tenant",
 	})
 }

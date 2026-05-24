@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { order, Order, OrderDocumentType, OrderWithDetails } from '../../services/order';
 import ActionMenu from '../ui/ActionMenu';
@@ -9,16 +10,21 @@ import { formatCurrency } from '../../utils/format';
 interface OrderManagementProps {
   // Removed tenantId - API Gateway extracts it from session
   authToken?: string;
+  initialOrderId?: string;
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
   authToken,
+  initialOrderId,
 }) => {
   const { t } = useTranslation();
+  const router = useRouter();
+  const openedInitialOrderId = useRef<string | null>(null);
 
   const [ordersWithDetails, setOrdersWithDetails] = useState<OrderWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialOrderError, setInitialOrderError] = useState<string | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -38,7 +44,34 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     fetchOrders();
   }, [statusFilter, page]);
 
-  const fetchOrders = async () => {
+  useEffect(() => {
+    if (!initialOrderId || openedInitialOrderId.current === initialOrderId) {
+      return;
+    }
+
+    openedInitialOrderId.current = initialOrderId;
+    setInitialOrderError(null);
+
+    const openInitialOrder = async () => {
+      try {
+        const orderDetails = await order.getOrderById(initialOrderId);
+        setSelectedOrderDetails(orderDetails);
+        setOrdersWithDetails(prev => {
+          if (prev.some(existing => existing.order.id === orderDetails.order.id)) {
+            return prev;
+          }
+          return [orderDetails, ...prev];
+        });
+      } catch (err) {
+        console.error('Failed to open initial order:', err);
+        setInitialOrderError('Failed to open the selected order. Please refresh and try again.');
+      }
+    };
+
+    openInitialOrder();
+  }, [initialOrderId]);
+
+  const fetchOrders = async (): Promise<OrderWithDetails[]> => {
     try {
       setLoading(true);
       setError(null);
@@ -59,9 +92,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
       // If we get fewer items than limit, we're on the last page
       setTotalOrders(response.pagination?.count || (response.orders?.length || 0));
       setSelectedOrderIds(new Set());
+      return response.orders || [];
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
       setError('Failed to load orders. Please try again.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -76,6 +111,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     setNote('');
     setShowNoteDialog(false);
     setShowStatusDialog(false);
+    if (initialOrderId) {
+      router.replace('/orders', { scroll: false });
+    }
   };
 
   const isValidCustomerEmail = (email?: string): boolean => {
@@ -356,9 +394,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         </div>
       </div>
 
-      {error && (
+      {(error || initialOrderError) && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+          <p className="text-red-800">{error || initialOrderError}</p>
         </div>
       )}
 

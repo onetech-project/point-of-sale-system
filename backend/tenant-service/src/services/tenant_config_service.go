@@ -20,6 +20,16 @@ func (e *TenantUnavailableError) Error() string {
 	return "tenant unavailable"
 }
 
+type MidtransNotConfiguredError struct {
+	Status              string
+	SubscriptionStatus  string
+	MidtransEnvironment string
+}
+
+func (e *MidtransNotConfiguredError) Error() string {
+	return "midtrans not configured"
+}
+
 type TenantConfigService struct {
 	configRepo *repository.TenantConfigRepository
 	db         *sql.DB
@@ -45,13 +55,33 @@ type DeliveryConfig struct {
 	MinOrderAmount       int                    `json:"min_order_amount,omitempty"`
 	EstimatedPrepTime    int                    `json:"estimated_prep_time,omitempty"`
 	ChargeDeliveryFee    bool                   `json:"charge_delivery_fee"`
+	MidtransConfigured   bool                   `json:"midtrans_configured"`
+	MidtransEnvironment  string                 `json:"midtrans_environment"`
 }
 
 func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug string) (*DeliveryConfig, error) {
 	// Fetch tenant information
-	var tenantID, tenantName, status, subscriptionStatus string
-	query := `SELECT id, business_name, status, subscription_status FROM tenants WHERE slug = $1 AND status != 'deleted'`
-	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(&tenantID, &tenantName, &status, &subscriptionStatus)
+	var tenantID, tenantName, status, subscriptionStatus, midtransEnvironment string
+	var midtransConfigured bool
+	query := `
+		SELECT
+			t.id,
+			t.business_name,
+			t.status,
+			t.subscription_status,
+			(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '') AS midtrans_configured,
+			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment
+		FROM tenants t
+		LEFT JOIN tenant_configs tc ON tc.tenant_id = t.id
+		WHERE t.slug = $1 AND t.status != 'deleted'`
+	err := s.db.QueryRowContext(ctx, query, tenantSlug).Scan(
+		&tenantID,
+		&tenantName,
+		&status,
+		&subscriptionStatus,
+		&midtransConfigured,
+		&midtransEnvironment,
+	)
 	if err == sql.ErrNoRows {
 		return nil, ErrTenantNotFound
 	}
@@ -66,6 +96,13 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug 
 		return nil, &TenantUnavailableError{
 			Status:             status,
 			SubscriptionStatus: subscriptionStatus,
+		}
+	}
+	if !midtransConfigured {
+		return nil, &MidtransNotConfiguredError{
+			Status:              status,
+			SubscriptionStatus:  subscriptionStatus,
+			MidtransEnvironment: midtransEnvironment,
 		}
 	}
 
@@ -118,6 +155,8 @@ func (s *TenantConfigService) GetDeliveryConfig(ctx context.Context, tenantSlug 
 		MinOrderAmount:       int(minOrderAmount.Int64),
 		EstimatedPrepTime:    int(estimatedPrepTime.Int64),
 		ChargeDeliveryFee:    chargeDeliveryFee,
+		MidtransConfigured:   midtransConfigured,
+		MidtransEnvironment:  midtransEnvironment,
 	}, nil
 }
 
@@ -156,6 +195,7 @@ func (s *TenantConfigService) UpdateDeliveryConfig(ctx context.Context, config *
 		ServiceArea:          config.ServiceArea,
 		DeliveryFeeConfig:    config.DeliveryFeeConfig,
 		AutoCalculateFees:    config.AutoCalculateFees,
+		MidtransEnvironment:  "sandbox",
 	}
 
 	// Try to get existing config first
@@ -167,6 +207,14 @@ func (s *TenantConfigService) UpdateDeliveryConfig(ctx context.Context, config *
 	// If no created_at, it's a default config, so create it
 	if existing.CreatedAt == "" {
 		return s.configRepo.Create(ctx, repoConfig)
+	}
+
+	repoConfig.MidtransServerKey = existing.MidtransServerKey
+	repoConfig.MidtransClientKey = existing.MidtransClientKey
+	repoConfig.MidtransMerchantID = existing.MidtransMerchantID
+	repoConfig.MidtransEnvironment = existing.MidtransEnvironment
+	if repoConfig.MidtransEnvironment == "" {
+		repoConfig.MidtransEnvironment = "sandbox"
 	}
 
 	return s.configRepo.Update(ctx, repoConfig)

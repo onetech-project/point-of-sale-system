@@ -16,9 +16,11 @@ type TenantStatusEnforcer struct {
 }
 
 type TenantAvailability struct {
-	TenantID           string `json:"tenant_id"`
-	Status             string `json:"status"`
-	SubscriptionStatus string `json:"subscription_status"`
+	TenantID            string `json:"tenant_id"`
+	Status              string `json:"status"`
+	SubscriptionStatus  string `json:"subscription_status"`
+	MidtransConfigured  *bool  `json:"midtrans_configured,omitempty"`
+	MidtransEnvironment string `json:"midtrans_environment,omitempty"`
 }
 
 func NewTenantStatusEnforcer(tenantURL string) *TenantStatusEnforcer {
@@ -74,15 +76,26 @@ func (e *TenantStatusEnforcer) RequirePublicTenantAvailableParam(paramName strin
 			if availability.SubscriptionStatus == "" {
 				availability.SubscriptionStatus = "active"
 			}
-			if availability.Status == "active" && (availability.SubscriptionStatus == "trial" || availability.SubscriptionStatus == "active") {
-				return next(c)
+			if availability.Status != "active" || (availability.SubscriptionStatus != "trial" && availability.SubscriptionStatus != "active") {
+				return c.JSON(http.StatusForbidden, map[string]string{
+					"error":               "Tenant currently unavailable",
+					"message":             "This tenant is currently not available at this moment.",
+					"status":              availability.Status,
+					"subscription_status": availability.SubscriptionStatus,
+				})
 			}
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error":               "Tenant currently unavailable",
-				"message":             "This tenant is currently not available at this moment.",
-				"status":              availability.Status,
-				"subscription_status": availability.SubscriptionStatus,
-			})
+			if !availability.midtransConfigured() {
+				return c.JSON(http.StatusForbidden, map[string]interface{}{
+					"error":                "Midtrans is not configured",
+					"message":              "Guest ordering is unavailable until Midtrans is configured.",
+					"reason":               "midtrans_not_configured",
+					"status":               availability.Status,
+					"subscription_status":  availability.SubscriptionStatus,
+					"midtrans_configured":  false,
+					"midtrans_environment": availability.MidtransEnvironment,
+				})
+			}
+			return next(c)
 		}
 	}
 }
@@ -116,9 +129,11 @@ func (e *TenantStatusEnforcer) enforce(c echo.Context, tenantID string, allowed 
 
 func (e *TenantStatusEnforcer) fetchTenantAvailability(c echo.Context, tenantID string) TenantAvailability {
 	fallback := TenantAvailability{
-		TenantID:           tenantID,
-		Status:             "active",
-		SubscriptionStatus: "active",
+		TenantID:            tenantID,
+		Status:              "active",
+		SubscriptionStatus:  "active",
+		MidtransConfigured:  boolPtr(true),
+		MidtransEnvironment: "sandbox",
 	}
 	if e == nil || e.tenantURL == "" {
 		return fallback
@@ -130,7 +145,13 @@ func (e *TenantStatusEnforcer) fetchTenantAvailability(c echo.Context, tenantID 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return TenantAvailability{TenantID: tenantID, Status: "deleted", SubscriptionStatus: "active"}
+		return TenantAvailability{
+			TenantID:            tenantID,
+			Status:              "deleted",
+			SubscriptionStatus:  "active",
+			MidtransConfigured:  boolPtr(true),
+			MidtransEnvironment: "sandbox",
+		}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -150,4 +171,12 @@ func (e *TenantStatusEnforcer) fetchTenantAvailability(c echo.Context, tenantID 
 		result.SubscriptionStatus = "active"
 	}
 	return result
+}
+
+func (a TenantAvailability) midtransConfigured() bool {
+	return a.MidtransConfigured == nil || *a.MidtransConfigured
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }

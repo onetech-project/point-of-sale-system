@@ -9,7 +9,12 @@ import { cart } from '../../../src/services/cart';
 import { tenant } from '../../../src/services/tenant';
 import { Cart, Product } from '../../../src/types/cart';
 import { useTranslation } from 'react-i18next';
-import { getTenantUnavailableMessage, isTenantUnavailableError, TENANT_UNAVAILABLE_MESSAGE } from '../../../src/utils/tenantAvailability';
+import {
+  getTenantUnavailableMessage,
+  isTenantUnavailableError,
+  MIDTRANS_NOT_CONFIGURED_MESSAGE,
+  TENANT_UNAVAILABLE_MESSAGE,
+} from '../../../src/utils/tenantAvailability';
 
 export default function PublicMenuPage() {
   const { t } = useTranslation(['common']);
@@ -24,7 +29,10 @@ export default function PublicMenuPage() {
   const [tenantConfig, setTenantConfig] = useState<any>(null); // T107
   const [tenantError, setTenantError] = useState<string | null>(null); // T105
   const [tenantLoading, setTenantLoading] = useState<boolean>(true); // T105
-  const [cartMessage, setCartMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [cartMessage, setCartMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [totalItem, setTotalItem] = useState<number>(0);
   const cartRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +93,7 @@ export default function PublicMenuPage() {
       if (error.response?.status === 404) {
         setTenantError('Tenant not found. Please check the URL.');
       } else if (isTenantUnavailableError(error)) {
-        setTenantError(TENANT_UNAVAILABLE_MESSAGE);
+        setTenantError(getTenantUnavailableMessage(error, TENANT_UNAVAILABLE_MESSAGE));
       } else {
         setTenantError('Failed to load restaurant information.');
       }
@@ -122,8 +130,11 @@ export default function PublicMenuPage() {
     }
   };
 
-  const detectCartAdjustments = (oldCart: Cart, newCart: Cart): Array<{ product: string, change: string }> => {
-    const adjustments: Array<{ product: string, change: string }> = [];
+  const detectCartAdjustments = (
+    oldCart: Cart,
+    newCart: Cart
+  ): Array<{ product: string; change: string }> => {
+    const adjustments: Array<{ product: string; change: string }> = [];
 
     // Check for removed items
     oldCart.items.forEach(oldItem => {
@@ -131,12 +142,12 @@ export default function PublicMenuPage() {
       if (!newItem) {
         adjustments.push({
           product: oldItem.product_name,
-          change: 'removed (out of stock)'
+          change: 'removed (out of stock)',
         });
       } else if (newItem.quantity < oldItem.quantity) {
         adjustments.push({
           product: oldItem.product_name,
-          change: `reduced from ${oldItem.quantity} to ${newItem.quantity}`
+          change: `reduced from ${oldItem.quantity} to ${newItem.quantity}`,
         });
       }
     });
@@ -144,8 +155,9 @@ export default function PublicMenuPage() {
     return adjustments;
   };
 
-  const showAdjustmentNotification = (adjustments: Array<{ product: string, change: string }>) => {
-    const message = t('common.cart.adjusted', 'Your cart has been updated due to stock changes:') +
+  const showAdjustmentNotification = (adjustments: Array<{ product: string; change: string }>) => {
+    const message =
+      t('common.cart.adjusted', 'Your cart has been updated due to stock changes:') +
       '\n\n' +
       adjustments.map(adj => `• ${adj.product}: ${adj.change}`).join('\n');
     alert(message);
@@ -155,13 +167,7 @@ export default function PublicMenuPage() {
     if (!tenantId) return;
 
     try {
-      const updatedCart = await cart.addItem(
-        tenantId,
-        product.id,
-        product.name,
-        1,
-        product.price
-      );
+      const updatedCart = await cart.addItem(tenantId, product.id, product.name, 1, product.price);
       setCartData(updatedCart);
       setCartMessage({ type: 'success', text: t('common.cart.added', 'Item added to cart!') });
       setTotalItem(updatedCart.items.reduce((sum, item) => sum + item.quantity, 0));
@@ -308,7 +314,8 @@ export default function PublicMenuPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               {tenantError.includes('not found')
                 ? 'Restaurant Not Found'
-                : tenantError === TENANT_UNAVAILABLE_MESSAGE
+                : tenantError === TENANT_UNAVAILABLE_MESSAGE ||
+                    tenantError === MIDTRANS_NOT_CONFIGURED_MESSAGE
                   ? 'Restaurant Unavailable'
                   : 'Error Loading Restaurant'}
             </h2>
@@ -334,8 +341,7 @@ export default function PublicMenuPage() {
 
             {/* Help Text */}
             <p className="mt-6 text-sm text-gray-500">
-              If you believe this is an error, please contact support or verify
-              the restaurant URL.
+              If you believe this is an error, please contact support or verify the restaurant URL.
             </p>
           </div>
         </div>
@@ -390,8 +396,19 @@ export default function PublicMenuPage() {
                   aria-label={t('common.menu.itemsInCart')}
                 >
                   {/* Cart Icon */}
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9m-5-9V6a2 2 0 10-4 0v3" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-7 w-7"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9m-5-9V6a2 2 0 10-4 0v3"
+                    />
                   </svg>
                   {/* Badge */}
                   {cartData && cartData.items.length > 0 ? (
@@ -442,8 +459,6 @@ export default function PublicMenuPage() {
                 {cartMessage.text}
               </div>
             )}
-
-
           </div>
         </main>
       </div>

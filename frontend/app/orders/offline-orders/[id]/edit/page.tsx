@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import offlineOrderService from '@/services/offlineOrders';
 import { product as productService } from '@/services/product';
 import { formatCurrency } from '@/utils/format';
+import { sanitizeNumericPhone } from '@/utils/phone';
 import type {
   OfflineOrder,
   UpdateOfflineOrderRequest,
@@ -103,7 +104,7 @@ export default function EditOfflineOrderPage() {
 
         // Populate form with existing data
         setCustomerName(orderData.customer_name);
-        setCustomerPhone(orderData.customer_phone);
+        setCustomerPhone(sanitizeNumericPhone(orderData.customer_phone));
         setCustomerEmail(orderData.customer_email || '');
         setDeliveryType(orderData.delivery_type);
         setTableNumber(orderData.table_number || '');
@@ -189,7 +190,9 @@ export default function EditOfflineOrderPage() {
 
       if (order) {
         if (customerName !== order.customer_name) updates.customer_name = customerName;
-        if (customerPhone !== order.customer_phone) updates.customer_phone = customerPhone;
+        if (customerPhone !== sanitizeNumericPhone(order.customer_phone)) {
+          updates.customer_phone = customerPhone;
+        }
         if (customerEmail !== (order.customer_email || '')) updates.customer_email = customerEmail;
         if (deliveryType !== order.delivery_type) updates.delivery_type = deliveryType;
         if (tableNumber !== (order.table_number || '')) updates.table_number = tableNumber;
@@ -369,7 +372,9 @@ export default function EditOfflineOrderPage() {
                     type="tel"
                     id="customerPhone"
                     value={customerPhone}
-                    onChange={e => setCustomerPhone(e.target.value)}
+                    onChange={e => setCustomerPhone(sanitizeNumericPhone(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     minLength={10}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

@@ -31,6 +31,7 @@ type InvitationService struct {
 	userRepo       *repository.UserRepository
 	db             *sql.DB
 	eventProducer  *queue.KafkaProducer
+	auditPublisher utils.AuditPublisherInterface
 }
 
 func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer, auditPublisher utils.AuditPublisherInterface) (*InvitationService, error) {
@@ -49,10 +50,15 @@ func NewInvitationService(db *sql.DB, eventProducer *queue.KafkaProducer, auditP
 		userRepo:       userRepo,
 		db:             db,
 		eventProducer:  eventProducer,
+		auditPublisher: auditPublisher,
 	}, nil
 }
 
-func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, invitedByID string) (*models.Invitation, error) {
+func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, invitedByID string, auditCtx AuditContext) (*models.Invitation, error) {
+	if auditCtx.ActorID == "" {
+		auditCtx.ActorID = invitedByID
+	}
+
 	// Check if email is already registered in this tenant
 	existingUser, err := s.userRepo.FindByEmail(ctx, tenantID, email)
 	if err != nil && err != sql.ErrNoRows {
@@ -94,6 +100,8 @@ func (s *InvitationService) Create(ctx context.Context, tenantID, email, role, i
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
+
+	s.publishInvitationCreatedAudit(ctx, invitation, auditCtx)
 
 	// Publish invitation event to Kafka for notification service
 	if s.eventProducer != nil {
@@ -160,7 +168,7 @@ func (s *InvitationService) List(ctx context.Context, tenantID string) ([]*model
 	return invitations, nil
 }
 
-func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastName, password string, consents []string, ipAddress, userAgent string) (*models.User, error) {
+func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastName, password string, consents []string, auditCtx AuditContext) (*models.User, error) {
 	// Find invitation by token
 	invitation, err := s.invitationRepo.FindByToken(ctx, token)
 	if err != nil {
@@ -219,12 +227,16 @@ func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastNa
 		return nil, fmt.Errorf("failed to mark invitation as accepted: %w", err)
 	}
 
+	auditCtx.ActorID = user.ID
+	auditCtx.ActorEmail = user.Email
+	s.publishInvitationAcceptedAudit(ctx, invitation, user.ID, now, auditCtx)
+
 	// Publish ConsentGrantedEvent to Kafka (async, after user creation)
 	if s.eventProducer != nil {
 		go func() {
 			// Required consents for tenant users (implicit)
 			requiredConsents := []string{"operational", "third_party_midtrans"}
-			
+
 			consentEvent := events.ConsentGrantedEvent{
 				EventID:          uuid.New().String(),
 				EventType:        "consent.granted",
@@ -233,13 +245,13 @@ func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastNa
 				SubjectID:        user.ID,
 				ConsentMethod:    "registration", // Invitation acceptance is similar to registration
 				PolicyVersion:    "1.0.0",
-				Consents:         consents,          // Optional consents provided by user
-				RequiredConsents: requiredConsents,  // Required consents (implicit)
+				Consents:         consents,         // Optional consents provided by user
+				RequiredConsents: requiredConsents, // Required consents (implicit)
 				Metadata: events.ConsentMetadata{
-					IPAddress: ipAddress,
-					UserAgent: userAgent,
+					IPAddress: auditCtx.IPAddress,
+					UserAgent: auditCtx.UserAgent,
 					SessionID: nil,
-					RequestID: "", // TODO: Extract from context
+					RequestID: auditCtx.RequestID,
 				},
 				Timestamp: time.Now(),
 			}
@@ -254,7 +266,11 @@ func (s *InvitationService) Accept(ctx context.Context, token, firstName, lastNa
 }
 
 // Resend resends an invitation
-func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, resendByID string) (*models.Invitation, error) {
+func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, resendByID string, auditCtx AuditContext) (*models.Invitation, error) {
+	if auditCtx.ActorID == "" {
+		auditCtx.ActorID = resendByID
+	}
+
 	// Find invitation
 	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
@@ -281,6 +297,7 @@ func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, 
 	}
 
 	now := time.Now()
+	previousExpiresAt := invitation.ExpiresAt
 	invitation.Token = token
 	invitation.ExpiresAt = now.Add(7 * 24 * time.Hour) // 7 days expiration
 	invitation.UpdatedAt = now
@@ -288,6 +305,8 @@ func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, 
 	if err := s.invitationRepo.UpdateToken(ctx, invitation.ID, token, invitation.ExpiresAt); err != nil {
 		return nil, fmt.Errorf("failed to update invitation token: %w", err)
 	}
+
+	s.publishInvitationResentAudit(ctx, invitation, previousExpiresAt, auditCtx)
 
 	// Publish resend event to Kafka
 	if s.eventProducer != nil {
@@ -332,6 +351,132 @@ func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID, 
 	}
 
 	return invitation, nil
+}
+
+func (s *InvitationService) Revoke(ctx context.Context, tenantID, invitationID, revokedByID string, auditCtx AuditContext) (*models.Invitation, error) {
+	if auditCtx.ActorID == "" {
+		auditCtx.ActorID = revokedByID
+	}
+
+	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find invitation: %w", err)
+	}
+	if invitation == nil || invitation.TenantID != tenantID {
+		return nil, ErrInvitationNotFound
+	}
+
+	if invitation.Status != models.InvitationPending {
+		return nil, ErrInvitationInvalid
+	}
+
+	now := time.Now()
+	if invitation.ExpiresAt.Before(now) {
+		_ = s.invitationRepo.UpdateStatus(ctx, invitation.ID, models.InvitationExpired)
+		return nil, ErrInvitationInvalid
+	}
+
+	if err := s.invitationRepo.UpdateStatus(ctx, invitation.ID, models.InvitationRevoked); err != nil {
+		return nil, fmt.Errorf("failed to revoke invitation: %w", err)
+	}
+
+	previousStatus := invitation.Status
+	invitation.Status = models.InvitationRevoked
+	invitation.UpdatedAt = now
+
+	s.publishInvitationRevokedAudit(ctx, invitation, previousStatus, auditCtx)
+
+	return invitation, nil
+}
+
+func (s *InvitationService) publishInvitationCreatedAudit(ctx context.Context, invitation *models.Invitation, auditCtx AuditContext) {
+	publishTeamAuditEvent(
+		ctx,
+		s.auditPublisher,
+		s.userRepo,
+		auditCtx,
+		invitation.TenantID,
+		"CREATE",
+		"invitation",
+		invitation.ID,
+		"team.invitation.created",
+		nil,
+		map[string]interface{}{
+			"role":       invitation.Role,
+			"status":     invitation.Status,
+			"expires_at": invitation.ExpiresAt,
+		},
+		map[string]interface{}{
+			"invited_by": invitation.InvitedBy,
+		},
+	)
+}
+
+func (s *InvitationService) publishInvitationResentAudit(ctx context.Context, invitation *models.Invitation, previousExpiresAt time.Time, auditCtx AuditContext) {
+	publishTeamAuditEvent(
+		ctx,
+		s.auditPublisher,
+		s.userRepo,
+		auditCtx,
+		invitation.TenantID,
+		"UPDATE",
+		"invitation",
+		invitation.ID,
+		"team.invitation.resent",
+		map[string]interface{}{
+			"expires_at": previousExpiresAt,
+			"status":     invitation.Status,
+		},
+		map[string]interface{}{
+			"expires_at": invitation.ExpiresAt,
+			"status":     invitation.Status,
+		},
+		nil,
+	)
+}
+
+func (s *InvitationService) publishInvitationRevokedAudit(ctx context.Context, invitation *models.Invitation, previousStatus models.InvitationStatus, auditCtx AuditContext) {
+	publishTeamAuditEvent(
+		ctx,
+		s.auditPublisher,
+		s.userRepo,
+		auditCtx,
+		invitation.TenantID,
+		"UPDATE",
+		"invitation",
+		invitation.ID,
+		"team.invitation.revoked",
+		map[string]interface{}{
+			"status": previousStatus,
+		},
+		map[string]interface{}{
+			"status": invitation.Status,
+		},
+		nil,
+	)
+}
+
+func (s *InvitationService) publishInvitationAcceptedAudit(ctx context.Context, invitation *models.Invitation, acceptedUserID string, acceptedAt time.Time, auditCtx AuditContext) {
+	publishTeamAuditEvent(
+		ctx,
+		s.auditPublisher,
+		s.userRepo,
+		auditCtx,
+		invitation.TenantID,
+		"UPDATE",
+		"invitation",
+		invitation.ID,
+		"team.invitation.accepted",
+		map[string]interface{}{
+			"status": invitation.Status,
+		},
+		map[string]interface{}{
+			"status":           models.InvitationAccepted,
+			"accepted_at":      acceptedAt,
+			"accepted_user_id": acceptedUserID,
+		},
+		nil,
+	)
 }
 
 func generateSecureToken(length int) (string, error) {

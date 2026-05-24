@@ -12,11 +12,13 @@ type TenantHandler struct {
 }
 
 type TenantInfo struct {
-	ID           string `json:"id"`
-	BusinessName string `json:"businessName"`
-	Slug         string `json:"slug"`
-	Status       string `json:"status"`
-	CreatedAt    string `json:"createdAt"`
+	ID                  string `json:"id"`
+	BusinessName        string `json:"businessName"`
+	Slug                string `json:"slug"`
+	Status              string `json:"status"`
+	CreatedAt           string `json:"createdAt"`
+	MidtransConfigured  bool   `json:"midtrans_configured"`
+	MidtransEnvironment string `json:"midtrans_environment"`
 }
 
 func NewTenantHandler(db *sql.DB) *TenantHandler {
@@ -41,9 +43,17 @@ func (h *TenantHandler) GetTenant(c echo.Context) error {
 	}
 
 	query := `
-		SELECT id, business_name, slug, status, created_at
-		FROM tenants
-		WHERE id = $1 AND status = 'active'
+		SELECT
+			t.id,
+			t.business_name,
+			t.slug,
+			t.status,
+			t.created_at,
+			(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '') AS midtrans_configured,
+			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment
+		FROM tenants t
+		LEFT JOIN tenant_configs tc ON tc.tenant_id = t.id
+		WHERE t.id = $1 AND t.status = 'active'
 	`
 
 	var tenant TenantInfo
@@ -55,6 +65,8 @@ func (h *TenantHandler) GetTenant(c echo.Context) error {
 		&tenant.Slug,
 		&tenant.Status,
 		&createdAt,
+		&tenant.MidtransConfigured,
+		&tenant.MidtransEnvironment,
 	)
 
 	if err == sql.ErrNoRows {
@@ -84,11 +96,22 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
 	}
 
-	var status, subscriptionStatus string
+	var status, subscriptionStatus, midtransEnvironment string
+	var midtransConfigured bool
 	err := h.db.QueryRowContext(c.Request().Context(), `
-		SELECT status, subscription_status
-		FROM tenants
-		WHERE id = $1`, tenantID).Scan(&status, &subscriptionStatus)
+		SELECT
+			t.status,
+			t.subscription_status,
+			(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '') AS midtrans_configured,
+			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment
+		FROM tenants t
+		LEFT JOIN tenant_configs tc ON tc.tenant_id = t.id
+		WHERE t.id = $1`, tenantID).Scan(
+		&status,
+		&subscriptionStatus,
+		&midtransConfigured,
+		&midtransEnvironment,
+	)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
 	}
@@ -97,9 +120,11 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to retrieve tenant status"})
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"tenant_id":           tenantID,
-		"status":              status,
-		"subscription_status": subscriptionStatus,
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"tenant_id":            tenantID,
+		"status":               status,
+		"subscription_status":  subscriptionStatus,
+		"midtrans_configured":  midtransConfigured,
+		"midtrans_environment": midtransEnvironment,
 	})
 }

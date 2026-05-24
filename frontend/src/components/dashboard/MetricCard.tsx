@@ -34,11 +34,16 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const isNegative = hasChange && change < 0;
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
+    <div className="bg-white rounded-lg shadow p-4 sm:p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 break-words">{value}</p>
+          <p
+            className="max-w-full text-xl lg:text-2xl xl:text-3xl font-bold leading-tight text-gray-900 mb-2 break-words [overflow-wrap:anywhere]"
+            title={String(value)}
+          >
+            {value}
+          </p>
           
           {hasChange && (
             <div className="flex items-center gap-1">
@@ -87,7 +92,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
 
         {icon && (
-          <div className="flex-shrink-0 ml-4">
+          <div className="flex-shrink-0">
             <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
               {icon}
             </div>

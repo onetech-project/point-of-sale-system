@@ -1,6 +1,9 @@
 package api
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -8,16 +11,24 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/point-of-sale-system/order-service/src/models"
-	"github.com/point-of-sale-system/order-service/src/services"
 )
+
+type orderService interface {
+	ListOrdersByTenant(ctx context.Context, tenantID string, status *models.OrderStatus, limit, offset int) ([]*models.GuestOrder, error)
+	GetOrderByID(ctx context.Context, orderID string) (*models.GuestOrder, error)
+	GetOrderItems(ctx context.Context, orderID string) ([]models.OrderItem, error)
+	GetOrderNotes(ctx context.Context, orderID string) ([]*models.OrderNote, error)
+	UpdateOrderStatus(ctx context.Context, orderID string, newStatus models.OrderStatus) error
+	AddOrderNote(ctx context.Context, orderID, note, userName string) error
+}
 
 // AdminOrderHandler handles admin order management operations
 type AdminOrderHandler struct {
-	orderService *services.OrderService
+	orderService orderService
 }
 
 // NewAdminOrderHandler creates a new admin order handler
-func NewAdminOrderHandler(orderService *services.OrderService) *AdminOrderHandler {
+func NewAdminOrderHandler(orderService orderService) *AdminOrderHandler {
 	return &AdminOrderHandler{
 		orderService: orderService,
 	}
@@ -130,8 +141,8 @@ func (h *AdminOrderHandler) GetOrder(c echo.Context) error {
 		})
 	}
 
-	// Get tenant ID from JWT claims for authorization
-	tenantID := c.QueryParam("tenant_id")
+	// API Gateway injects X-Tenant-ID from the authenticated session.
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
 	if tenantID == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "tenant_id is required",
@@ -141,6 +152,12 @@ func (h *AdminOrderHandler) GetOrder(c echo.Context) error {
 	// Get order
 	order, err := h.orderService.GetOrderByID(ctx, orderID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Order not found",
+			})
+		}
+
 		log.Error().
 			Err(err).
 			Str("order_id", orderID).
@@ -168,7 +185,23 @@ func (h *AdminOrderHandler) GetOrder(c echo.Context) error {
 		})
 	}
 
-	return c.JSON(http.StatusOK, order)
+	items, err := h.orderService.GetOrderItems(ctx, order.ID)
+	if err != nil {
+		log.Warn().Err(err).Str("order_id", order.ID).Msg("Failed to fetch order items")
+		items = []models.OrderItem{}
+	}
+
+	notes, notesErr := h.orderService.GetOrderNotes(ctx, order.ID)
+	var latestNote *models.OrderNote
+	if notesErr == nil && len(notes) > 0 {
+		latestNote = notes[0]
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"order":       order,
+		"items":       items,
+		"latest_note": latestNote,
+	})
 }
 
 // UpdateOrderStatusRequest represents the request to update order status

@@ -17,6 +17,7 @@ import { OfflineOrderMetrics } from '@/components/dashboard/OfflineOrderMetrics'
 import { DashboardErrorBoundary } from '@/components/common/ErrorBoundary';
 import analytics from '@/services/analytics';
 import { formatCurrency, formatNumber } from '@/utils/format';
+import { ROLES } from '@/constants/roles';
 import type {
   SalesOverviewResponse,
   TopProductsResponse,
@@ -28,6 +29,9 @@ import type {
 
 export default function AnalyticsDashboardPage() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
+  const canViewBusinessInsights = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
+  const isCashier = user?.role === ROLES.CASHIER;
 
   // Helper function to format date in user's local timezone
   const formatLocalDate = (date: Date): string => {
@@ -127,31 +131,50 @@ export default function AnalyticsDashboardPage() {
 
   // Fetch overview dashboard data
   useEffect(() => {
+    if (authLoading || !user?.role) return;
     fetchDashboardData();
-  }, [timeRange]);
+  }, [authLoading, timeRange, user?.role]);
 
   // Fetch trend data when filters change
   useEffect(() => {
+    if (authLoading || !user?.role || !canViewBusinessInsights) {
+      setTrendData(null);
+      return;
+    }
     fetchTrendData();
-  }, [granularity, startDate, endDate]);
+  }, [authLoading, canViewBusinessInsights, endDate, granularity, startDate, user?.role]);
 
   const fetchDashboardData = async () => {
+    if (!user?.role) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch all data in parallel
-      const [sales, products, customers, operationalTasks] = await Promise.all([
-        analytics.getSalesOverview(timeRange),
-        analytics.getTopProducts(timeRange, 5),
-        analytics.getTopCustomers(timeRange, 5),
-        analytics.getOperationalTasks(),
-      ]);
+      if (isCashier) {
+        const operationalTasks = await analytics.getOperationalTasks();
+        setSalesData(null);
+        setTopProducts(null);
+        setTopCustomers(null);
+        setTrendData(null);
+        setTasks(operationalTasks);
+        return;
+      }
 
-      setSalesData(sales);
-      setTopProducts(products);
-      setTopCustomers(customers);
-      setTasks(operationalTasks);
+      if (canViewBusinessInsights) {
+        // Fetch all business dashboard data in parallel
+        const [sales, products, customers, operationalTasks] = await Promise.all([
+          analytics.getSalesOverview(timeRange),
+          analytics.getTopProducts(timeRange, 5),
+          analytics.getTopCustomers(timeRange, 5),
+          analytics.getOperationalTasks(),
+        ]);
+
+        setSalesData(sales);
+        setTopProducts(products);
+        setTopCustomers(customers);
+        setTasks(operationalTasks);
+      }
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
       setError(
@@ -163,6 +186,8 @@ export default function AnalyticsDashboardPage() {
   };
 
   const fetchTrendData = async () => {
+    if (!canViewBusinessInsights) return;
+
     try {
       setTrendLoading(true);
       const trend = await analytics.getSalesTrend(granularity, startDate, endDate);
@@ -197,7 +222,7 @@ export default function AnalyticsDashboardPage() {
     return (
       <ProtectedRoute>
         <DashboardLayout>
-          <AnalyticsLayout title="Business Insights">
+          <AnalyticsLayout title={isCashier ? 'Operational Dashboard' : 'Business Insights'}>
             <div className="bg-red-50 border border-red-200 rounded-lg p-6">
               <div className="flex items-start gap-3">
                 <svg
@@ -235,177 +260,185 @@ export default function AnalyticsDashboardPage() {
     <ProtectedRoute>
       <DashboardLayout>
         <AnalyticsLayout
-          title="Business Insights"
+          title={isCashier ? 'Operational Dashboard' : 'Business Insights'}
           actions={
-            <div className="flex items-center gap-3">
-              <select
-                value={timeRange}
-                onChange={e => setTimeRange(e.target.value as TimeRange)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {timeRangeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={fetchDashboardData}
-                disabled={loading}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <svg
-                  className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+            canViewBusinessInsights ? (
+              <div className="flex items-center gap-3">
+                <select
+                  value={timeRange}
+                  onChange={e => setTimeRange(e.target.value as TimeRange)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                Refresh
-              </button>
-            </div>
+                  {timeRangeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={fetchDashboardData}
+                  disabled={loading}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <svg
+                    className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            ) : undefined
           }
         >
-          {/* Metrics Cards */}
-          <DashboardErrorBoundary sectionName="Sales Metrics">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <MetricCard
-                title="Total Revenue"
-                value={salesData ? formatCurrency(salesData.metrics.total_revenue, true) : '—'}
-                change={salesData?.metrics.revenue_change}
-                changeLabel="vs previous period"
-                loading={loading}
-                icon={
-                  <svg
-                    className="w-6 h-6 text-primary-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                }
-              />
-              <MetricCard
-                title="Total Orders"
-                value={salesData ? formatNumber(salesData.metrics.total_orders, 0) : '—'}
-                change={salesData?.metrics.orders_change}
-                changeLabel="vs previous period"
-                loading={loading}
-                icon={
-                  <svg
-                    className="w-6 h-6 text-primary-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                    />
-                  </svg>
-                }
-              />
-              <MetricCard
-                title="Average Order Value"
-                value={
-                  salesData ? formatCurrency(salesData.metrics.average_order_value, true) : '—'
-                }
-                change={salesData?.metrics.aov_change}
-                changeLabel="vs previous period"
-                loading={loading}
-                icon={
-                  <svg
-                    className="w-6 h-6 text-primary-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                    />
-                  </svg>
-                }
-              />
-              <MetricCard
-                title="Inventory Value"
-                value={salesData ? formatCurrency(salesData.metrics.inventory_value, true) : '—'}
-                changeLabel="total stock value"
-                loading={loading}
-                icon={
-                  <svg
-                    className="w-6 h-6 text-primary-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                    />
-                  </svg>
-                }
-              />
-            </div>
-          </DashboardErrorBoundary>
+          {canViewBusinessInsights && (
+            <>
+              {/* Metrics Cards */}
+              <DashboardErrorBoundary sectionName="Sales Metrics">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <MetricCard
+                    title="Total Revenue"
+                    value={salesData ? formatCurrency(salesData.metrics.total_revenue, true) : '—'}
+                    change={salesData?.metrics.revenue_change}
+                    changeLabel="vs previous period"
+                    loading={loading}
+                    icon={
+                      <svg
+                        className="w-6 h-6 text-primary-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Total Orders"
+                    value={salesData ? formatNumber(salesData.metrics.total_orders, 0) : '—'}
+                    change={salesData?.metrics.orders_change}
+                    changeLabel="vs previous period"
+                    loading={loading}
+                    icon={
+                      <svg
+                        className="w-6 h-6 text-primary-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                        />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Average Order Value"
+                    value={
+                      salesData ? formatCurrency(salesData.metrics.average_order_value, true) : '—'
+                    }
+                    change={salesData?.metrics.aov_change}
+                    changeLabel="vs previous period"
+                    loading={loading}
+                    icon={
+                      <svg
+                        className="w-6 h-6 text-primary-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                        />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Inventory Value"
+                    value={
+                      salesData ? formatCurrency(salesData.metrics.inventory_value, true) : '—'
+                    }
+                    changeLabel="total stock value"
+                    loading={loading}
+                    icon={
+                      <svg
+                        className="w-6 h-6 text-primary-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                        />
+                      </svg>
+                    }
+                  />
+                </div>
+              </DashboardErrorBoundary>
 
-          {/* Time Series Chart Section */}
-          <DashboardErrorBoundary sectionName="Sales Trends">
-            <div className="space-y-1">
-              <TimeSeriesFilter
-                granularity={granularity}
-                startDate={startDate}
-                endDate={endDate}
-                onGranularityChange={setGranularity}
-                onDateRangeChange={handleDateRangeChange}
-                loading={trendLoading}
-              />
-              <SalesChart
-                revenueData={trendData?.revenue_data || []}
-                ordersData={trendData?.orders_data || []}
-                loading={trendLoading}
-                height={400}
-              />
-            </div>
-          </DashboardErrorBoundary>
+              {/* Time Series Chart Section */}
+              <DashboardErrorBoundary sectionName="Sales Trends">
+                <div className="space-y-1">
+                  <TimeSeriesFilter
+                    granularity={granularity}
+                    startDate={startDate}
+                    endDate={endDate}
+                    onGranularityChange={setGranularity}
+                    onDateRangeChange={handleDateRangeChange}
+                    loading={trendLoading}
+                  />
+                  <SalesChart
+                    revenueData={trendData?.revenue_data || []}
+                    ordersData={trendData?.orders_data || []}
+                    loading={trendLoading}
+                    height={400}
+                  />
+                </div>
+              </DashboardErrorBoundary>
 
-          {/* Quick Actions */}
-          <DashboardErrorBoundary sectionName="Quick Actions">
-            <QuickActions />
-          </DashboardErrorBoundary>
+              {/* Quick Actions */}
+              <DashboardErrorBoundary sectionName="Quick Actions">
+                <QuickActions />
+              </DashboardErrorBoundary>
 
-          {/* US5: Offline Order Metrics (T104-T106) */}
-          <DashboardErrorBoundary sectionName="Offline Order Insights">
-            <OfflineOrderMetrics
-              offlineOrderCount={salesData?.metrics.offline_order_count || 0}
-              offlineRevenue={salesData?.metrics.offline_revenue || 0}
-              offlinePercentage={salesData?.metrics.offline_percentage || 0}
-              onlineOrderCount={salesData?.metrics.online_order_count || 0}
-              onlineRevenue={salesData?.metrics.online_revenue || 0}
-              installmentCount={salesData?.metrics.installment_count || 0}
-              installmentRevenue={salesData?.metrics.installment_revenue || 0}
-              pendingInstallments={salesData?.metrics.pending_installments || 0}
-              loading={loading}
-            />
-          </DashboardErrorBoundary>
+              {/* US5: Offline Order Metrics (T104-T106) */}
+              <DashboardErrorBoundary sectionName="Offline Order Insights">
+                <OfflineOrderMetrics
+                  offlineOrderCount={salesData?.metrics.offline_order_count || 0}
+                  offlineRevenue={salesData?.metrics.offline_revenue || 0}
+                  offlinePercentage={salesData?.metrics.offline_percentage || 0}
+                  onlineOrderCount={salesData?.metrics.online_order_count || 0}
+                  onlineRevenue={salesData?.metrics.online_revenue || 0}
+                  installmentCount={salesData?.metrics.installment_count || 0}
+                  installmentRevenue={salesData?.metrics.installment_revenue || 0}
+                  pendingInstallments={salesData?.metrics.pending_installments || 0}
+                  loading={loading}
+                />
+              </DashboardErrorBoundary>
+            </>
+          )}
 
           {/* Operational Tasks (Delayed Orders & Low Stock) */}
           <DashboardErrorBoundary sectionName="Operational Tasks">
@@ -413,86 +446,101 @@ export default function AnalyticsDashboardPage() {
               delayedOrders={tasks?.delayed_orders.delayed_orders || []}
               restockAlerts={tasks?.restock_alerts.restock_alerts || []}
               loading={loading}
-              onNavigateToOrder={orderId => router.push(`/orders/${orderId}`)}
-              onNavigateToProduct={productId => router.push(`/products/${productId}`)}
+              onNavigateToOrder={order => {
+                if (order.order_type === 'offline') {
+                  router.push(`/orders/offline-orders/${encodeURIComponent(order.order_id)}`);
+                  return;
+                }
+
+                router.push(`/orders?order_id=${encodeURIComponent(order.order_id)}`);
+              }}
+              onNavigateToProduct={
+                canViewBusinessInsights
+                  ? productId => router.push(`/products/${productId}`)
+                  : undefined
+              }
             />
           </DashboardErrorBoundary>
 
-          {/* Product Rankings */}
-          <DashboardErrorBoundary sectionName="Product Rankings">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ProductRankingTable
-                products={topProducts?.top_by_revenue || []}
-                loading={loading}
-                type="top"
-                metric="revenue"
-              />
-              <ProductRankingTable
-                products={topProducts?.top_by_quantity || []}
-                loading={loading}
-                type="top"
-                metric="quantity"
-              />
-            </div>
+          {canViewBusinessInsights && (
+            <>
+              {/* Product Rankings */}
+              <DashboardErrorBoundary sectionName="Product Rankings">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ProductRankingTable
+                    products={topProducts?.top_by_revenue || []}
+                    loading={loading}
+                    type="top"
+                    metric="revenue"
+                  />
+                  <ProductRankingTable
+                    products={topProducts?.top_by_quantity || []}
+                    loading={loading}
+                    type="top"
+                    metric="quantity"
+                  />
+                </div>
 
-            {/* Bottom Performers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ProductRankingTable
-                products={topProducts?.bottom_by_revenue || []}
-                loading={loading}
-                type="bottom"
-                metric="revenue"
-              />
-              <ProductRankingTable
-                products={topProducts?.bottom_by_quantity || []}
-                loading={loading}
-                type="bottom"
-                metric="quantity"
-              />
-            </div>
-          </DashboardErrorBoundary>
+                {/* Bottom Performers */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ProductRankingTable
+                    products={topProducts?.bottom_by_revenue || []}
+                    loading={loading}
+                    type="bottom"
+                    metric="revenue"
+                  />
+                  <ProductRankingTable
+                    products={topProducts?.bottom_by_quantity || []}
+                    loading={loading}
+                    type="bottom"
+                    metric="quantity"
+                  />
+                </div>
+              </DashboardErrorBoundary>
 
-          {/* Customer Rankings */}
-          <DashboardErrorBoundary sectionName="Customer Rankings">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CustomerRankingTable
-                customers={topCustomers?.top_by_spending || []}
-                loading={loading}
-                type="Spending"
-              />
-              <CustomerRankingTable
-                customers={topCustomers?.top_by_orders || []}
-                loading={loading}
-                type="Orders"
-              />
-            </div>
-          </DashboardErrorBoundary>
+              {/* Customer Rankings */}
+              <DashboardErrorBoundary sectionName="Customer Rankings">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <CustomerRankingTable
+                    customers={topCustomers?.top_by_spending || []}
+                    loading={loading}
+                    type="Spending"
+                  />
+                  <CustomerRankingTable
+                    customers={topCustomers?.top_by_orders || []}
+                    loading={loading}
+                    type="Orders"
+                  />
+                </div>
+              </DashboardErrorBoundary>
 
-          {/* Footer Note */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <svg
-                className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div className="text-sm text-blue-700">
-                <p className="font-medium">Data Privacy</p>
-                <p className="mt-1">
-                  Customer information is encrypted and masked to protect privacy. All analytics
-                  data is cached for performance and refreshed periodically.
-                </p>
+              {/* Footer Note */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg
+                    className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <div className="text-sm text-blue-700">
+                    <p className="font-medium">Data Privacy</p>
+                    <p className="mt-1">
+                      Customer information is encrypted and masked to protect privacy. All analytics
+                      data is cached for performance and refreshed periodically.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </AnalyticsLayout>
       </DashboardLayout>
     </ProtectedRoute>

@@ -59,6 +59,22 @@ type UserResponse struct {
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
+type TeamMemberResponse struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	Status    string    `json:"status"`
+	FirstName *string   `json:"firstName,omitempty"`
+	LastName  *string   `json:"lastName,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type TeamMemberUpdateRequest struct {
+	Role   *string `json:"role,omitempty"`
+	Status *string `json:"status,omitempty"`
+}
+
 func (u *User) ToResponse() *UserResponse {
 	return &UserResponse{
 		ID:          u.ID,
@@ -71,5 +87,18 @@ func (u *User) ToResponse() *UserResponse {
 		Locale:      u.Locale,
 		LastLoginAt: u.LastLoginAt,
 		CreatedAt:   u.CreatedAt,
+	}
+}
+
+func (u *User) ToTeamMemberResponse() *TeamMemberResponse {
+	return &TeamMemberResponse{
+		ID:        u.ID,
+		Email:     u.Email,
+		Role:      u.Role,
+		Status:    u.Status,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
 	}
 }

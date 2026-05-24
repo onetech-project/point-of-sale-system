@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import offlineOrderService from '../../services/offlineOrders';
 import { product as productService } from '../../services/product';
 import { formatCurrency } from '../../utils/format';
+import { sanitizeNumericPhone } from '../../utils/phone';
 import {
   CreateOfflineOrderRequest,
   ConsentMethod,
@@ -161,7 +162,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
     // Build request
     const request: CreateOfflineOrderRequest = {
       customer_name: customerName.trim(),
-      customer_phone: customerPhone.trim(),
+      customer_phone: sanitizeNumericPhone(customerPhone),
       customer_email: customerEmail.trim() || undefined,
       delivery_type: deliveryType,
       table_number: deliveryType === 'dine_in' ? tableNumber.trim() : undefined,
@@ -256,8 +257,10 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
           <input
             type="tel"
             value={customerPhone}
-            onChange={e => setCustomerPhone(e.target.value)}
-            placeholder="+62..."
+            onChange={e => setCustomerPhone(sanitizeNumericPhone(e.target.value))}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="081234567890"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             required
           />
