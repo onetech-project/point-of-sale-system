@@ -147,6 +147,17 @@ export const authService = {
       throw new Error('Failed to verify account. Please try again.');
     }
   },
+
+  async resendVerificationEmail(email: string): Promise<void> {
+    try {
+      await apiClient.post('/api/auth/resend-verification', { email });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to resend verification email. Please try again.');
+    }
+  },
 }
 
 export default authService;

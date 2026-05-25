@@ -40,4 +40,16 @@ describe('authService.registerTenant', () => {
       terms_version: '1.0.0',
     });
   });
+
+  it('sends verification resend requests with email only', async () => {
+    (apiClient.post as jest.Mock).mockResolvedValue({
+      message: 'If an unverified account exists, a verification email has been sent.',
+    });
+
+    await authService.resendVerificationEmail('owner@example.com');
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/auth/resend-verification', {
+      email: 'owner@example.com',
+    });
+  });
 });

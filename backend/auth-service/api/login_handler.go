@@ -130,6 +130,7 @@ func getLocalizedMessage(locale, key string) string {
 	messages := map[string]map[string]string{
 		"en": {
 			"validation.invalidRequest":    "Invalid request format",
+			"validation.emailInvalid":      "Invalid email format",
 			"validation.requiredFields":    "Email and password are required",
 			"auth.login.failed":            "Invalid email or password",
 			"auth.login.rateLimitExceeded": "Too many login attempts. Please try again later.",
@@ -139,10 +140,13 @@ func getLocalizedMessage(locale, key string) string {
 			"auth.session.invalid":         "Invalid session",
 			"auth.session.expired":         "Session expired",
 			"errors.internalServer":        "An error occurred. Please try again later.",
+			"server.internalError":         "An error occurred. Please try again later.",
+			"verification.resendSuccess":   "If an unverified account exists, a verification email has been sent.",
 			"verification.success":         "Account verified successfully.",
 		},
 		"id": {
 			"validation.invalidRequest":    "Format permintaan tidak valid",
+			"validation.emailInvalid":      "Format email tidak valid",
 			"validation.requiredFields":    "Email dan kata sandi wajib diisi",
 			"auth.login.failed":            "Email atau kata sandi tidak valid",
 			"auth.login.rateLimitExceeded": "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
@@ -152,6 +156,8 @@ func getLocalizedMessage(locale, key string) string {
 			"auth.session.invalid":         "Sesi tidak valid",
 			"auth.session.expired":         "Sesi kedaluwarsa",
 			"errors.internalServer":        "Terjadi kesalahan. Silakan coba lagi nanti.",
+			"server.internalError":         "Terjadi kesalahan. Silakan coba lagi nanti.",
+			"verification.resendSuccess":   "Jika akun belum diverifikasi ditemukan, email verifikasi telah dikirim.",
 			"verification.success":         "Akun berhasil diverifikasi.",
 		},
 	}

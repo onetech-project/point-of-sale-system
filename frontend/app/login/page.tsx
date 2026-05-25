@@ -195,7 +195,13 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Link
+                  href="/resend-verification"
+                  className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"
+                >
+                  {t('auth.resendVerification.loginLink')}
+                </Link>
                 <Link
                   href="/forgot-password"
                   className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"

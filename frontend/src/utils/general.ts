@@ -5,6 +5,7 @@ export const PUBLIC_PAGES = {
     '/signup',
     '/forgot-password',
     '/reset-password',
+    '/resend-verification',
     '/accept-invitation',
     '/verify-email',
     '/account-unavailable',

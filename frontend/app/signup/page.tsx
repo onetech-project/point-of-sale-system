@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/i18n/provider';
 import Link from 'next/link';
 import { authService } from '@/services/auth';
@@ -30,7 +29,6 @@ interface FormErrors {
 
 export default function SignupPage() {
   const { t } = useTranslation(['auth', 'common', 'consent']);
-  const router = useRouter();
 
   const [formData, setFormData] = useState<FormData>({
     businessName: '',
@@ -55,6 +53,8 @@ export default function SignupPage() {
   const [consentError, setConsentError] = useState<string>('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState('');
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState<'success' | 'error' | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -156,7 +156,7 @@ export default function SignupPage() {
         .map(([purpose_code]) => purpose_code); // Array of consent codes only
 
       // Register tenant with consents in single request
-      const registrationResponse = await authService.registerTenant({
+      await authService.registerTenant({
         businessName: formData.businessName,
         email: formData.email.toLowerCase(),
         password: formData.password,
@@ -170,14 +170,24 @@ export default function SignupPage() {
       });
 
       setStatus('success');
-
-      setTimeout(() => {
-        router.push('/login');
-      }, 5000);
     } catch (error) {
       setServerError(error instanceof Error ? error.message : t('auth.signup.errors.registrationFailed'));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsResendingVerification(true);
+    setResendStatus(null);
+
+    try {
+      await authService.resendVerificationEmail(formData.email.toLowerCase());
+      setResendStatus('success');
+    } catch {
+      setResendStatus('error');
+    } finally {
+      setIsResendingVerification(false);
     }
   };
 
@@ -187,14 +197,44 @@ export default function SignupPage() {
         <div className="max-w-md w-full">
           <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
             {status === 'success' && (
-              <div className='text-center'>
+              <div className="text-center space-y-5">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
                   <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('auth.signup.successTitle')}</h2>
-                <p className="text-gray-600">{t('auth.signup.successMessage')}</p>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('auth.signup.successTitle')}</h2>
+                  <p className="text-gray-600">{t('auth.signup.successMessage')}</p>
+                </div>
+
+                {resendStatus === 'success' && (
+                  <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+                    {t('auth.resendVerification.successMessage')}
+                  </div>
+                )}
+
+                {resendStatus === 'error' && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                    {t('auth.resendVerification.error')}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <Link href="/login" className="btn-primary w-full inline-flex items-center justify-center">
+                    {t('auth.signup.goToLogin')}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={isResendingVerification}
+                    className="w-full inline-flex items-center justify-center rounded-lg border border-primary-200 px-4 py-2.5 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isResendingVerification
+                      ? t('auth.resendVerification.sending')
+                      : t('auth.resendVerification.resendButton')}
+                  </button>
+                </div>
               </div>
             )}
             {status === null && (

@@ -136,6 +136,7 @@ func main() {
 	// Account verification endpoints
 	accountVerificationHandler := api.NewAccountVerificationHandler(authService)
 	e.POST("/verify-account", accountVerificationHandler.VerifyAccount)
+	e.POST("/resend-verification", accountVerificationHandler.ResendVerification)
 
 	// Password reset endpoints
 	passwordResetRepo, err := repository.NewPasswordResetRepositoryWithVault(db)

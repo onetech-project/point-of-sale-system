@@ -90,6 +90,7 @@ func main() {
 	registrationGroup := e.Group("")
 	registrationGroup.Use(rateLimiter.RateLimit(5, 30*time.Minute))
 	registrationGroup.POST("/api/tenants/register", proxyHandler(tenantServiceURL, "/register"))
+	registrationGroup.POST("/api/auth/resend-verification", proxyHandler(authServiceURL, "/resend-verification"))
 	public.GET("/api/public/tenants/:tenant_slug/config", func(c echo.Context) error {
 		tenantSlug := c.Param("tenant_slug")
 		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pos/auth-service/src/models"
@@ -15,6 +16,7 @@ import (
 
 type EventPublisher interface {
 	PublishUserLogin(ctx context.Context, tenantID, userID, email, name, ipAddress, userAgent string) error
+	PublishUserRegistered(ctx context.Context, tenantID, userID, email, name, verificationToken string) error
 }
 
 type AuthService struct {
@@ -323,6 +325,34 @@ func (s *AuthService) VerifyAccount(ctx context.Context, token string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *AuthService) ResendVerificationEmail(ctx context.Context, email string) error {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	now := time.Now()
+	newToken, err := generateSecureToken(32)
+	if err != nil {
+		return fmt.Errorf("failed to generate verification token: %w", err)
+	}
+
+	account, err := s.accountVerificationRepo.PrepareVerificationResend(ctx, normalizedEmail, now, newToken, now.Add(24*time.Hour))
+	if err != nil {
+		return err
+	}
+	if account == nil {
+		return nil
+	}
+
+	if s.eventPublisher == nil {
+		return nil
+	}
+
+	name := strings.TrimSpace(strings.Join([]string{account.FirstName, account.LastName}, " "))
+	if err := s.eventPublisher.PublishUserRegistered(ctx, account.TenantID, account.UserID, normalizedEmail, name, account.VerificationToken); err != nil {
+		log.Debug().Msgf("Warning: failed to publish verification resend event: %v\n", err)
+	}
+
 	return nil
 }
 
