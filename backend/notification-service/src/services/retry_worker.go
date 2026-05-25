@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -62,8 +61,7 @@ func (w *RetryWorker) processFailedNotifications(ctx context.Context) {
 
 	// Query failed notifications that are eligible for retry
 	query := `
-		SELECT id, tenant_id, user_id, type, status, event_type, subject, body, recipient, 
-		       metadata, sent_at, failed_at, error_msg, retry_count, created_at, updated_at
+		SELECT id
 		FROM notifications
 		WHERE status = 'failed'
 		  AND retry_count < 3
@@ -88,36 +86,19 @@ func (w *RetryWorker) processFailedNotifications(ctx context.Context) {
 
 	retryCount := 0
 	for rows.Next() {
-		var notification models.Notification
-		var metadataJSON []byte
-		var eventType string
-
-		err := rows.Scan(
-			&notification.ID,
-			&notification.TenantID,
-			&notification.UserID,
-			&notification.Type,
-			&notification.Status,
-			&eventType, // event_type column - not stored in model
-			&notification.Subject,
-			&notification.Body,
-			&notification.Recipient,
-			&metadataJSON,
-			&notification.SentAt,
-			&notification.FailedAt,
-			&notification.ErrorMsg,
-			&notification.RetryCount,
-			&notification.CreatedAt,
-			&notification.UpdatedAt,
-		)
-		if err != nil {
-			log.Printf("Failed to scan notification: %v", err)
+		var notificationID string
+		if err := rows.Scan(&notificationID); err != nil {
+			log.Printf("Failed to scan notification id: %v", err)
 			continue
 		}
 
-		// Deserialize metadata
-		if err := json.Unmarshal(metadataJSON, &notification.Metadata); err != nil {
-			log.Printf("Failed to unmarshal metadata for notification %s: %v", notification.ID, err)
+		notification, err := w.repo.GetByID(notificationID)
+		if err != nil {
+			log.Printf("Failed to load notification %s for retry: %v", notificationID, err)
+			continue
+		}
+		if notification == nil {
+			log.Printf("Notification %s disappeared before retry", notificationID)
 			continue
 		}
 
@@ -127,7 +108,7 @@ func (w *RetryWorker) processFailedNotifications(ctx context.Context) {
 		var retryErr error
 		switch notification.Type {
 		case models.NotificationTypeEmail:
-			retryErr = w.service.sendEmail(ctx, &notification)
+			retryErr = w.service.sendEmail(ctx, notification)
 		case models.NotificationTypePush:
 			// TODO: Implement push retry
 			log.Printf("Push notification retry not yet implemented")
