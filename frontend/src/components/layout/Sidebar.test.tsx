@@ -63,3 +63,20 @@ it('shows one Orders menu item and removes Offline Orders', () => {
   expect(screen.getByRole('link', { name: /^orders$/i })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /offline orders/i })).not.toBeInTheDocument();
 });
+
+it.each(['owner', 'manager', 'cashier'])('shows QR Generator to %s users', role => {
+  mockUseAuth.mockReturnValue({
+    user: {
+      email: `${role}@example.com`,
+      firstName: role,
+      role,
+    },
+    logout: jest.fn(),
+  } as any);
+
+  render(<Sidebar isOpen onClose={jest.fn()} />);
+
+  const qrLink = screen.getByRole('link', { name: /qr generator/i });
+  expect(qrLink).toBeInTheDocument();
+  expect(qrLink).toHaveAttribute('href', '/menu-qr');
+});
