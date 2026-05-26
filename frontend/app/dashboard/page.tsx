@@ -303,7 +303,10 @@ export default function AnalyticsDashboardPage() {
             <>
               {/* Metrics Cards */}
               <DashboardErrorBoundary sectionName="Sales Metrics">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div
+                  id="onboarding-business-metrics"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
                   <MetricCard
                     title="Total Revenue"
                     value={salesData ? formatCurrency(salesData.metrics.total_revenue, true) : '—'}
@@ -442,28 +445,30 @@ export default function AnalyticsDashboardPage() {
 
           {/* Operational Tasks (Delayed Orders & Low Stock) */}
           <DashboardErrorBoundary sectionName="Operational Tasks">
-            <TaskAlerts
-              delayedOrders={tasks?.delayed_orders.delayed_orders || []}
-              restockAlerts={tasks?.restock_alerts.restock_alerts || []}
-              loading={loading}
-              onNavigateToOrder={order => {
-                if (order.order_type === 'offline') {
-                  router.push(
-                    `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=offline`
-                  );
-                  return;
-                }
+            <div id="onboarding-operational-tasks">
+              <TaskAlerts
+                delayedOrders={tasks?.delayed_orders.delayed_orders || []}
+                restockAlerts={tasks?.restock_alerts.restock_alerts || []}
+                loading={loading}
+                onNavigateToOrder={order => {
+                  if (order.order_type === 'offline') {
+                    router.push(
+                      `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=offline`
+                    );
+                    return;
+                  }
 
-                router.push(
-                  `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=online`
-                );
-              }}
-              onNavigateToProduct={
-                canViewBusinessInsights
-                  ? productId => router.push(`/products/${productId}`)
-                  : undefined
-              }
-            />
+                  router.push(
+                    `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=online`
+                  );
+                }}
+                onNavigateToProduct={
+                  canViewBusinessInsights
+                    ? productId => router.push(`/products/${productId}`)
+                    : undefined
+                }
+              />
+            </div>
           </DashboardErrorBoundary>
 
           {canViewBusinessInsights && (

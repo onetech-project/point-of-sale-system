@@ -4,6 +4,7 @@ import { AuthProvider } from '@/store/auth';
 import { SubscriptionProvider } from '@/store/subscription';
 import { I18nProvider } from '@/i18n/provider';
 import { VersionUpdateBanner } from '@/components/common/VersionUpdateBanner';
+import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider';
 import '@/styles/globals.css';
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_NAME, defaultRobots, getSiteUrl } from './seo';
 
@@ -43,8 +44,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <I18nProvider>
           <AuthProvider>
             <SubscriptionProvider>
-              {children}
-              <VersionUpdateBanner />
+              <OnboardingProvider>
+                {children}
+                <VersionUpdateBanner />
+              </OnboardingProvider>
             </SubscriptionProvider>
           </AuthProvider>
         </I18nProvider>

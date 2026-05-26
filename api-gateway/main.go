@@ -223,6 +223,8 @@ func main() {
 		return proxyHandler(userServiceURL, "/api/v1/users/"+userID+"/notification-preferences")(c)
 	})
 
+	registerUserOnboardingRoutes(protected, userServiceURL)
+
 	// Audit service routes (owner only - compliance audit trail access)
 	auditGroup := protected.Group("/api/v1")
 	auditGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner))
@@ -346,6 +348,13 @@ func registerProductRoutes(protected *echo.Group, productServiceURL string) {
 	productGroup.DELETE("/api/v1/products*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+}
+
+func registerUserOnboardingRoutes(protected *echo.Group, userServiceURL string) {
+	onboardingGroup := protected.Group("/api/v1/users/onboarding")
+	onboardingGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
+	onboardingGroup.GET("/progress", proxyHandler(userServiceURL, "/api/v1/users/onboarding/progress"))
+	onboardingGroup.POST("/complete", proxyHandler(userServiceURL, "/api/v1/users/onboarding/complete"))
 }
 
 func proxyHandler(targetURL, path string) echo.HandlerFunc {

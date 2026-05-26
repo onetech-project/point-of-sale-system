@@ -72,7 +72,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <MidtransConfigBanner />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main id="onboarding-app-main" className="flex-1 overflow-y-auto p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
