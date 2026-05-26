@@ -330,6 +330,13 @@ func registerProductRoutes(protected *echo.Group, productServiceURL string) {
 	productReadGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
 	productReadGroup.GET("/api/v1/products*", proxyWildcard(productServiceURL))
 
+	// Product imports are asynchronous create-only catalog mutations, restricted to owner/manager.
+	productImportGroup := protected.Group("")
+	productImportGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	productImportGroup.GET("/api/v1/product-imports/template", proxyWildcard(productServiceURL))
+	productImportGroup.POST("/api/v1/product-imports", proxyWildcard(productServiceURL))
+	productImportGroup.GET("/api/v1/product-imports/:id", proxyWildcard(productServiceURL))
+
 	// Product service routes - only owner and manager can manage products.
 	productGroup := protected.Group("")
 	productGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))

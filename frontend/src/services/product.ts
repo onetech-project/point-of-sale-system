@@ -1,3 +1,4 @@
+import type { AxiosProgressEvent } from 'axios';
 import apiClient from './api';
 import {
   Product,
@@ -11,11 +12,72 @@ import {
   InventorySummary,
   CreateCategoryRequest,
   UpdateCategoryRequest,
+  ProductImportPollOptions,
+  ProductImportStartResponse,
+  ProductImportStatus,
+  ProductImportStatusResponse,
+  ProductImportTemplateDownload,
+  ProductImportTemplateFormat,
+  ProductImportUploadOptions,
 } from '../types/product';
 
 const PRODUCTS_BASE = '/api/v1/products';
 const CATEGORIES_BASE = '/api/v1/categories';
 const INVENTORY_BASE = '/api/v1/inventory';
+const PRODUCT_IMPORTS_BASE = '/api/v1/product-imports';
+
+const PRODUCT_IMPORT_TERMINAL_STATUSES = new Set<ProductImportStatus>([
+  'completed',
+  'success',
+  'succeeded',
+  'completed_with_errors',
+  'partial_success',
+  'failed',
+  'error',
+  'cancelled',
+  'canceled',
+]);
+
+const DEFAULT_IMPORT_POLL_INTERVAL_MS = 2000;
+const DEFAULT_IMPORT_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Product import polling was aborted.', 'AbortError'));
+      return;
+    }
+
+    const timeout = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeout);
+        reject(new DOMException('Product import polling was aborted.', 'AbortError'));
+      },
+      { once: true }
+    );
+  });
+
+const getFilenameFromContentDisposition = (
+  contentDisposition: string | undefined,
+  fallback: string
+): string => {
+  if (!contentDisposition) {
+    return fallback;
+  }
+
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    return decodeURIComponent(encodedMatch[1].replace(/"/g, ''));
+  }
+
+  const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return plainMatch?.[1] || fallback;
+};
+
+const isProductImportTerminalStatus = (status: ProductImportStatus) =>
+  PRODUCT_IMPORT_TERMINAL_STATUSES.has(status.toLowerCase() as ProductImportStatus);
 
 class ProductService {
   // ==================== Product Management ====================
@@ -113,6 +175,82 @@ class ProductService {
    */
   async restoreProduct(id: string): Promise<Product> {
     return apiClient.patch<Product>(`${PRODUCTS_BASE}/${id}/restore`);
+  }
+
+  // ==================== Bulk Product Import ====================
+
+  async downloadImportTemplate(
+    format: ProductImportTemplateFormat
+  ): Promise<ProductImportTemplateDownload> {
+    const response = await apiClient
+      .getAxiosInstance()
+      .get<Blob>(`${PRODUCT_IMPORTS_BASE}/template?format=${format}`, { responseType: 'blob' });
+
+    return {
+      blob: response.data,
+      filename: getFilenameFromContentDisposition(
+        response.headers['content-disposition'],
+        `product-import-template.${format}`
+      ),
+    };
+  }
+
+  async startProductImport(
+    file: File,
+    options: ProductImportUploadOptions = {}
+  ): Promise<ProductImportStartResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient
+      .getAxiosInstance()
+      .post<ProductImportStartResponse>(PRODUCT_IMPORTS_BASE, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        signal: options.signal,
+        onUploadProgress: (event: AxiosProgressEvent) => {
+          if (!event.total || !options.onUploadProgress) {
+            return;
+          }
+
+          options.onUploadProgress(Math.round((event.loaded * 100) / event.total));
+        },
+      });
+
+    return response.data;
+  }
+
+  async getProductImport(importId: string): Promise<ProductImportStatusResponse> {
+    return apiClient.get<ProductImportStatusResponse>(`${PRODUCT_IMPORTS_BASE}/${importId}`);
+  }
+
+  async pollProductImport(
+    importId: string,
+    options: ProductImportPollOptions = {}
+  ): Promise<ProductImportStatusResponse> {
+    const intervalMs = options.intervalMs ?? DEFAULT_IMPORT_POLL_INTERVAL_MS;
+    const timeoutMs = options.timeoutMs ?? DEFAULT_IMPORT_POLL_TIMEOUT_MS;
+    const startedAt = Date.now();
+
+    while (true) {
+      if (options.signal?.aborted) {
+        throw new DOMException('Product import polling was aborted.', 'AbortError');
+      }
+
+      const currentStatus = await this.getProductImport(importId);
+      options.onStatus?.(currentStatus);
+
+      if (isProductImportTerminalStatus(currentStatus.status)) {
+        return currentStatus;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        throw new Error('Product import polling timed out.');
+      }
+
+      await sleep(intervalMs, options.signal);
+    }
   }
 
   // ==================== Photo Management ====================

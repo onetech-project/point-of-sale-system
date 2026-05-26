@@ -1,0 +1,83 @@
+{
+  "landing": {
+    "hero": {
+      "titlePrefix": "Run Your Business More Clearly with",
+      "subtitle": "POS software for cafes, restaurants, and retail stores in Indonesia.",
+      "trial": "Start a free {{days}}-day trial. No credit card required.",
+      "primaryCta": "Start Free Trial",
+      "secondaryCta": "See Features",
+      "trust": "Built for Indonesian stores, cafes, and restaurant operations.",
+      "dashboard": {
+        "salesToday": "Today's Sales",
+        "orders": "Orders",
+        "customers": "Customers",
+        "topProducts": "Top Products"
+      }
+    },
+    "features": {
+      "title": "POS Features for Daily Operations",
+      "subtitle": "Everything you need to run orders, payments, inventory, reports, and teams in one place.",
+      "items": {
+        "onlineOrdering": {
+          "title": "Online Ordering with Menu Catalog",
+          "description": "Share a menu link or QR code. Customers can browse your catalog and place orders from their phones without installing an app."
+        },
+        "payment": {
+          "title": "Customer QRIS Payments",
+          "description": "Accept instant payments through QRIS with Midtrans. Works well with major e-wallets and banking apps in Indonesia."
+        },
+        "offlineOrder": {
+          "title": "Offline Order Management",
+          "description": "Record walk-in, phone, or WhatsApp orders in one system. Supports cash payments and installment schedules for orders outside the digital menu."
+        },
+        "analytics": {
+          "title": "Analytics Dashboard",
+          "description": "Track daily revenue, best-selling products, and customer trends from an easy-to-read business dashboard."
+        },
+        "inventory": {
+          "title": "Inventory Management",
+          "description": "Track stock in real time, get low-stock alerts, and keep an audit trail for every adjustment."
+        },
+        "team": {
+          "title": "Team Management",
+          "description": "Invite staff by email and assign Owner, Manager, or Cashier roles with access based on responsibility."
+        }
+      }
+    },
+    "pricing": {
+      "title": "Simple, Transparent Pricing",
+      "subtitle": "One plan for every feature. Start free with no credit card.",
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "savePercent": "Save {{percent}}%",
+      "trialBadge": "{{days}}-day free trial",
+      "monthlyPeriod": "per month",
+      "annualPeriod": "per month, billed annually",
+      "annualTotal": "{{price}}/year",
+      "annualSavings": "Save {{price}} per year",
+      "chooseAnnual": "Choose annual and save",
+      "primaryCta": "Start Free Trial",
+      "noCreditCard": "No credit card required",
+      "includedFeatures": "All features included",
+      "trialNote": "After the free {{days}}-day trial, choose monthly or annual billing. Cancel anytime without a long-term contract.",
+      "features": {
+        "onlineOrdering": "Online ordering with an easy-to-share menu link",
+        "payment": "QRIS and card payments through Midtrans",
+        "offlineOrder": "Offline order management and installment schedules",
+        "analytics": "Analytics dashboard and sales reports",
+        "inventory": "Inventory management with low-stock alerts",
+        "team": "Team management with role-based access",
+        "notifications": "Email notifications for orders and invoices",
+        "privacy": "Data privacy and audit logs for UU PDP needs",
+        "storage": "Up to 2 GB storage per workspace"
+      }
+    },
+    "cta": {
+      "title": "Ready to Run Cleaner Operations?",
+      "description": "Try Posku free for {{days}} days with no credit card. Start with online ordering, QRIS payments, inventory, and sales reporting dashboards.",
+      "primaryCta": "Start Free Trial",
+      "loginPrompt": "Already have an account?",
+      "loginLink": "Sign in here"
+    }
+  }
+}

@@ -104,6 +104,11 @@ func main() {
 		storageConfig.MaxPhotosPerProduct,
 	)
 
+	productImportService := services.NewProductImportService(config.DB, photoService)
+	productImportService.ResumeQueuedImports(ctx, 10)
+	productImportHandler := api.NewProductImportHandler(productImportService)
+	productImportHandler.RegisterRoutes(apiGroup)
+
 	// Initialize product service and handler with photo service
 	productService := services.NewProductService(productRepo)
 	productHandler := api.NewProductHandler(productService, photoService)

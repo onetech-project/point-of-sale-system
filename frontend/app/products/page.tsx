@@ -10,6 +10,8 @@ import ProductList from '@/components/products/ProductList';
 import { product } from '@/services/product';
 import { Category } from '@/types/product';
 import InventoryDashboard from '@/components/products/InventoryDashboard';
+import BulkProductImportModal from '@/components/products/BulkProductImportModal';
+import { Plus, Upload } from 'lucide-react';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -17,6 +19,8 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchCategories();
@@ -31,6 +35,11 @@ export default function ProductsPage() {
     }
   };
 
+  const handleImportComplete = () => {
+    fetchCategories();
+    setRefreshKey(key => key + 1);
+  };
+
   return (
     <ProtectedRoute allowedRoles={[ROLES.OWNER, ROLES.MANAGER]}>
       <DashboardLayout>
@@ -38,21 +47,29 @@ export default function ProductsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{t('products.title')}</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              {t('products.subtitle')}
-            </p>
+            <p className="mt-1 text-sm text-gray-500">{t('products.subtitle')}</p>
           </div>
-          <button
-            onClick={() => router.push('/products/new')}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            + {t('products.addProduct')}
-          </button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-700 bg-white border border-primary-200 rounded-lg hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              {t('products.bulkImport.openButton')}
+            </button>
+            <button
+              onClick={() => router.push('/products/new')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {t('products.addProduct')}
+            </button>
+          </div>
         </div>
 
         {/* Inventory Dashboard */}
         <div className="mb-6">
-          <InventoryDashboard />
+          <InventoryDashboard refreshKey={refreshKey} />
         </div>
 
         {/* Filters */}
@@ -64,11 +81,11 @@ export default function ProductsPage() {
             <select
               id="category-filter"
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={e => setSelectedCategory(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">{t('products.list.allCategories')}</option>
-              {categories.map((category) => (
+              {categories.map(category => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
@@ -81,7 +98,7 @@ export default function ProductsPage() {
               <input
                 type="checkbox"
                 checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
+                onChange={e => setShowArchived(e.target.checked)}
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span>{t('products.list.showArchived')}</span>
@@ -97,7 +114,17 @@ export default function ProductsPage() {
         </div>
 
         {/* Product List */}
-        <ProductList categoryFilter={selectedCategory} showArchived={showArchived} />
+        <ProductList
+          categoryFilter={selectedCategory}
+          showArchived={showArchived}
+          refreshKey={refreshKey}
+        />
+
+        <BulkProductImportModal
+          isOpen={showBulkImport}
+          onClose={() => setShowBulkImport(false)}
+          onImportComplete={handleImportComplete}
+        />
       </DashboardLayout>
     </ProtectedRoute>
   );

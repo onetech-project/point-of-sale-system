@@ -448,11 +448,15 @@ export default function AnalyticsDashboardPage() {
               loading={loading}
               onNavigateToOrder={order => {
                 if (order.order_type === 'offline') {
-                  router.push(`/orders/offline-orders/${encodeURIComponent(order.order_id)}`);
+                  router.push(
+                    `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=offline`
+                  );
                   return;
                 }
 
-                router.push(`/orders?order_id=${encodeURIComponent(order.order_id)}`);
+                router.push(
+                  `/orders?order_id=${encodeURIComponent(order.order_id)}&order_type=online`
+                );
               }}
               onNavigateToProduct={
                 canViewBusinessInsights

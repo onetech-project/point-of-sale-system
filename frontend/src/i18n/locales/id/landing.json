@@ -1,0 +1,83 @@
+{
+  "landing": {
+    "hero": {
+      "titlePrefix": "Kelola Bisnis Lebih Rapi dengan",
+      "subtitle": "Software POS untuk cafe, restoran, dan toko retail di Indonesia.",
+      "trial": "Mulai trial gratis {{days}} hari. Tanpa kartu kredit.",
+      "primaryCta": "Mulai Trial Gratis",
+      "secondaryCta": "Lihat Fitur",
+      "trust": "Dibuat untuk operasional toko, cafe, dan restoran Indonesia.",
+      "dashboard": {
+        "salesToday": "Penjualan Hari Ini",
+        "orders": "Order",
+        "customers": "Pelanggan",
+        "topProducts": "Produk Terlaris"
+      }
+    },
+    "features": {
+      "title": "Fitur POS untuk Operasional Harian",
+      "subtitle": "Semua yang dibutuhkan untuk menjalankan order, pembayaran, inventory, laporan, dan tim dalam satu tempat.",
+      "items": {
+        "onlineOrdering": {
+          "title": "Online Ordering dengan Katalog Menu",
+          "description": "Bagikan link atau QR code menu. Pelanggan bisa melihat katalog dan membuat order langsung dari ponsel tanpa install aplikasi."
+        },
+        "payment": {
+          "title": "Pembayaran QRIS Pelanggan",
+          "description": "Terima pembayaran instan lewat QRIS dengan Midtrans. Cocok untuk e-wallet dan aplikasi bank utama di Indonesia."
+        },
+        "offlineOrder": {
+          "title": "Manajemen Offline Order",
+          "description": "Catat order walk-in, telepon, atau WhatsApp di satu sistem. Dukung pembayaran tunai dan jadwal cicilan untuk order di luar menu digital."
+        },
+        "analytics": {
+          "title": "Dashboard Analytics",
+          "description": "Pantau omzet harian, produk terlaris, dan tren pelanggan dari dashboard bisnis yang mudah dibaca."
+        },
+        "inventory": {
+          "title": "Inventory Management",
+          "description": "Lacak stok secara real-time, dapatkan alert stok rendah, dan simpan audit trail untuk setiap penyesuaian."
+        },
+        "team": {
+          "title": "Team Management",
+          "description": "Undang staf lewat email dan atur role Owner, Manager, atau Cashier dengan akses sesuai tanggung jawab."
+        }
+      }
+    },
+    "pricing": {
+      "title": "Harga Sederhana dan Transparan",
+      "subtitle": "Satu paket untuk semua fitur. Mulai gratis tanpa kartu kredit.",
+      "monthly": "Bulanan",
+      "annual": "Tahunan",
+      "savePercent": "Hemat {{percent}}%",
+      "trialBadge": "Trial gratis {{days}} hari",
+      "monthlyPeriod": "per bulan",
+      "annualPeriod": "per bulan, dibayar tahunan",
+      "annualTotal": "{{price}}/tahun",
+      "annualSavings": "Hemat {{price}} per tahun",
+      "chooseAnnual": "Pilih tahunan dan hemat",
+      "primaryCta": "Mulai Trial Gratis",
+      "noCreditCard": "Tanpa kartu kredit",
+      "includedFeatures": "Semua fitur termasuk",
+      "trialNote": "Setelah trial gratis {{days}} hari, pilih billing bulanan atau tahunan. Batalkan kapan saja tanpa kontrak panjang.",
+      "features": {
+        "onlineOrdering": "Online ordering dengan link menu yang mudah dibagikan",
+        "payment": "Pembayaran QRIS dan kartu lewat Midtrans",
+        "offlineOrder": "Offline order management dan jadwal cicilan",
+        "analytics": "Dashboard analytics dan laporan penjualan",
+        "inventory": "Inventory management dengan alert stok rendah",
+        "team": "Team management dengan role-based access",
+        "notifications": "Email notification untuk order dan invoice",
+        "privacy": "Data privacy dan audit log sesuai kebutuhan UU PDP",
+        "storage": "Penyimpanan hingga 2 GB per workspace"
+      }
+    },
+    "cta": {
+      "title": "Siap Menjalankan Operasional Lebih Rapi?",
+      "description": "Coba Posku gratis {{days}} hari tanpa kartu kredit. Mulai dari online ordering, QRIS payment, inventory, sampai dashboard laporan penjualan.",
+      "primaryCta": "Mulai Trial Gratis",
+      "loginPrompt": "Sudah punya akun?",
+      "loginLink": "Masuk di sini"
+    }
+  }
+}

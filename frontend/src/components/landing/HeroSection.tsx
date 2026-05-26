@@ -2,8 +2,13 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/i18n/provider';
+
+const TRIAL_DAYS = 7;
 
 export default function HeroSection() {
+  const { t } = useTranslation(['landing']);
+
   const handleLearnMoreClick = () => {
     const featuresSection = document.getElementById('features');
     if (featuresSection) {
@@ -18,14 +23,14 @@ export default function HeroSection() {
           {/* Left side: Text content */}
           <div className="flex flex-col justify-center">
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 leading-tight mb-6">
-              Manage Your Business Smarter with{' '}
+              {t('landing.hero.titlePrefix')}{' '}
               <span className="text-primary-600">Posku</span>
             </h1>
             <p className="text-xl text-gray-600 mb-4">
-              Complete POS solution for restaurants, retail, and cafes
+              {t('landing.hero.subtitle')}
             </p>
             <p className="text-lg text-gray-500 mb-8">
-              Start your 7-day free trial today. No credit card required.
+              {t('landing.hero.trial', { days: TRIAL_DAYS })}
             </p>
 
             {/* CTA Buttons */}
@@ -34,13 +39,13 @@ export default function HeroSection() {
                 href="/signup"
                 className="inline-block px-8 py-4 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors text-center"
               >
-                Start Free Trial
+                {t('landing.hero.primaryCta')}
               </Link>
               <button
                 onClick={handleLearnMoreClick}
                 className="inline-block px-8 py-4 bg-white text-primary-600 font-semibold rounded-lg border-2 border-primary-600 hover:bg-primary-50 transition-colors"
               >
-                Learn More
+                {t('landing.hero.secondaryCta')}
               </button>
             </div>
 
@@ -57,7 +62,7 @@ export default function HeroSection() {
                 ))}
               </div>
               <p className="text-sm text-gray-600">
-                Trusted by 500+ businesses across Indonesia
+                {t('landing.hero.trust')}
               </p>
             </div>
           </div>
@@ -68,23 +73,31 @@ export default function HeroSection() {
               <div className="space-y-6">
                 {/* Mock dashboard stats */}
                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4">
-                  <p className="text-white text-sm opacity-75 mb-2">Today's Sales</p>
+                  <p className="text-white text-sm opacity-75 mb-2">
+                    {t('landing.hero.dashboard.salesToday')}
+                  </p>
                   <p className="text-white text-3xl font-bold">Rp 4,852,000</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4">
-                    <p className="text-white text-xs opacity-75 mb-2">Orders</p>
+                    <p className="text-white text-xs opacity-75 mb-2">
+                      {t('landing.hero.dashboard.orders')}
+                    </p>
                     <p className="text-white text-2xl font-bold">34</p>
                   </div>
                   <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4">
-                    <p className="text-white text-xs opacity-75 mb-2">Customers</p>
+                    <p className="text-white text-xs opacity-75 mb-2">
+                      {t('landing.hero.dashboard.customers')}
+                    </p>
                     <p className="text-white text-2xl font-bold">28</p>
                   </div>
                 </div>
 
                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4">
-                  <p className="text-white text-sm opacity-75 mb-3">Top Products</p>
+                  <p className="text-white text-sm opacity-75 mb-3">
+                    {t('landing.hero.dashboard.topProducts')}
+                  </p>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-white text-sm">Iced Latte</span>

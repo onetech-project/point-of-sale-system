@@ -52,7 +52,7 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 		SELECT od.id, od.order_reference, od.tenant_id, od.status, od.subtotal_amount, od.delivery_fee, od.total_amount,
 					od.customer_name, od.customer_phone, od.customer_email, od.delivery_type, od.table_number, od.notes,
 					od.created_at, od.paid_at, od.completed_at, od.cancelled_at, od.session_id, od.ip_address, od.user_agent, od.is_anonymized,
-					od.anonymized_at, t.slug as tenant_slug
+					od.anonymized_at, t.slug as tenant_slug, COALESCE(od.order_type, 'online') AS order_type
 		FROM guest_orders od
 		LEFT JOIN tenants t ON od.tenant_id = t.id
 		WHERE order_reference = $1
@@ -87,6 +87,7 @@ func (r *OrderRepository) GetOrderByReference(ctx context.Context, orderReferenc
 		&order.IsAnonymized,
 		&order.AnonymizedAt,
 		&order.TenantSlug,
+		&order.OrderType,
 	)
 
 	if err == sql.ErrNoRows {
@@ -140,7 +141,8 @@ func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID string) (*mo
 	query := `
 SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
        customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
-       created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
+       created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent,
+       COALESCE(order_type, 'online') AS order_type
 FROM guest_orders
 WHERE id = $1
 `
@@ -171,6 +173,7 @@ WHERE id = $1
 		&sessionID,
 		&encryptedIP,
 		&encryptedUA,
+		&order.OrderType,
 	)
 
 	if err == sql.ErrNoRows {
@@ -289,12 +292,14 @@ func (r *OrderRepository) ListOrdersByTenant(
 	ctx context.Context,
 	tenantID string,
 	status *models.OrderStatus,
+	orderType models.OrderTypeFilter,
 	limit, offset int,
 ) ([]*models.GuestOrder, error) {
 	query := `
 SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, total_amount,
        customer_name, customer_phone, customer_email, delivery_type, table_number, notes,
-       created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent
+       created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent,
+       COALESCE(order_type, 'online') AS order_type
 FROM guest_orders
 WHERE tenant_id = $1
 `
@@ -304,11 +309,28 @@ WHERE tenant_id = $1
 
 	if status != nil {
 		argCount++
-		query += ` AND status = $` + string(rune(argCount+'0'))
+		query += fmt.Sprintf(" AND status = $%d", argCount)
 		args = append(args, *status)
 	}
 
-	query += ` ORDER BY created_at DESC LIMIT $` + string(rune(argCount+1+'0')) + ` OFFSET $` + string(rune(argCount+2+'0'))
+	switch orderType {
+	case models.OrderTypeFilterOffline:
+		argCount++
+		query += fmt.Sprintf(" AND order_type = $%d", argCount)
+		args = append(args, models.OrderTypeOffline)
+	case models.OrderTypeFilterOnline:
+		argCount++
+		query += fmt.Sprintf(" AND COALESCE(order_type, 'online') = $%d", argCount)
+		args = append(args, models.OrderTypeOnline)
+	case models.OrderTypeFilterAll:
+		// No additional source filter.
+	default:
+		argCount++
+		query += fmt.Sprintf(" AND COALESCE(order_type, 'online') = $%d", argCount)
+		args = append(args, models.OrderTypeOnline)
+	}
+
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argCount+1, argCount+2)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -349,6 +371,7 @@ WHERE tenant_id = $1
 			&sessionID,
 			&encryptedIP,
 			&encryptedUA,
+			&order.OrderType,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan order row")

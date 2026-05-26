@@ -208,7 +208,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       if (onSuccess) {
         onSuccess(response.order.id);
       } else {
-        router.push(`/orders/offline-orders/${response.order.id}`);
+        router.push(`/orders?order_id=${encodeURIComponent(response.order.id)}&order_type=offline`);
       }
     } catch (err: any) {
       console.error('Failed to create offline order:', err);

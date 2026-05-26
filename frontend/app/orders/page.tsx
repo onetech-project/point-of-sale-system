@@ -1,10 +1,11 @@
 'use client';
 
 import React, { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { OrderManagement } from '@/components/admin/OrderManagement';
+import { OfflineOrderForm } from '@/components/orders/OfflineOrderForm';
 
 /**
  * Orders Page
@@ -13,7 +14,12 @@ import { OrderManagement } from '@/components/admin/OrderManagement';
  */
 function OrdersPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialOrderId = searchParams.get('order_id') || undefined;
+  const requestedOrderType = searchParams.get('order_type');
+  const initialOrderType = requestedOrderType === 'offline' ? 'offline' : 'online';
+  const mode = searchParams.get('mode');
+  const isNewOfflineMode = mode === 'new-offline';
 
   return (
     <ProtectedRoute>
@@ -27,9 +33,19 @@ function OrdersPageContent() {
             </p>
           </div>
 
-          {/* Order Management Component */}
-          {/* Tenant ID is extracted from session by API Gateway */}
-          <OrderManagement initialOrderId={initialOrderId} />
+          {isNewOfflineMode ? (
+            <OfflineOrderForm
+              onSuccess={(orderId) => {
+                router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
+              }}
+              onCancel={() => router.push('/orders')}
+            />
+          ) : (
+            <OrderManagement
+              initialOrderId={initialOrderId}
+              initialOrderType={initialOrderType}
+            />
+          )}
         </div>
       </DashboardLayout>
     </ProtectedRoute>

@@ -1,21 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { order, Order, OrderDocumentType, OrderWithDetails } from '../../services/order';
+import offlineOrderService from '../../services/offlineOrders';
 import ActionMenu from '../ui/ActionMenu';
+import { OfflineOrderDetail } from '../orders/OfflineOrderDetail';
 import { documentErrorMessage } from '../../utils/documentErrors';
 import { renderTextWithLinks } from '../../utils/text';
 import { formatCurrency } from '../../utils/format';
+import type { OfflineOrderWithDetails } from '../../types/offlineOrder';
+
+type OrderTypeParam = 'online' | 'offline';
 
 interface OrderManagementProps {
   // Removed tenantId - API Gateway extracts it from session
   authToken?: string;
   initialOrderId?: string;
+  initialOrderType?: OrderTypeParam;
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
   authToken,
   initialOrderId,
+  initialOrderType = 'online',
 }) => {
   const { t } = useTranslation();
   const router = useRouter();
@@ -26,6 +33,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [initialOrderError, setInitialOrderError] = useState<string | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderWithDetails | null>(null);
+  const [selectedOfflineOrderDetails, setSelectedOfflineOrderDetails] = useState<OfflineOrderWithDetails | null>(null);
+  const [offlineDetailLoading, setOfflineDetailLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -40,22 +49,54 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const ITEMS_PER_PAGE = 20;
 
+  const getOrderType = (orderDetails: OrderWithDetails): OrderTypeParam => (
+    orderDetails.order.order_type === 'offline' ? 'offline' : 'online'
+  );
+
+  const openOfflineOrder = useCallback(async (orderId: string) => {
+    try {
+      setOfflineDetailLoading(true);
+      setInitialOrderError(null);
+      setSelectedOrderDetails(null);
+      const offlineDetails = await offlineOrderService.getOfflineOrderWithDetails(orderId);
+      setSelectedOfflineOrderDetails(offlineDetails);
+    } catch (err) {
+      console.error('Failed to open offline order:', err);
+      setSelectedOfflineOrderDetails(null);
+      setInitialOrderError('Failed to open the selected offline order. Please refresh and try again.');
+    } finally {
+      setOfflineDetailLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, page]);
 
   useEffect(() => {
-    if (!initialOrderId || openedInitialOrderId.current === initialOrderId) {
+    if (!initialOrderId) {
+      openedInitialOrderId.current = null;
       return;
     }
 
-    openedInitialOrderId.current = initialOrderId;
+    const initialOrderKey = `${initialOrderType}:${initialOrderId}`;
+    if (openedInitialOrderId.current === initialOrderKey) {
+      return;
+    }
+
+    openedInitialOrderId.current = initialOrderKey;
     setInitialOrderError(null);
+
+    if (initialOrderType === 'offline') {
+      openOfflineOrder(initialOrderId);
+      return;
+    }
 
     const openInitialOrder = async () => {
       try {
         const orderDetails = await order.getOrderById(initialOrderId);
         setSelectedOrderDetails(orderDetails);
+        setSelectedOfflineOrderDetails(null);
         setOrdersWithDetails(prev => {
           if (prev.some(existing => existing.order.id === orderDetails.order.id)) {
             return prev;
@@ -69,7 +110,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     };
 
     openInitialOrder();
-  }, [initialOrderId]);
+  }, [initialOrderId, initialOrderType, openOfflineOrder]);
 
   const fetchOrders = async (): Promise<OrderWithDetails[]> => {
     try {
@@ -79,6 +120,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
       const filters: any = {
         page,
         limit: ITEMS_PER_PAGE,
+        order_type: 'all',
       };
 
       if (statusFilter !== 'all') {
@@ -103,6 +145,12 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   };
 
   const handleOrderClick = (orderDetails: OrderWithDetails) => {
+    if (getOrderType(orderDetails) === 'offline') {
+      openOfflineOrder(orderDetails.order.id);
+      return;
+    }
+
+    setSelectedOfflineOrderDetails(null);
     setSelectedOrderDetails(orderDetails);
   };
 
@@ -114,6 +162,25 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     if (initialOrderId) {
       router.replace('/orders', { scroll: false });
     }
+  };
+
+  const handleCloseOfflineDetail = () => {
+    setSelectedOfflineOrderDetails(null);
+    setInitialOrderError(null);
+    if (initialOrderId) {
+      router.replace('/orders', { scroll: false });
+    }
+  };
+
+  const handleRefreshOfflineDetail = async () => {
+    if (!selectedOfflineOrderDetails) return;
+    await openOfflineOrder(selectedOfflineOrderDetails.order.id);
+  };
+
+  const handleOfflineDeleted = async () => {
+    setSelectedOfflineOrderDetails(null);
+    await fetchOrders();
+    router.replace('/orders', { scroll: false });
   };
 
   const isValidCustomerEmail = (email?: string): boolean => {
@@ -134,9 +201,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const selectedOrders = ordersWithDetails.filter(orderDetails =>
     selectedOrderIds.has(orderDetails.order.id)
   );
+  const selectedOrdersContainOffline = selectedOrders.some(orderDetails => getOrderType(orderDetails) === 'offline');
 
   const selectedBatchIsValid =
     selectedOrders.length > 0 &&
+    !selectedOrdersContainOffline &&
     selectedOrders.every(orderDetails => canDownloadDocument(orderDetails, batchDocumentType));
 
   const allCurrentPageSelected =
@@ -181,7 +250,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const handleDownloadDocument = async (orderDetails: OrderWithDetails, documentType: OrderDocumentType) => {
     try {
       setDocumentAction(`${orderDetails.order.id}-${documentType}-download`);
-      const document = await order.downloadOrderDocument(orderDetails.order.id, documentType);
+      const document =
+        getOrderType(orderDetails) === 'offline'
+          ? await offlineOrderService.downloadDocument(orderDetails.order.id, documentType)
+          : await order.downloadOrderDocument(orderDetails.order.id, documentType);
       downloadBlob(document.blob, document.filename);
     } catch (err) {
       console.error('Failed to download order document:', err);
@@ -194,7 +266,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const handleResendDocument = async (orderDetails: OrderWithDetails, documentType: OrderDocumentType) => {
     try {
       setDocumentAction(`${orderDetails.order.id}-${documentType}-resend`);
-      await order.resendOrderDocument(orderDetails.order.id, documentType);
+      if (getOrderType(orderDetails) === 'offline') {
+        await offlineOrderService.resendDocument(orderDetails.order.id, documentType);
+      } else {
+        await order.resendOrderDocument(orderDetails.order.id, documentType);
+      }
       alert(`${documentType === 'invoice' ? 'Invoice' : 'Receipt'} resend queued.`);
     } catch (err) {
       console.error('Failed to resend order document:', err);
@@ -304,6 +380,16 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     }
   };
 
+  const getOrderTypeColor = (type: OrderTypeParam): string => {
+    return type === 'offline'
+      ? 'bg-amber-100 text-amber-800'
+      : 'bg-indigo-100 text-indigo-800';
+  };
+
+  const getOrderTypeLabel = (type: OrderTypeParam): string => {
+    return type === 'offline' ? 'Offline' : 'Online';
+  };
+
   const getDeliveryTypeLabel = (type: string): string => {
     switch (type) {
       case 'delivery':
@@ -325,19 +411,52 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     );
   }
 
+  if (offlineDetailLoading) {
+    return (
+      <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">Loading order details...</p>
+      </div>
+    );
+  }
+
+  if (selectedOfflineOrderDetails) {
+    return (
+      <OfflineOrderDetail
+        order={selectedOfflineOrderDetails.order}
+        items={selectedOfflineOrderDetails.items}
+        paymentTerms={selectedOfflineOrderDetails.payment_terms}
+        paymentRecords={selectedOfflineOrderDetails.payment_records}
+        onRefresh={handleRefreshOfflineDetail}
+        onBack={handleCloseOfflineDetail}
+        onRecordPayment={() => router.push(`/orders/offline-orders/${selectedOfflineOrderDetails.order.id}/payments`)}
+        onEdit={() => router.push(`/orders/offline-orders/${selectedOfflineOrderDetails.order.id}/edit`)}
+        onDeleted={handleOfflineDeleted}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with Filters */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
-          <button
-            onClick={fetchOrders}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => router.push('/orders?mode=new-offline')}
+              className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+            >
+              New Offline Order
+            </button>
+            <button
+              onClick={fetchOrders}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Status Filter */}
@@ -362,7 +481,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t pt-4">
           <div className="text-sm text-gray-700">
             {selectedOrders.length} selected
-            {selectedOrders.length > 0 && !selectedBatchIsValid && (
+            {selectedOrdersContainOffline && (
+              <span className="ml-2 text-red-600">Batch ZIP is available for online orders only.</span>
+            )}
+            {!selectedOrdersContainOffline && selectedOrders.length > 0 && !selectedBatchIsValid && (
               <span className="ml-2 text-red-600">Selection contains ineligible orders.</span>
             )}
           </div>
@@ -425,10 +547,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       Order Reference
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Order Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Customer
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
+                      Fulfillment
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total
@@ -445,12 +570,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {ordersWithDetails.map((orderDetails) => (
-                    <tr
-                      key={orderDetails.order.id}
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleOrderClick(orderDetails)}
-                    >
+                  {ordersWithDetails.map((orderDetails) => {
+                    const orderType = getOrderType(orderDetails);
+
+                    return (
+                      <tr
+                        key={orderDetails.order.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleOrderClick(orderDetails)}
+                      >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -464,6 +592,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="font-mono text-sm font-medium text-gray-900">
                           {orderDetails.order.order_reference}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getOrderTypeColor(
+                            orderType
+                          )}`}
+                        >
+                          {getOrderTypeLabel(orderType)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -527,8 +664,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                           ]}
                         />
                       </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

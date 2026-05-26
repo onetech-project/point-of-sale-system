@@ -16,7 +16,7 @@ describe('PricingSection', () => {
     render(<PricingSection />);
 
     expect(screen.getByText(/Rp\s*299\.000/)).toBeInTheDocument();
-    expect(screen.getByText('7-day free trial')).toBeInTheDocument();
+    expect(screen.getByText('Trial gratis 7 hari')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/v1/public/plans');
@@ -39,7 +39,7 @@ describe('PricingSection', () => {
       expect(screen.getByText(/Rp\s*400\.000/)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('14-day free trial')).toBeInTheDocument();
-    expect(screen.getByText('Save 30%')).toBeInTheDocument();
+    expect(screen.getByText('Trial gratis 14 hari')).toBeInTheDocument();
+    expect(screen.getByText('Hemat 30%')).toBeInTheDocument();
   });
 });

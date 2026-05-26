@@ -53,9 +53,10 @@ func (s *OrderService) ListOrdersByTenant(
 	ctx context.Context,
 	tenantID string,
 	status *models.OrderStatus,
+	orderType models.OrderTypeFilter,
 	limit, offset int,
 ) ([]*models.GuestOrder, error) {
-	return s.orderRepo.ListOrdersByTenant(ctx, tenantID, status, limit, offset)
+	return s.orderRepo.ListOrdersByTenant(ctx, tenantID, status, orderType, limit, offset)
 }
 
 // UpdateOrderStatus updates order status with validation

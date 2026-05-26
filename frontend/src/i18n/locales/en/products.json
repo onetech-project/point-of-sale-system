@@ -3,6 +3,57 @@
     "title": "Products",
     "subtitle": "Manage your product catalog and inventory",
     "addProduct": "Add Product",
+    "bulkImport": {
+      "openButton": "Bulk Import",
+      "title": "Bulk Product Import",
+      "subtitle": "Import products and stock from a CSV or XLSX file",
+      "templateTitle": "Template",
+      "columnsTitle": "Columns",
+      "fileTitle": "Import file",
+      "downloadCSV": "Download CSV",
+      "downloadXLSX": "Download XLSX",
+      "selectFileButton": "Choose CSV or XLSX file",
+      "startButton": "Start Import",
+      "importingButton": "Importing...",
+      "doneButton": "Done",
+      "importId": "Import ID",
+      "summaryTitle": "Summary",
+      "errorsTitle": "Row Errors",
+      "warningsTitle": "Warnings",
+      "noErrors": "No row errors",
+      "noWarnings": "No warnings",
+      "progress": {
+        "ready": "Ready to import",
+        "uploading": "Uploading file",
+        "processing": "Processing import",
+        "completed": "Import completed",
+        "failed": "Import failed"
+      },
+      "messages": {
+        "fileRequired": "Choose a CSV or XLSX file before starting the import.",
+        "invalidFile": "Only CSV and XLSX files are supported.",
+        "templateDownloadError": "Failed to download the template. Please try again.",
+        "importFailed": "Failed to import products. Please review the file and try again.",
+        "importCompleted": "Products imported successfully.",
+        "importAccepted": "Import completed."
+      },
+      "summary": {
+        "totalRows": "Total Rows",
+        "processedRows": "Processed",
+        "importedRows": "Imported",
+        "created": "Created",
+        "updated": "Updated",
+        "skipped": "Skipped",
+        "failed": "Failed",
+        "warnings": "Warnings"
+      },
+      "table": {
+        "row": "Row",
+        "sku": "SKU",
+        "field": "Field",
+        "message": "Message"
+      }
+    },
     "editProduct": "Edit Product",
     "deleteProduct": "Delete Product",
     "archiveProduct": "Archive Product",

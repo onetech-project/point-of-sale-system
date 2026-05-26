@@ -21,6 +21,7 @@
     "of": "of",
     "units": "units",
     "language": "Language",
+    "changeLanguage": "Change language",
     "english": "English",
     "indonesian": "Indonesian",
     "appName": "Posku",
@@ -94,15 +95,18 @@
     "notesPlaceholder": "Type your notes here...",
     "actions": "Actions",
     "footer": {
-      "description": "Modern point of sale system for your business. Manage inventory, sales, and customers efficiently.",
+      "description": "POS software for stores, cafes, and restaurants in Indonesia. Manage orders, inventory, payments, and sales reports in one dashboard.",
       "product": "Product",
       "features": "Features",
       "pricing": "Pricing",
       "documentation": "Documentation",
+      "terms": "Terms of Service",
       "support": "Support",
       "helpCenter": "Help Center",
       "contact": "Contact",
       "privacy": "Privacy Policy",
+      "emailSupport": "Support Email",
+      "startTrial": "Start Trial",
       "rights": "All rights reserved."
     }
   }

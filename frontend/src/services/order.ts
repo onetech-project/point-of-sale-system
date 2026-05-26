@@ -23,6 +23,7 @@ export interface OrderListResponse {
 }
 
 export type OrderDocumentType = 'invoice' | 'receipt';
+export type AdminOrderTypeFilter = 'all' | 'online' | 'offline';
 
 export interface DownloadedOrderDocument {
   blob: Blob;
@@ -115,11 +116,13 @@ class GuestOrderService {
       status?: string;
       page?: number;
       limit?: number;
+      order_type?: AdminOrderTypeFilter;
     }
   ): Promise<OrderListResponse> {
     try {
       const params = new URLSearchParams();
       if (filters?.status) params.append('status', filters.status);
+      if (filters?.order_type) params.append('order_type', filters.order_type);
       if (filters?.limit) params.append('limit', filters.limit.toString());
       // Convert page to offset for backend
       if (filters?.page && filters?.limit) {

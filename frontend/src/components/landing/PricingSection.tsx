@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/i18n/provider';
 
 // Fallback values — kept in sync with tenant-service env defaults.
 // Once the billing service is deployed, GET /api/v1/public/plans
@@ -32,19 +33,20 @@ function CheckIcon() {
   );
 }
 
-const ALL_FEATURES = [
-  'Online ordering with shareable menu link',
-  'Customer QRIS & card payments via Midtrans',
-  'Offline order management & installment plans',
-  'Dashboard analytics & revenue reports',
-  'Inventory management with low-stock alerts',
-  'Team management with role-based access',
-  'Email notifications for orders & invoices',
-  'Data privacy & audit log (UU PDP compliant)',
-  'Up to 2 GB storage per workspace',
+const FEATURE_KEYS = [
+  'onlineOrdering',
+  'payment',
+  'offlineOrder',
+  'analytics',
+  'inventory',
+  'team',
+  'notifications',
+  'privacy',
+  'storage',
 ];
 
 export default function PricingSection() {
+  const { t } = useTranslation(['landing']);
   const [isAnnual, setIsAnnual] = useState(false);
   const [plan, setPlan] = useState<PlanData>({
     monthly_price_idr: MONTHLY_PRICE,
@@ -79,10 +81,10 @@ export default function PricingSection() {
         {/* Header */}
         <div className="text-center mb-12">
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Simple, Transparent Pricing
+            {t('landing.pricing.title')}
           </h2>
           <p className="text-xl text-gray-600 max-w-xl mx-auto">
-            One plan. All features. Start free — no credit card required.
+            {t('landing.pricing.subtitle')}
           </p>
         </div>
 
@@ -95,7 +97,7 @@ export default function PricingSection() {
                 !isAnnual ? 'bg-white text-primary-600 shadow' : 'text-gray-500'
               }`}
             >
-              Monthly
+              {t('landing.pricing.monthly')}
             </button>
             <button
               onClick={() => setIsAnnual(true)}
@@ -103,10 +105,10 @@ export default function PricingSection() {
                 isAnnual ? 'bg-white text-primary-600 shadow' : 'text-gray-500'
               }`}
             >
-              Annual
+              {t('landing.pricing.annual')}
               {!isAnnual && (
                 <span className="ml-2 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
-                  Save {plan.annual_discount_pct}%
+                  {t('landing.pricing.savePercent', { percent: plan.annual_discount_pct })}
                 </span>
               )}
             </button>
@@ -123,7 +125,7 @@ export default function PricingSection() {
               {/* Left: price block */}
               <div className="flex-shrink-0">
                 <div className="inline-flex items-center bg-primary-50 text-primary-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
-                  {plan.trial_days}-day free trial
+                  {t('landing.pricing.trialBadge', { days: plan.trial_days })}
                 </div>
 
                 {isAnnual ? (
@@ -131,15 +133,17 @@ export default function PricingSection() {
                     <div className="text-5xl font-extrabold text-gray-900 leading-none">
                       {formatRp(annualMonthly)}
                     </div>
-                    <div className="text-gray-500 text-sm mt-1">per month, billed annually</div>
+                    <div className="text-gray-500 text-sm mt-1">
+                      {t('landing.pricing.annualPeriod')}
+                    </div>
                     <div className="mt-2 text-gray-400 text-sm">
                       <span className="line-through">{formatRp(monthlyPrice * 12)}</span> &rarr;{' '}
                       <span className="text-green-600 font-semibold">
-                        {formatRp(annualTotal)}/year
+                        {t('landing.pricing.annualTotal', { price: formatRp(annualTotal) })}
                       </span>
                     </div>
                     <div className="mt-1 text-green-600 text-sm font-medium">
-                      You save {formatRp(annualSavings)} per year
+                      {t('landing.pricing.annualSavings', { price: formatRp(annualSavings) })}
                     </div>
                   </>
                 ) : (
@@ -147,9 +151,11 @@ export default function PricingSection() {
                     <div className="text-5xl font-extrabold text-gray-900 leading-none">
                       {formatRp(monthlyPrice)}
                     </div>
-                    <div className="text-gray-500 text-sm mt-1">per month</div>
+                    <div className="text-gray-500 text-sm mt-1">
+                      {t('landing.pricing.monthlyPeriod')}
+                    </div>
                     <div className="mt-2 text-gray-400 text-sm">
-                      Switch to annual &amp; save{' '}
+                      {t('landing.pricing.chooseAnnual')}{' '}
                       <span className="text-green-600 font-semibold">
                         {plan.annual_discount_pct}%
                       </span>
@@ -161,9 +167,11 @@ export default function PricingSection() {
                   href="/signup"
                   className="mt-6 block w-full py-3 px-4 rounded-xl bg-primary-600 text-white font-bold text-center hover:bg-primary-700 transition-colors"
                 >
-                  Start Free Trial
+                  {t('landing.pricing.primaryCta')}
                 </Link>
-                <p className="text-center text-xs text-gray-400 mt-2">No credit card required</p>
+                <p className="text-center text-xs text-gray-400 mt-2">
+                  {t('landing.pricing.noCreditCard')}
+                </p>
               </div>
 
               {/* Divider */}
@@ -172,13 +180,15 @@ export default function PricingSection() {
               {/* Right: features */}
               <div className="flex-1">
                 <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                  Everything included
+                  {t('landing.pricing.includedFeatures')}
                 </p>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {ALL_FEATURES.map((feature, i) => (
-                    <li key={i} className="flex items-start">
+                  {FEATURE_KEYS.map(featureKey => (
+                    <li key={featureKey} className="flex items-start">
                       <CheckIcon />
-                      <span className="text-gray-700 text-sm">{feature}</span>
+                      <span className="text-gray-700 text-sm">
+                        {t(`landing.pricing.features.${featureKey}`)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -189,8 +199,7 @@ export default function PricingSection() {
 
         {/* Trial note */}
         <p className="text-center text-gray-500 text-sm mt-8">
-          After your {plan.trial_days}-day free trial, choose monthly or annual billing. Cancel
-          anytime — no lock-in.
+          {t('landing.pricing.trialNote', { days: plan.trial_days })}
         </p>
       </div>
     </section>

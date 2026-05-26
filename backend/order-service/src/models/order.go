@@ -32,6 +32,15 @@ const (
 	OrderTypeOffline OrderType = "offline"
 )
 
+// OrderTypeFilter controls admin order list source filtering.
+type OrderTypeFilter string
+
+const (
+	OrderTypeFilterAll     OrderTypeFilter = "all"
+	OrderTypeFilterOnline  OrderTypeFilter = "online"
+	OrderTypeFilterOffline OrderTypeFilter = "offline"
+)
+
 // ConsentMethod represents how customer consent was obtained for data collection
 type ConsentMethod string
 
@@ -68,12 +77,12 @@ type GuestOrder struct {
 	TenantSlug     string       `json:"tenant_slug"`
 
 	// Offline order fields (Phase: 008-offline-orders)
-	OrderType              OrderType      `json:"order_type"`
-	DataConsentGiven       bool           `json:"data_consent_given"`
-	ConsentMethod          *ConsentMethod `json:"consent_method,omitempty"`
-	RecordedByUserID       *string        `json:"recorded_by_user_id,omitempty"`
-	LastModifiedByUserID   *string        `json:"last_modified_by_user_id,omitempty"`
-	LastModifiedAt         *time.Time     `json:"last_modified_at,omitempty"`
+	OrderType            OrderType      `json:"order_type"`
+	DataConsentGiven     bool           `json:"data_consent_given"`
+	ConsentMethod        *ConsentMethod `json:"consent_method,omitempty"`
+	RecordedByUserID     *string        `json:"recorded_by_user_id,omitempty"`
+	LastModifiedByUserID *string        `json:"last_modified_by_user_id,omitempty"`
+	LastModifiedAt       *time.Time     `json:"last_modified_at,omitempty"`
 }
 
 // CreateOrderRequest represents the request to create a new order
@@ -189,13 +198,13 @@ func (o *GuestOrder) RequiresPayment() bool {
 // UpdateOfflineOrderRequest represents request to update offline order fields
 // T074: Support for partial updates with optional fields
 type UpdateOfflineOrderRequest struct {
-	CustomerName  *string       `json:"customer_name,omitempty"`
-	CustomerPhone *string       `json:"customer_phone,omitempty"`
-	CustomerEmail *string       `json:"customer_email,omitempty"`
-	DeliveryType  *DeliveryType `json:"delivery_type,omitempty"`
-	TableNumber   *string       `json:"table_number,omitempty"`
-	Notes         *string       `json:"notes,omitempty"`
-	DeliveryFee   *int          `json:"delivery_fee,omitempty"`
+	CustomerName  *string          `json:"customer_name,omitempty"`
+	CustomerPhone *string          `json:"customer_phone,omitempty"`
+	CustomerEmail *string          `json:"customer_email,omitempty"`
+	DeliveryType  *DeliveryType    `json:"delivery_type,omitempty"`
+	TableNumber   *string          `json:"table_number,omitempty"`
+	Notes         *string          `json:"notes,omitempty"`
+	DeliveryFee   *int             `json:"delivery_fee,omitempty"`
 	Items         []OrderItemInput `json:"items,omitempty"`
 }
 

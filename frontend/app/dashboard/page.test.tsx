@@ -181,7 +181,7 @@ beforeEach(() => {
   });
 });
 
-it('routes offline delayed orders directly to the offline order detail page', async () => {
+it('routes offline delayed orders to the unified order detail query', async () => {
   mockUseAuth.mockReturnValue({
     user: { role: 'cashier' },
     isLoading: false,
@@ -192,7 +192,7 @@ it('routes offline delayed orders directly to the offline order detail page', as
   fireEvent.click(await screen.findByRole('button', { name: 'Open delayed order' }));
 
   expect(mockPush).toHaveBeenCalledWith(
-    '/orders/offline-orders/f423dcbf-1256-4fa8-a543-2d2c0ecb2bbe'
+    '/orders?order_id=f423dcbf-1256-4fa8-a543-2d2c0ecb2bbe&order_type=offline'
   );
 });
 
@@ -213,7 +213,7 @@ it('routes online delayed orders to the order management detail query', async ()
 
   fireEvent.click(await screen.findByRole('button', { name: 'Open delayed order' }));
 
-  expect(mockPush).toHaveBeenCalledWith('/orders?order_id=online-order-123');
+  expect(mockPush).toHaveBeenCalledWith('/orders?order_id=online-order-123&order_type=online');
 });
 
 it('routes delayed orders without an order type to the order management detail query', async () => {
@@ -233,7 +233,7 @@ it('routes delayed orders without an order type to the order management detail q
   fireEvent.click(await screen.findByRole('button', { name: 'Open delayed order' }));
 
   expect(mockPush).toHaveBeenCalledWith(
-    '/orders?order_id=default-order-123'
+    '/orders?order_id=default-order-123&order_type=online'
   );
 });
 

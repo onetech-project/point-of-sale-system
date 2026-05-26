@@ -19,6 +19,8 @@ import privacySettingsEn from './locales/en/privacy_settings.json';
 import privacySettingsId from './locales/id/privacy_settings.json';
 import AuditEn from './locales/en/audit.json';
 import AuditId from './locales/id/audit.json';
+import landingEn from './locales/en/landing.json';
+import landingId from './locales/id/landing.json';
 
 const resources = {
   en: {
@@ -31,6 +33,7 @@ const resources = {
     guest_data: guestDataEn,
     privacy_settings: privacySettingsEn,
     audit: AuditEn,
+    landing: landingEn,
   },
   id: {
     common: commonId,
@@ -42,13 +45,16 @@ const resources = {
     guest_data: guestDataId,
     privacy_settings: privacySettingsId,
     audit: AuditId,
+    landing: landingId,
   },
 };
 
+const DEFAULT_LOCALE = 'id';
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: typeof window !== 'undefined' ? localStorage.getItem('locale') || 'en' : 'en',
-  fallbackLng: 'en',
+  lng: DEFAULT_LOCALE,
+  fallbackLng: DEFAULT_LOCALE,
   interpolation: {
     escapeValue: false,
   },

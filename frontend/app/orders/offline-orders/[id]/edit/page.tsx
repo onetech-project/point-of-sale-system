@@ -92,7 +92,7 @@ export default function EditOfflineOrderPage() {
             `Cannot edit order with status ${orderData.status}. Only PENDING orders can be edited.`
           );
           setTimeout(() => {
-            router.push(`/orders/offline-orders/${orderId}`);
+            router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
           }, 2000);
           return;
         }
@@ -231,7 +231,7 @@ export default function EditOfflineOrderPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        router.push(`/orders/offline-orders/${orderId}`);
+        router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
       }, 1000);
     } catch (err: any) {
       console.error('Failed to update order:', err);
@@ -242,7 +242,7 @@ export default function EditOfflineOrderPage() {
   };
 
   const handleCancel = () => {
-    router.push(`/orders/offline-orders/${orderId}`);
+    router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
   };
 
   return (

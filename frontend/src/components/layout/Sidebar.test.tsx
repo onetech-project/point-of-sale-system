@@ -4,8 +4,10 @@ import '@testing-library/jest-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '@/store/auth';
 
+let mockPathname = '/dashboard';
+
 jest.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => mockPathname,
   useRouter: () => ({ push: jest.fn() }),
 }));
 
@@ -26,6 +28,11 @@ jest.mock('./LanguageSwitcher', () => ({
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 
+beforeEach(() => {
+  mockPathname = '/dashboard';
+  jest.clearAllMocks();
+});
+
 it('shows the settings menu to managers', () => {
   mockUseAuth.mockReturnValue({
     user: {
@@ -39,4 +46,20 @@ it('shows the settings menu to managers', () => {
   render(<Sidebar isOpen onClose={jest.fn()} />);
 
   expect(screen.getByRole('link', { name: /settings/i })).toBeInTheDocument();
+});
+
+it('shows one Orders menu item and removes Offline Orders', () => {
+  mockUseAuth.mockReturnValue({
+    user: {
+      email: 'cashier@example.com',
+      firstName: 'Cici',
+      role: 'cashier',
+    },
+    logout: jest.fn(),
+  } as any);
+
+  render(<Sidebar isOpen onClose={jest.fn()} />);
+
+  expect(screen.getByRole('link', { name: /^orders$/i })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /offline orders/i })).not.toBeInTheDocument();
 });

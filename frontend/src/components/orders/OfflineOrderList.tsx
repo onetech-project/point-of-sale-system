@@ -10,9 +10,15 @@ import { OfflineOrder, OrderStatus, ListOfflineOrdersFilters } from '../../types
 
 interface OfflineOrderListProps {
   initialFilters?: ListOfflineOrdersFilters;
+  onOrderSelect?: (orderId: string) => void;
+  onCreateNew?: () => void;
 }
 
-export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilters }) => {
+export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({
+  initialFilters,
+  onOrderSelect,
+  onCreateNew,
+}) => {
   const router = useRouter();
   const [orders, setOrders] = useState<OfflineOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,8 +29,8 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
   const [documentAction, setDocumentAction] = useState<string | null>(null);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>(initialFilters?.status || 'ALL');
+  const [searchQuery, setSearchQuery] = useState(initialFilters?.search || '');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -68,11 +74,19 @@ export const OfflineOrderList: React.FC<OfflineOrderListProps> = ({ initialFilte
   };
 
   const handleOrderClick = (orderId: string) => {
-    router.push(`/orders/offline-orders/${orderId}`);
+    if (onOrderSelect) {
+      onOrderSelect(orderId);
+      return;
+    }
+    router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
   };
 
   const handleCreateNew = () => {
-    router.push('/orders/offline-orders/new');
+    if (onCreateNew) {
+      onCreateNew();
+      return;
+    }
+    router.push('/orders?mode=new-offline');
   };
 
   const isValidCustomerEmail = (email?: string): boolean => {

@@ -6,7 +6,11 @@ import { product } from '@/services/product';
 import { InventorySummary } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
-const InventoryDashboard: React.FC = () => {
+interface InventoryDashboardProps {
+  refreshKey?: number;
+}
+
+const InventoryDashboard: React.FC<InventoryDashboardProps> = ({ refreshKey = 0 }) => {
   const { t } = useTranslation(['products', 'common']);
   const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -14,7 +18,7 @@ const InventoryDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchSummary();
-  }, []);
+  }, [refreshKey]);
 
   const fetchSummary = async () => {
     try {

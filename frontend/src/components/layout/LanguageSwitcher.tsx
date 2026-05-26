@@ -4,12 +4,12 @@ import React, { useState } from 'react';
 import { useTranslation } from '@/i18n/provider';
 
 export default function LanguageSwitcher() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation(['common']);
   const [isOpen, setIsOpen] = useState(false);
 
   const languages = [
-    { code: 'en', label: 'English', flag: '🇺🇸' },
-    { code: 'id', label: 'Indonesia', flag: '🇮🇩' },
+    { code: 'id', label: t('common.indonesian'), flag: '🇮🇩' },
+    { code: 'en', label: t('common.english'), flag: '🇺🇸' },
   ];
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
@@ -25,7 +25,7 @@ export default function LanguageSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-        aria-label="Change language"
+        aria-label={t('common.changeLanguage')}
       >
         <div className="flex items-center space-x-2">
           <svg

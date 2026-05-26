@@ -56,7 +56,7 @@ export default function RecordPaymentPage() {
 
         if (err.response?.status === 404) {
           setTimeout(() => {
-            router.push('/orders/offline-orders');
+            router.push('/orders');
           }, 2000);
         }
       } finally {
@@ -73,7 +73,7 @@ export default function RecordPaymentPage() {
 
       // Show success message and redirect to order detail
       setTimeout(() => {
-        router.push(`/orders/offline-orders/${orderId}`);
+        router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
       }, 1000);
     } catch (err: any) {
       console.error('Failed to record payment:', err);
@@ -82,7 +82,7 @@ export default function RecordPaymentPage() {
   };
 
   const handleCancel = () => {
-    router.push(`/orders/offline-orders/${orderId}`);
+    router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
   };
 
   return (

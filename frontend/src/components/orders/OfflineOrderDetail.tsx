@@ -22,6 +22,10 @@ interface OfflineOrderDetailProps {
   paymentTerms?: PaymentTerms;
   paymentRecords?: PaymentRecord[];
   onRefresh?: () => void | Promise<void>;
+  onBack?: () => void;
+  onEdit?: () => void;
+  onRecordPayment?: () => void;
+  onDeleted?: () => void;
 }
 
 export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
@@ -30,6 +34,10 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   paymentTerms,
   paymentRecords = [],
   onRefresh,
+  onBack,
+  onEdit,
+  onRecordPayment,
+  onDeleted,
 }) => {
   const router = useRouter();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -74,14 +82,26 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   };
 
   const handleBack = () => {
-    router.push('/orders/offline-orders');
+    if (onBack) {
+      onBack();
+      return;
+    }
+    router.push('/orders');
   };
 
   const handleRecordPayment = () => {
+    if (onRecordPayment) {
+      onRecordPayment();
+      return;
+    }
     router.push(`/orders/offline-orders/${order.id}/payments`);
   };
 
   const handleEdit = () => {
+    if (onEdit) {
+      onEdit();
+      return;
+    }
     router.push(`/orders/offline-orders/${order.id}/edit`);
   };
 
@@ -99,7 +119,11 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
 
       // Success - redirect to orders list
       setShowDeleteModal(false);
-      router.push('/orders/offline-orders?deleted=true');
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        router.push('/orders?deleted=true');
+      }
     } catch (error: any) {
       console.error('Failed to delete order:', error);
 

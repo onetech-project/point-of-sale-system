@@ -21,6 +21,7 @@
     "of": "dari",
     "units": "unit",
     "language": "Bahasa",
+    "changeLanguage": "Ganti bahasa",
     "english": "Inggris",
     "indonesian": "Indonesia",
     "appName": "Posku",
@@ -94,15 +95,18 @@
     "notesPlaceholder": "Ketik catatan Anda di sini...",
     "actions": "Aksi",
     "footer": {
-      "description": "Sistem point of sale modern untuk bisnis Anda. Kelola inventaris, penjualan, dan pelanggan secara efisien.",
+      "description": "Software POS untuk toko, cafe, dan restoran di Indonesia. Kelola order, inventory, pembayaran, dan laporan penjualan dalam satu dashboard.",
       "product": "Produk",
       "features": "Fitur",
       "pricing": "Harga",
       "documentation": "Dokumentasi",
+      "terms": "Syarat Layanan",
       "support": "Dukungan",
       "helpCenter": "Pusat Bantuan",
       "contact": "Kontak",
       "privacy": "Kebijakan Privasi",
+      "emailSupport": "Email Dukungan",
+      "startTrial": "Mulai Trial",
       "rights": "Hak cipta dilindungi."
     }
   }

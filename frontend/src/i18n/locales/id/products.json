@@ -3,6 +3,57 @@
     "title": "Produk",
     "subtitle": "Kelola katalog produk dan inventori Anda",
     "addProduct": "Tambah Produk",
+    "bulkImport": {
+      "openButton": "Impor Massal",
+      "title": "Impor Produk Massal",
+      "subtitle": "Impor produk dan stok dari file CSV atau XLSX",
+      "templateTitle": "Template",
+      "columnsTitle": "Kolom",
+      "fileTitle": "File impor",
+      "downloadCSV": "Unduh CSV",
+      "downloadXLSX": "Unduh XLSX",
+      "selectFileButton": "Pilih file CSV atau XLSX",
+      "startButton": "Mulai Impor",
+      "importingButton": "Mengimpor...",
+      "doneButton": "Selesai",
+      "importId": "ID Impor",
+      "summaryTitle": "Ringkasan",
+      "errorsTitle": "Kesalahan Baris",
+      "warningsTitle": "Peringatan",
+      "noErrors": "Tidak ada kesalahan baris",
+      "noWarnings": "Tidak ada peringatan",
+      "progress": {
+        "ready": "Siap mengimpor",
+        "uploading": "Mengunggah file",
+        "processing": "Memproses impor",
+        "completed": "Impor selesai",
+        "failed": "Impor gagal"
+      },
+      "messages": {
+        "fileRequired": "Pilih file CSV atau XLSX sebelum memulai impor.",
+        "invalidFile": "Hanya file CSV dan XLSX yang didukung.",
+        "templateDownloadError": "Gagal mengunduh template. Silakan coba lagi.",
+        "importFailed": "Gagal mengimpor produk. Periksa file dan coba lagi.",
+        "importCompleted": "Produk berhasil diimpor.",
+        "importAccepted": "Impor selesai."
+      },
+      "summary": {
+        "totalRows": "Total Baris",
+        "processedRows": "Diproses",
+        "importedRows": "Diimpor",
+        "created": "Dibuat",
+        "updated": "Diperbarui",
+        "skipped": "Dilewati",
+        "failed": "Gagal",
+        "warnings": "Peringatan"
+      },
+      "table": {
+        "row": "Baris",
+        "sku": "SKU",
+        "field": "Kolom",
+        "message": "Pesan"
+      }
+    },
     "editProduct": "Edit Produk",
     "deleteProduct": "Hapus Produk",
     "archiveProduct": "Arsipkan Produk",

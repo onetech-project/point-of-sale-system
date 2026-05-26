@@ -14,14 +14,17 @@ import (
 )
 
 type fakeOrderService struct {
-	order *models.GuestOrder
-	items []models.OrderItem
-	notes []*models.OrderNote
-	err   error
+	order         *models.GuestOrder
+	listOrders    []*models.GuestOrder
+	items         []models.OrderItem
+	notes         []*models.OrderNote
+	err           error
+	lastOrderType models.OrderTypeFilter
 }
 
-func (f *fakeOrderService) ListOrdersByTenant(ctx context.Context, tenantID string, status *models.OrderStatus, limit, offset int) ([]*models.GuestOrder, error) {
-	return nil, nil
+func (f *fakeOrderService) ListOrdersByTenant(ctx context.Context, tenantID string, status *models.OrderStatus, orderType models.OrderTypeFilter, limit, offset int) ([]*models.GuestOrder, error) {
+	f.lastOrderType = orderType
+	return f.listOrders, nil
 }
 
 func (f *fakeOrderService) GetOrderByID(ctx context.Context, orderID string) (*models.GuestOrder, error) {
@@ -45,6 +48,62 @@ func (f *fakeOrderService) UpdateOrderStatus(ctx context.Context, orderID string
 
 func (f *fakeOrderService) AddOrderNote(ctx context.Context, orderID, note, userName string) error {
 	return nil
+}
+
+func TestAdminOrderHandlerListOrdersDefaultsToOnlineOrders(t *testing.T) {
+	service := &fakeOrderService{
+		listOrders: []*models.GuestOrder{
+			{
+				ID:             "order-1",
+				OrderReference: "GO-0001",
+				TenantID:       "tenant-1",
+				Status:         models.OrderStatusPending,
+				OrderType:      models.OrderTypeOnline,
+				DeliveryType:   models.DeliveryTypePickup,
+				CreatedAt:      time.Now(),
+			},
+		},
+	}
+	handler := NewAdminOrderHandler(service)
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/orders", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-1")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.ListOrders(c); err != nil {
+		t.Fatalf("ListOrders returned error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if service.lastOrderType != models.OrderTypeFilterOnline {
+		t.Fatalf("order_type = %s, want %s", service.lastOrderType, models.OrderTypeFilterOnline)
+	}
+}
+
+func TestAdminOrderHandlerListOrdersAcceptsAllOrderTypes(t *testing.T) {
+	service := &fakeOrderService{}
+	handler := NewAdminOrderHandler(service)
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/orders?order_type=all", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-1")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.ListOrders(c); err != nil {
+		t.Fatalf("ListOrders returned error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if service.lastOrderType != models.OrderTypeFilterAll {
+		t.Fatalf("order_type = %s, want %s", service.lastOrderType, models.OrderTypeFilterAll)
+	}
 }
 
 func TestAdminOrderHandlerGetOrderUsesTenantHeaderAndReturnsDetails(t *testing.T) {

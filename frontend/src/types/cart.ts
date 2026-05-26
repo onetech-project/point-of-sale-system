@@ -89,6 +89,7 @@ export interface Order {
   id: string;
   tenant_id: string;
   order_reference: string;
+  order_type?: 'online' | 'offline';
   customer_name: string;
   customer_phone: string;
   customer_email?: string;

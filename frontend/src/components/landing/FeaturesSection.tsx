@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { useTranslation } from '@/i18n/provider';
 
 interface Feature {
   icon: React.ReactNode;
@@ -55,42 +58,37 @@ function TeamIcon() {
 }
 
 export default function FeaturesSection() {
+  const { t } = useTranslation(['landing']);
   const features: Feature[] = [
     {
       icon: <OnlineOrderingIcon />,
-      title: 'Online Ordering with Menu Catalog',
-      description:
-        'Share a QR code link — customers browse your digital menu and place orders directly from their phone, no app required.',
+      title: t('landing.features.items.onlineOrdering.title'),
+      description: t('landing.features.items.onlineOrdering.description'),
     },
     {
       icon: <PaymentIcon />,
-      title: 'Customer QRIS Payment',
-      description:
-        'Accept instant payments via QRIS powered by Midtrans. Works with all major Indonesian e-wallets and bank apps.',
+      title: t('landing.features.items.payment.title'),
+      description: t('landing.features.items.payment.description'),
     },
     {
       icon: <OfflineOrderIcon />,
-      title: 'Offline Order Management',
-      description:
-        'Record walk-in, phone, or WhatsApp orders directly in the system. Support cash payments and installment plans for orders taken outside the digital menu.',
+      title: t('landing.features.items.offlineOrder.title'),
+      description: t('landing.features.items.offlineOrder.description'),
     },
     {
       icon: <AnalyticsIcon />,
-      title: 'Dashboard Analytics',
-      description:
-        'Track daily revenue, top-selling products, and customer trends with a clear at-a-glance business dashboard.',
+      title: t('landing.features.items.analytics.title'),
+      description: t('landing.features.items.analytics.description'),
     },
     {
       icon: <InventoryIcon />,
-      title: 'Inventory Management',
-      description:
-        'Real-time stock tracking with automatic low-stock alerts and full audit trail for every adjustment.',
+      title: t('landing.features.items.inventory.title'),
+      description: t('landing.features.items.inventory.description'),
     },
     {
       icon: <TeamIcon />,
-      title: 'Team Management',
-      description:
-        'Invite staff by email and assign roles — Owner, Manager, or Cashier — with granular access control per feature.',
+      title: t('landing.features.items.team.title'),
+      description: t('landing.features.items.team.description'),
     },
   ];
 
@@ -99,10 +97,10 @@ export default function FeaturesSection() {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Powerful Features for Your Business
+            {t('landing.features.title')}
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Everything you need to manage your POS operations efficiently and grow your business
+            {t('landing.features.subtitle')}
           </p>
         </div>
 

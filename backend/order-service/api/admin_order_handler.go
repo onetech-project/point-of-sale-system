@@ -14,7 +14,7 @@ import (
 )
 
 type orderService interface {
-	ListOrdersByTenant(ctx context.Context, tenantID string, status *models.OrderStatus, limit, offset int) ([]*models.GuestOrder, error)
+	ListOrdersByTenant(ctx context.Context, tenantID string, status *models.OrderStatus, orderType models.OrderTypeFilter, limit, offset int) ([]*models.GuestOrder, error)
 	GetOrderByID(ctx context.Context, orderID string) (*models.GuestOrder, error)
 	GetOrderItems(ctx context.Context, orderID string) ([]models.OrderItem, error)
 	GetOrderNotes(ctx context.Context, orderID string) ([]*models.OrderNote, error)
@@ -68,6 +68,21 @@ func (h *AdminOrderHandler) ListOrders(c echo.Context) error {
 		statusFilter = &status
 	}
 
+	orderTypeFilter := models.OrderTypeFilter(c.QueryParam("order_type"))
+	if orderTypeFilter == "" {
+		orderTypeFilter = models.OrderTypeFilterOnline
+	}
+	validOrderTypes := map[models.OrderTypeFilter]bool{
+		models.OrderTypeFilterAll:     true,
+		models.OrderTypeFilterOnline:  true,
+		models.OrderTypeFilterOffline: true,
+	}
+	if !validOrderTypes[orderTypeFilter] {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid order_type. Must be: all, online, or offline",
+		})
+	}
+
 	// Pagination
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 || limit > 100 {
@@ -80,7 +95,7 @@ func (h *AdminOrderHandler) ListOrders(c echo.Context) error {
 	}
 
 	// Get orders
-	orders, err := h.orderService.ListOrdersByTenant(ctx, tenantID, statusFilter, limit, offset)
+	orders, err := h.orderService.ListOrdersByTenant(ctx, tenantID, statusFilter, orderTypeFilter, limit, offset)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -116,6 +131,7 @@ func (h *AdminOrderHandler) ListOrders(c echo.Context) error {
 
 	log.Info().
 		Str("tenant_id", tenantID).
+		Str("order_type", string(orderTypeFilter)).
 		Int("count", len(orders)).
 		Msg("Orders retrieved successfully")
 

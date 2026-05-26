@@ -103,6 +103,88 @@ export interface InventorySummary {
   categories_count: number;
 }
 
+export type ProductImportTemplateFormat = 'csv' | 'xlsx';
+
+export type ProductImportStatus =
+  | 'pending'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'success'
+  | 'succeeded'
+  | 'completed_with_errors'
+  | 'partial_success'
+  | 'failed'
+  | 'error'
+  | 'cancelled'
+  | 'canceled'
+  | (string & {});
+
+export interface ProductImportStartResponse {
+  import_id: string;
+  status: ProductImportStatus;
+}
+
+export interface ProductImportTemplateDownload {
+  blob: Blob;
+  filename: string;
+}
+
+export interface ProductImportSummary {
+  total_rows?: number;
+  processed_rows?: number;
+  imported_rows?: number;
+  imported_count?: number;
+  created_count?: number;
+  updated_count?: number;
+  skipped_count?: number;
+  failed_rows?: number;
+  failed_count?: number;
+  error_count?: number;
+  warning_count?: number;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+export interface ProductImportRowIssue {
+  row?: number;
+  row_number?: number;
+  line?: number;
+  sku?: string;
+  field?: string;
+  value?: string;
+  message?: string;
+  error?: string;
+  warning?: string;
+  reason?: string;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+export interface ProductImportStatusResponse {
+  id?: string;
+  import_id?: string;
+  status: ProductImportStatus;
+  summary?: ProductImportSummary | null;
+  row_errors?: ProductImportRowIssue[] | null;
+  errors?: ProductImportRowIssue[] | null;
+  warnings?: ProductImportRowIssue[] | null;
+  message?: string;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+}
+
+export interface ProductImportUploadOptions {
+  onUploadProgress?: (progress: number) => void;
+  signal?: AbortSignal;
+}
+
+export interface ProductImportPollOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  onStatus?: (status: ProductImportStatusResponse) => void;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;

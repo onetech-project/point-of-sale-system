@@ -10,9 +10,14 @@ import { formatNumber } from '@/utils/format';
 interface ProductListProps {
   categoryFilter?: string;
   showArchived?: boolean;
+  refreshKey?: number;
 }
 
-const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived = false }) => {
+const ProductList: React.FC<ProductListProps> = ({
+  categoryFilter,
+  showArchived = false,
+  refreshKey = 0,
+}) => {
   const router = useRouter();
   const { t } = useTranslation(['products', 'common']);
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,7 +30,7 @@ const ProductList: React.FC<ProductListProps> = ({ categoryFilter, showArchived 
 
   useEffect(() => {
     fetchProducts();
-  }, [page, categoryFilter, showArchived, lowStockOnly]);
+  }, [page, categoryFilter, showArchived, lowStockOnly, refreshKey]);
 
   const fetchProducts = async () => {
     try {
