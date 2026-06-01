@@ -249,6 +249,8 @@ it('renders only operational alerts for cashiers', async () => {
   expect(await screen.findByText('Delayed: 1')).toBeInTheDocument();
   expect(screen.getByText('Restock: 1')).toBeInTheDocument();
   expect(screen.queryByText('Total Revenue')).not.toBeInTheDocument();
+  expect(document.getElementById('onboarding-operational-tasks')).toBeInTheDocument();
+  expect(document.getElementById('onboarding-business-metrics')).not.toBeInTheDocument();
 
   await waitFor(() => {
     expect(mockAnalytics.getOperationalTasks).toHaveBeenCalledTimes(1);
@@ -269,6 +271,8 @@ it('keeps full business insights for managers', async () => {
 
   expect(await screen.findByText('Business Insights')).toBeInTheDocument();
   expect(await screen.findByText('Total Revenue')).toBeInTheDocument();
+  expect(document.getElementById('onboarding-business-metrics')).toBeInTheDocument();
+  expect(document.getElementById('onboarding-operational-tasks')).toBeInTheDocument();
 
   await waitFor(() => {
     expect(mockAnalytics.getSalesOverview).toHaveBeenCalled();

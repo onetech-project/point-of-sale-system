@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Onborda, OnbordaProvider as BaseOnbordaProvider, useOnborda } from 'onborda';
 import type { CardComponentProps } from 'onborda';
 import { usePathname } from 'next/navigation';
@@ -23,6 +23,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         shadowOpacity="0.35"
       >
         <OnboardingController />
+        <OnboardingPositioner />
         {children}
       </Onborda>
     </BaseOnbordaProvider>
@@ -61,6 +62,48 @@ export function OnboardingController({
       cancelled = true;
     };
   }, [isAuthenticated, isLoading, pathname, service, startOnborda, user?.role]);
+
+  return null;
+}
+
+export function OnboardingPositioner() {
+  const { currentTour, currentStep, isOnbordaVisible } = useOnborda();
+
+  useLayoutEffect(() => {
+    if (!isOnbordaVisible || !currentTour) return;
+
+    const tour = roleOnboardingTours.find(item => item.tour === currentTour);
+    const selector = tour?.steps[currentStep]?.selector;
+    if (!selector) return;
+
+    const element = document.querySelector(selector);
+    if (!element) return;
+
+    element.scrollIntoView({
+      block: 'center',
+      inline: 'nearest',
+      behavior: 'auto',
+    });
+
+    const refreshPointer = () => {
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    const frameId =
+      typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame(refreshPointer)
+        : window.setTimeout(refreshPointer, 0);
+    const timeoutId = window.setTimeout(refreshPointer, 150);
+
+    return () => {
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(frameId);
+      } else {
+        window.clearTimeout(frameId);
+      }
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentStep, currentTour, isOnbordaVisible]);
 
   return null;
 }

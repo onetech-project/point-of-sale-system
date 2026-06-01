@@ -305,7 +305,7 @@ export default function AnalyticsDashboardPage() {
               <DashboardErrorBoundary sectionName="Sales Metrics">
                 <div
                   id="onboarding-business-metrics"
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 scroll-mt-32"
                 >
                   <MetricCard
                     title="Total Revenue"
@@ -445,7 +445,7 @@ export default function AnalyticsDashboardPage() {
 
           {/* Operational Tasks (Delayed Orders & Low Stock) */}
           <DashboardErrorBoundary sectionName="Operational Tasks">
-            <div id="onboarding-operational-tasks">
+            <div id="onboarding-operational-tasks" className="scroll-mt-32">
               <TaskAlerts
                 delayedOrders={tasks?.delayed_orders.delayed_orders || []}
                 restockAlerts={tasks?.restock_alerts.restock_alerts || []}
