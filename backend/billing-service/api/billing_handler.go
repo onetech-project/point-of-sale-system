@@ -150,7 +150,8 @@ func billingActionErrorCode(err error) int {
 	}
 	if strings.Contains(msg, "billing_interval") ||
 		strings.Contains(msg, "already using") ||
-		strings.Contains(msg, "require payment") {
+		strings.Contains(msg, "require payment") ||
+		strings.Contains(msg, "amount must be greater than zero") {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError

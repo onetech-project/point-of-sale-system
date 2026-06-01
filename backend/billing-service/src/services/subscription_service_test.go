@@ -154,15 +154,39 @@ func TestBillingConfigHelpersUseFallbacksForInvalidValues(t *testing.T) {
 	}
 }
 
-func TestComputeAmount(t *testing.T) {
+func TestComputeInvoiceAmount(t *testing.T) {
 	t.Setenv("PLAN_MONTHLY_PRICE_IDR", "500000")
 	t.Setenv("PLAN_ANNUAL_DISCOUNT_PCT", "25")
 
-	if got := computeAmount("monthly"); got != 500000 {
+	got, err := ComputeInvoiceAmount("monthly")
+	if err != nil {
+		t.Fatalf("monthly amount returned error: %v", err)
+	}
+	if got != 500000 {
 		t.Fatalf("monthly amount = %d, want 500000", got)
 	}
-	if got := computeAmount("annual"); got != 4500000 {
+	got, err = ComputeInvoiceAmount("annual")
+	if err != nil {
+		t.Fatalf("annual amount returned error: %v", err)
+	}
+	if got != 4500000 {
 		t.Fatalf("annual amount = %d, want 4500000", got)
+	}
+}
+
+func TestComputeInvoiceAmountRejectsInvalidPricing(t *testing.T) {
+	t.Setenv("PLAN_MONTHLY_PRICE_IDR", "0")
+	t.Setenv("PLAN_ANNUAL_DISCOUNT_PCT", "20")
+
+	if got, err := ComputeInvoiceAmount("monthly"); err == nil {
+		t.Fatalf("monthly amount = %d, want error for zero price", got)
+	}
+
+	t.Setenv("PLAN_MONTHLY_PRICE_IDR", "500000")
+	t.Setenv("PLAN_ANNUAL_DISCOUNT_PCT", "100")
+
+	if got, err := ComputeInvoiceAmount("annual"); err == nil {
+		t.Fatalf("annual amount = %d, want error for non-positive annual price", got)
 	}
 }
 

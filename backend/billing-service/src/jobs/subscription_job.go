@@ -202,7 +202,13 @@ func (j *JobRunner) processInvoiceGeneration() {
 			continue
 		}
 		if existing != nil {
-			continue // already has a pending invoice
+			if !services.InvoiceHasInvalidAmount(existing) {
+				continue // already has a pending invoice
+			}
+			if err := j.repo.UpdateInvoiceStatus(ctx, existing.ID, "cancelled", nil, nil, nil, nil); err != nil {
+				log.Printf("InvoiceGeneratorJob: failed to cancel invalid pending invoice for %s: %v", t.ID, err)
+				continue
+			}
 		}
 
 		inv, err := j.buildRenewalInvoice(ctx, t)
@@ -227,10 +233,9 @@ func (j *JobRunner) processInvoiceGeneration() {
 
 func (j *JobRunner) buildRenewalInvoice(ctx context.Context, t *models.Tenant) (*models.BillingInvoice, error) {
 	billingInterval := t.BillingCycle
-	plan := services.GetPublicPlanFromEnv()
-	amount := plan.MonthlyPriceIDR
-	if billingInterval == "annual" {
-		amount = plan.AnnualPriceIDR
+	amount, err := services.ComputeInvoiceAmount(billingInterval)
+	if err != nil {
+		return nil, err
 	}
 
 	var periodStart time.Time

@@ -24,12 +24,33 @@ type SubscriptionCacheInvalidator interface {
 	InvalidateSubscriptionStatus(ctx context.Context, tenantID string) error
 }
 
+type billingRepository interface {
+	GetTenantByID(ctx context.Context, id string) (*models.Tenant, error)
+	GetPendingInvoiceByTenantID(ctx context.Context, tenantID string) (*models.BillingInvoice, error)
+	UpdateTenantBillingCycle(ctx context.Context, tenantID, billingInterval string) error
+	CancelPendingInvoicesByTenantIDExceptInterval(ctx context.Context, tenantID, billingInterval string) error
+	GetPendingInvoiceByTenantIDAndInterval(ctx context.Context, tenantID, billingInterval string) (*models.BillingInvoice, error)
+	UpdateInvoiceStatus(ctx context.Context, id, status string, paidAt *time.Time, midtransOrderID, paymentURL *string, paymentLinkExpiresAt *time.Time) error
+	CreateInvoice(ctx context.Context, inv *models.BillingInvoice) error
+	GetTenantOwnerEmail(ctx context.Context, tenantID string) (string, error)
+	GetInvoiceByID(ctx context.Context, id string) (*models.BillingInvoice, error)
+	GetInvoicesByTenantID(ctx context.Context, tenantID string) ([]*models.BillingInvoice, error)
+	GetPaymentAttemptsByInvoiceID(ctx context.Context, tenantID, invoiceID string) ([]*models.BillingPaymentAttempt, error)
+	GetInvoiceByMidtransOrderID(ctx context.Context, midtransOrderID string) (*models.BillingInvoice, error)
+	CreatePaymentAttempt(ctx context.Context, attempt *models.BillingPaymentAttempt) error
+	UpdateTenantSubscribedAt(ctx context.Context, tenantID, plan, billingInterval string, subscriptionEndsAt time.Time) error
+}
+
+type snapPaymentCreator interface {
+	CreateSnapPayment(ctx context.Context, inv *models.BillingInvoice, tenantEmail, tenantBusinessName string) (*SnapPaymentResult, error)
+}
+
 // SubscriptionService contains the core billing business logic.
 type SubscriptionService struct {
 	db               *sql.DB
-	repo             *repository.BillingRepository
+	repo             billingRepository
 	publisher        *queue.EventPublisher
-	paymentSvc       *PaymentService
+	paymentSvc       snapPaymentCreator
 	cacheInvalidator SubscriptionCacheInvalidator
 }
 
@@ -244,6 +265,12 @@ func (s *SubscriptionService) createSubscriptionPayment(ctx context.Context, ten
 		return nil, fmt.Errorf("failed to check existing invoice: %w", err)
 	}
 	if existing != nil {
+		if InvoiceHasInvalidAmount(existing) {
+			if err := s.cancelInvalidPendingInvoice(ctx, existing); err != nil {
+				return nil, err
+			}
+			return s.createFreshSubscriptionPayment(ctx, tenant, billingInterval, periodStart, dueAt)
+		}
 		if isPaymentLinkExpired(existing, time.Now().UTC()) {
 			if err := s.repo.UpdateInvoiceStatus(ctx, existing.ID, "expired", nil, nil, nil, nil); err != nil {
 				return nil, fmt.Errorf("failed to expire stale pending invoice: %w", err)
@@ -255,7 +282,14 @@ func (s *SubscriptionService) createSubscriptionPayment(ctx context.Context, ten
 		}
 	}
 
-	amount := computeAmount(billingInterval)
+	return s.createFreshSubscriptionPayment(ctx, tenant, billingInterval, periodStart, dueAt)
+}
+
+func (s *SubscriptionService) createFreshSubscriptionPayment(ctx context.Context, tenant *models.Tenant, billingInterval string, periodStart, dueAt time.Time) (*UpgradeResponse, error) {
+	amount, err := ComputeInvoiceAmount(billingInterval)
+	if err != nil {
+		return nil, err
+	}
 	periodStart = periodStart.UTC()
 	dueAt = dueAt.UTC()
 	periodEnd := computePeriodEnd(periodStart, billingInterval)
@@ -276,6 +310,14 @@ func (s *SubscriptionService) createSubscriptionPayment(ctx context.Context, ten
 	}
 
 	return s.createPaymentForInvoice(ctx, tenant, inv)
+}
+
+func (s *SubscriptionService) cancelInvalidPendingInvoice(ctx context.Context, inv *models.BillingInvoice) error {
+	if err := s.repo.UpdateInvoiceStatus(ctx, inv.ID, "cancelled", nil, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to cancel invalid pending invoice: %w", err)
+	}
+	inv.Status = "cancelled"
+	return nil
 }
 
 func (s *SubscriptionService) createPaymentForInvoice(ctx context.Context, tenant *models.Tenant, inv *models.BillingInvoice) (*UpgradeResponse, error) {
@@ -314,6 +356,13 @@ func (s *SubscriptionService) InitiatePayment(ctx context.Context, tenantID, inv
 	tenant, err := s.repo.GetTenantByID(ctx, tenantID)
 	if err != nil || tenant == nil {
 		return nil, errors.New("tenant not found")
+	}
+
+	if InvoiceHasInvalidAmount(inv) {
+		if err := s.cancelInvalidPendingInvoice(ctx, inv); err != nil {
+			return nil, err
+		}
+		return s.createFreshSubscriptionPayment(ctx, tenant, inv.BillingInterval, inv.PeriodStart, inv.DueAt)
 	}
 
 	now := time.Now().UTC()
@@ -455,11 +504,19 @@ func (s *SubscriptionService) CreateNextPeriodInvoice(ctx context.Context, tenan
 		return nil, err
 	}
 	if existing != nil {
-		return existing, nil
+		if !InvoiceHasInvalidAmount(existing) {
+			return existing, nil
+		}
+		if err := s.cancelInvalidPendingInvoice(ctx, existing); err != nil {
+			return nil, err
+		}
 	}
 
 	billingInterval := tenant.BillingCycle
-	amount := computeAmount(billingInterval)
+	amount, err := ComputeInvoiceAmount(billingInterval)
+	if err != nil {
+		return nil, err
+	}
 
 	var periodStart, periodEnd time.Time
 	if tenant.SubscriptionEndsAt != nil {
@@ -600,14 +657,6 @@ func computePaymentDueAt(tenant *models.Tenant, pendingInvoice *models.BillingIn
 		return &dueAt
 	}
 	return nil
-}
-
-func computeAmount(billingInterval string) int {
-	plan := GetPublicPlanFromEnv()
-	if billingInterval == "annual" {
-		return plan.AnnualPriceIDR
-	}
-	return plan.MonthlyPriceIDR
 }
 
 func validateBillingInterval(billingInterval string) error {
