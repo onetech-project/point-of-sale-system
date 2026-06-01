@@ -91,6 +91,10 @@ func main() {
 	e.GET("/api/v1/users/notification-preferences", notificationPrefsHandler.GetNotificationPreferences)
 	e.PATCH("/api/v1/users/:user_id/notification-preferences", notificationPrefsHandler.PatchNotificationPreferences)
 
+	onboardingHandler := api.NewOnboardingHandler(services.NewOnboardingService(db))
+	e.GET("/api/v1/users/onboarding/progress", onboardingHandler.GetProgress)
+	e.POST("/api/v1/users/onboarding/complete", onboardingHandler.Complete)
+
 	teamHandler := api.NewTeamHandler(userService)
 	e.GET("/team/users", teamHandler.ListTeamMembers)
 	e.PATCH("/team/users/:user_id", teamHandler.UpdateTeamMember)

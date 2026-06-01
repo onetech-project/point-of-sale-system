@@ -20,12 +20,12 @@ interface QuickActionsProps {
 
 /**
  * QuickActions Component
- * 
+ *
  * Provides one-click navigation to frequently accessed pages from the dashboard.
  * Currently includes:
  * - Team invitation page
  * - Settings page
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -40,12 +40,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ className = '' }) =>
       href: '/users/invite',
       color: 'bg-blue-500 hover:bg-blue-600',
       icon: (
-        <svg
-          className="w-6 h-6 text-white"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -61,12 +56,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ className = '' }) =>
       href: '/settings',
       color: 'bg-gray-600 hover:bg-gray-700',
       icon: (
-        <svg
-          className="w-6 h-6 text-white"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -85,29 +75,33 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ className = '' }) =>
   ];
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
+    <div
+      id="onboarding-quick-actions"
+      className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}
+    >
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
         <p className="text-sm text-gray-600">Common tasks and shortcuts</p>
       </div>
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {actions.map((action) => (
+        {actions.map(action => (
           <Link
             key={action.href}
+            id={`onboarding-quick-action-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
             href={action.href}
             className="group flex items-start gap-4 p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200"
           >
-            <div className={`flex-shrink-0 w-12 h-12 rounded-lg ${action.color} flex items-center justify-center transition-colors duration-200`}>
+            <div
+              className={`flex-shrink-0 w-12 h-12 rounded-lg ${action.color} flex items-center justify-center transition-colors duration-200`}
+            >
               {action.icon}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-medium text-gray-900 group-hover:text-primary-600 transition-colors">
                 {action.label}
               </h3>
-              <p className="mt-1 text-xs text-gray-500 line-clamp-2">
-                {action.description}
-              </p>
+              <p className="mt-1 text-xs text-gray-500 line-clamp-2">{action.description}</p>
             </div>
             <svg
               className="flex-shrink-0 w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors"
@@ -115,12 +109,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ className = '' }) =>
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </Link>
         ))}
