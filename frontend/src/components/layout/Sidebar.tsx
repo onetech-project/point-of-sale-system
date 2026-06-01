@@ -148,6 +148,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </svg>
         ),
       },
+      {
+        name: 'QR Generator',
+        href: '/menu-qr',
+        roles: [ROLES.OWNER, ROLES.MANAGER, ROLES.CASHIER],
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h2m4 0h-2m-4 4h6m-6 2h2"
+            />
+          </svg>
+        ),
+      },
       // {
       //   name: 'Sales',
       //   href: '/sales',
@@ -208,10 +223,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const navigation = getNavigationItems();
 
-  const isActive = (href: string) => (
-    pathname === href ||
-    (href === '/orders' && pathname.startsWith('/orders/offline-orders'))
-  );
+  const isActive = (href: string) =>
+    pathname === href || (href === '/orders' && pathname.startsWith('/orders/offline-orders'));
+  const navTargetId = (name: string) => `sidebar-nav-${name.toLowerCase().replace(/\s+/g, '-')}`;
 
   return (
     <>
@@ -282,6 +296,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             {navigation.map(item => (
               <Link
                 key={item.name}
+                id={navTargetId(item.name)}
                 href={item.href}
                 onClick={onClose}
                 className={`
