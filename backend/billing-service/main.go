@@ -51,6 +51,7 @@ func main() {
 	// Health
 	e.GET("/health", handler.Health)
 	e.GET("/ready", handler.Ready)
+	e.GET("/public/plans", handler.GetPublicPlan)
 
 	// Internal (no auth - only accessible from within the cluster)
 	e.GET("/internal/subscription/:tenant_id", handler.GetInternalSubscriptionStatus)

@@ -128,6 +128,32 @@ func TestComputeDaysRemaining(t *testing.T) {
 	}
 }
 
+func TestGracePeriodDaysFromEnvAffectsStatus(t *testing.T) {
+	t.Setenv("PLAN_GRACE_PERIOD_DAYS", "10")
+
+	trialEndsAt := time.Now().Add(-8 * 24 * time.Hour)
+	got := computeSubscriptionStatus(&models.Tenant{
+		SubscriptionPlan: "trial",
+		TrialEndsAt:      &trialEndsAt,
+	}, GetGracePeriodDaysFromEnv())
+
+	if got != "grace_period" {
+		t.Fatalf("status = %q, want grace_period with 10-day grace", got)
+	}
+}
+
+func TestBillingConfigHelpersUseFallbacksForInvalidValues(t *testing.T) {
+	t.Setenv("PLAN_GRACE_PERIOD_DAYS", "invalid")
+	t.Setenv("PLAN_RETENTION_DAYS", "invalid")
+
+	if got := GetGracePeriodDaysFromEnv(); got != 7 {
+		t.Fatalf("grace days = %d, want fallback 7", got)
+	}
+	if got := GetRetentionDaysFromEnv(); got != 30 {
+		t.Fatalf("retention days = %d, want fallback 30", got)
+	}
+}
+
 func TestComputeAmount(t *testing.T) {
 	t.Setenv("PLAN_MONTHLY_PRICE_IDR", "500000")
 	t.Setenv("PLAN_ANNUAL_DISCOUNT_PCT", "25")
@@ -278,13 +304,24 @@ func TestPaymentLinkTTLIsFifteenMinutes(t *testing.T) {
 
 func TestComputeRetentionCleanupAt(t *testing.T) {
 	startedAt := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	t.Setenv("PLAN_RETENTION_DAYS", "")
 	got := computeRetentionCleanupAt(&models.Tenant{RetentionStartedAt: &startedAt})
 	if got == nil {
 		t.Fatal("expected retention cleanup date")
 	}
-	want := startedAt.AddDate(0, 0, SubscriptionRetentionDays)
+	want := startedAt.AddDate(0, 0, 30)
 	if !got.Equal(want) {
 		t.Fatalf("retention cleanup = %s, want %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
+	}
+
+	t.Setenv("PLAN_RETENTION_DAYS", "45")
+	got = computeRetentionCleanupAt(&models.Tenant{RetentionStartedAt: &startedAt})
+	if got == nil {
+		t.Fatal("expected retention cleanup date with env override")
+	}
+	want = startedAt.AddDate(0, 0, 45)
+	if !got.Equal(want) {
+		t.Fatalf("retention cleanup with env = %s, want %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
 	}
 
 	if got := computeRetentionCleanupAt(&models.Tenant{}); got != nil {

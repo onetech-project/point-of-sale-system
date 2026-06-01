@@ -111,6 +111,10 @@ if ! grep -q "^KAFKA_AUDIT_TOPIC=" backend/billing-service/.env; then
     echo "KAFKA_AUDIT_TOPIC=audit-events" >> backend/billing-service/.env
     echo "✓ Added KAFKA_AUDIT_TOPIC to backend/billing-service/.env"
 fi
+if ! grep -q "^PLAN_GRACE_PERIOD_DAYS=" backend/billing-service/.env; then
+    echo "PLAN_GRACE_PERIOD_DAYS=7" >> backend/billing-service/.env
+    echo "✓ Added PLAN_GRACE_PERIOD_DAYS to backend/billing-service/.env"
+fi
 if ! grep -q "^PLAN_RETENTION_DAYS=" backend/billing-service/.env; then
     echo "PLAN_RETENTION_DAYS=30" >> backend/billing-service/.env
     echo "✓ Added PLAN_RETENTION_DAYS to backend/billing-service/.env"

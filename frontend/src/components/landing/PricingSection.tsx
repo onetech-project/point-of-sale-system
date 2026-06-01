@@ -4,9 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslation } from '@/i18n/provider';
 
-// Fallback values — kept in sync with tenant-service env defaults.
-// Once the billing service is deployed, GET /api/v1/public/plans
-// becomes the authoritative source and these are never shown.
+// Fallback values — kept in sync with billing-service env defaults.
+// GET /api/v1/public/plans is the authoritative source when available.
 const MONTHLY_PRICE = 299000;
 const ANNUAL_DISCOUNT_PCT = 20;
 const TRIAL_DAYS = 7;

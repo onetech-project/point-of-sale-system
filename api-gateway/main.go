@@ -95,7 +95,7 @@ func main() {
 		tenantSlug := c.Param("tenant_slug")
 		return proxyHandler(tenantServiceURL, "/public/tenants/"+tenantSlug+"/config")(c)
 	})
-	public.GET("/api/v1/public/plans", proxyHandler(tenantServiceURL, "/public/plans"))
+	registerPublicPlansRoute(public, billingServiceURL)
 	public.POST("/api/v1/platform/auth/login", proxyHandler(platformServiceURL, "/api/v1/platform/auth/login"))
 
 	// Public menu endpoint for guest ordering
@@ -348,6 +348,10 @@ func registerProductRoutes(protected *echo.Group, productServiceURL string) {
 	productGroup.DELETE("/api/v1/products*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+}
+
+func registerPublicPlansRoute(public *echo.Group, billingServiceURL string) {
+	public.GET("/api/v1/public/plans", proxyHandler(billingServiceURL, "/public/plans"))
 }
 
 func registerUserOnboardingRoutes(protected *echo.Group, userServiceURL string) {

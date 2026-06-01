@@ -42,7 +42,7 @@ func callGetPublicPlan(t *testing.T) map[string]interface{} {
 	req := httptest.NewRequest(http.MethodGet, "/public/plans", nil)
 	rec := httptest.NewRecorder()
 
-	if err := GetPublicPlan(e.NewContext(req, rec)); err != nil {
+	if err := NewBillingHandler(nil).GetPublicPlan(e.NewContext(req, rec)); err != nil {
 		t.Fatalf("GetPublicPlan returned error: %v", err)
 	}
 	if rec.Code != http.StatusOK {

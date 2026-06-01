@@ -122,14 +122,16 @@ echo ""
 billing_url=$(grep "^BILLING_SERVICE_URL=" api-gateway/.env | cut -d= -f2)
 billing_port=$(grep "^PORT=" backend/billing-service/.env | cut -d= -f2)
 monthly_price=$(grep "^PLAN_MONTHLY_PRICE_IDR=" backend/billing-service/.env | cut -d= -f2)
+grace_days=$(grep "^PLAN_GRACE_PERIOD_DAYS=" backend/billing-service/.env | cut -d= -f2)
 retention_days=$(grep "^PLAN_RETENTION_DAYS=" backend/billing-service/.env | cut -d= -f2)
 billing_redis_host=$(grep "^REDIS_HOST=" backend/billing-service/.env | cut -d= -f2)
 
-if [ -n "$billing_url" ] && [ -n "$billing_port" ] && [ -n "$monthly_price" ] && [ -n "$retention_days" ] && [ -n "$billing_redis_host" ]; then
+if [ -n "$billing_url" ] && [ -n "$billing_port" ] && [ -n "$monthly_price" ] && [ -n "$grace_days" ] && [ -n "$retention_days" ] && [ -n "$billing_redis_host" ]; then
     echo -e "  ${GREEN}✓${NC} Billing service configured"
     echo "    Gateway URL: $billing_url"
     echo "    Port: $billing_port"
     echo "    Monthly price IDR: $monthly_price"
+    echo "    Grace period days: $grace_days"
     echo "    Retention days: $retention_days"
     echo "    Redis host: $billing_redis_host"
 else

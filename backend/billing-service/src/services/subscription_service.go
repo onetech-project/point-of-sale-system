@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	SubscriptionRetentionDays = 30
-	PaymentLinkTTLMinutes     = 15
-	PaymentLinkTTL            = PaymentLinkTTLMinutes * time.Minute
+	PaymentLinkTTLMinutes = 15
+	PaymentLinkTTL        = PaymentLinkTTLMinutes * time.Minute
 )
 
 type SubscriptionCacheInvalidator interface {
@@ -119,7 +118,7 @@ func (s *SubscriptionService) GetSubscriptionStatus(ctx context.Context, tenantI
 		return nil, errors.New("tenant not found")
 	}
 
-	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
+	graceDays := GetGracePeriodDaysFromEnv()
 	status := computeSubscriptionStatus(tenant, graceDays)
 	days := computeDaysRemaining(tenant, status, graceDays)
 	retentionCleanupAt := computeRetentionCleanupAt(tenant)
@@ -212,7 +211,7 @@ func (s *SubscriptionService) SwitchBillingCycle(ctx context.Context, tenantID, 
 		return nil, err
 	}
 
-	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
+	graceDays := GetGracePeriodDaysFromEnv()
 	return &CycleSwitchResponse{
 		Status:                 "payment_required",
 		SubscriptionStatus:     computeSubscriptionStatus(tenant, graceDays),
@@ -564,7 +563,7 @@ func computeRetentionCleanupAt(tenant *models.Tenant) *time.Time {
 	if tenant == nil || tenant.RetentionStartedAt == nil {
 		return nil
 	}
-	cleanupAt := tenant.RetentionStartedAt.AddDate(0, 0, SubscriptionRetentionDays)
+	cleanupAt := tenant.RetentionStartedAt.AddDate(0, 0, GetRetentionDaysFromEnv())
 	return &cleanupAt
 }
 
@@ -604,14 +603,11 @@ func computePaymentDueAt(tenant *models.Tenant, pendingInvoice *models.BillingIn
 }
 
 func computeAmount(billingInterval string) int {
-	monthly := utils.GetEnvInt("PLAN_MONTHLY_PRICE_IDR", 299000)
+	plan := GetPublicPlanFromEnv()
 	if billingInterval == "annual" {
-		discountPct := utils.GetEnvInt("PLAN_ANNUAL_DISCOUNT_PCT", 20)
-		annual := monthly * 12
-		discount := annual * discountPct / 100
-		return annual - discount
+		return plan.AnnualPriceIDR
 	}
-	return monthly
+	return plan.MonthlyPriceIDR
 }
 
 func validateBillingInterval(billingInterval string) error {

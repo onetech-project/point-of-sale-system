@@ -13,7 +13,6 @@ import (
 	"github.com/pos/billing-service/src/queue"
 	"github.com/pos/billing-service/src/repository"
 	"github.com/pos/billing-service/src/services"
-	"github.com/pos/billing-service/src/utils"
 )
 
 // JobRunner orchestrates background billing jobs.
@@ -60,7 +59,7 @@ func (j *JobRunner) runTrialExpiryJob() {
 
 func (j *JobRunner) processTrialExpiry() {
 	ctx := context.Background()
-	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
+	graceDays := services.GetGracePeriodDaysFromEnv()
 
 	// Notify tenants with trials ending in the next 3 days (D-3 and D-1 alerts).
 	expiring, err := j.repo.GetTenantsWithExpiringTrials(ctx, 3)
@@ -146,7 +145,7 @@ func (j *JobRunner) runGraceEnforcerJob() {
 
 func (j *JobRunner) processGraceExpiry() {
 	ctx := context.Background()
-	graceDays := utils.GetEnvInt("PLAN_GRACE_PERIOD_DAYS", 7)
+	graceDays := services.GetGracePeriodDaysFromEnv()
 
 	tenants, err := j.repo.GetGracePeriodExpiredTenants(ctx, graceDays)
 	if err != nil {
@@ -228,14 +227,10 @@ func (j *JobRunner) processInvoiceGeneration() {
 
 func (j *JobRunner) buildRenewalInvoice(ctx context.Context, t *models.Tenant) (*models.BillingInvoice, error) {
 	billingInterval := t.BillingCycle
-	monthly := utils.GetEnvInt("PLAN_MONTHLY_PRICE_IDR", 299000)
-	var amount int
+	plan := services.GetPublicPlanFromEnv()
+	amount := plan.MonthlyPriceIDR
 	if billingInterval == "annual" {
-		discountPct := utils.GetEnvInt("PLAN_ANNUAL_DISCOUNT_PCT", 20)
-		annual := monthly * 12
-		amount = annual - (annual * discountPct / 100)
-	} else {
-		amount = monthly
+		amount = plan.AnnualPriceIDR
 	}
 
 	var periodStart time.Time
@@ -305,7 +300,7 @@ func (j *JobRunner) runTenantRetentionJob() {
 
 func (j *JobRunner) processTenantRetention() {
 	ctx := context.Background()
-	retentionDays := utils.GetEnvInt("PLAN_RETENTION_DAYS", 30)
+	retentionDays := services.GetRetentionDaysFromEnv()
 
 	tenants, err := j.repo.GetTenantsDueForSubscriptionRetention(ctx, retentionDays)
 	if err != nil {

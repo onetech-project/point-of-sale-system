@@ -34,6 +34,12 @@ func (h *BillingHandler) Ready(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "ready"})
 }
 
+// GetPublicPlan returns the current public subscription pricing.
+// GET /public/plans
+func (h *BillingHandler) GetPublicPlan(c echo.Context) error {
+	return c.JSON(http.StatusOK, services.GetPublicPlanFromEnv())
+}
+
 // GetInternalSubscriptionStatus is the internal (no-auth) endpoint for API gateway enforcement.
 // GET /internal/subscription/:tenant_id
 func (h *BillingHandler) GetInternalSubscriptionStatus(c echo.Context) error {

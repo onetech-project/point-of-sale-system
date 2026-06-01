@@ -89,7 +89,6 @@ func main() {
 
 	// Public routes
 	e.GET("/public/tenants/:tenant_slug/config", configHandler.GetPublicTenantConfig)
-	e.GET("/public/plans", api.GetPublicPlan)
 
 	// Admin routes - match API Gateway pattern with /api/v1 prefix
 	admin := e.Group("/api/v1/admin/tenants")

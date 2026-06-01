@@ -186,9 +186,9 @@ current pricing at runtime rather than having it baked into the build.
 ### Files changed
 | File | Change |
 |------|--------|
-| `backend/tenant-service/api/plan_handler.go` | New handler — reads env vars with fallbacks |
-| `backend/tenant-service/main.go` | Route registered |
-| `api-gateway/main.go` | Proxy rule added for `/api/v1/public/plans` |
+| `backend/billing-service/api/billing_handler.go` | Public plan handler — reads billing env vars with fallbacks |
+| `backend/billing-service/main.go` | Route registered as `/public/plans` |
+| `api-gateway/main.go` | Public URL proxies `/api/v1/public/plans` to billing-service |
 
 ### Handler behaviour
 Values are read from environment variables so they can be updated without a code
@@ -270,10 +270,10 @@ light-grey content area, auto-copyright footer).
 
 | Service | Variable | Purpose | Default |
 |---------|----------|---------|---------|
-| `tenant-service` | `PLAN_MONTHLY_PRICE_IDR` | Base monthly subscription price (IDR) | `299000` |
-| `tenant-service` | `PLAN_ANNUAL_DISCOUNT_PCT` | Annual billing discount percentage | `20` |
-| `tenant-service` | `PLAN_TRIAL_DAYS` | Free trial length in days | `7` |
 | `billing-service` | `BILLING_SERVICE_URL` | API Gateway target for billing endpoints | `http://localhost:8090` |
+| `billing-service` | `PLAN_MONTHLY_PRICE_IDR` | Base monthly subscription price (IDR) | `299000` |
+| `billing-service` | `PLAN_ANNUAL_DISCOUNT_PCT` | Annual billing discount percentage | `20` |
+| `billing-service` | `PLAN_TRIAL_DAYS` | Free trial length in days shown in public pricing | `7` |
 | `billing-service` | `PLAN_GRACE_PERIOD_DAYS` | Grace period after trial/subscription expiry | `7` |
 | `billing-service` | `PLAN_RETENTION_DAYS` | Operational-data retention window from grace-period start | `30` |
 | `billing-service` | `KAFKA_AUDIT_TOPIC` | Audit topic for retention cleanup events | `audit-events` |
@@ -288,7 +288,7 @@ light-grey content area, auto-copyright footer).
 
 ```
 Browser (Landing Page)
-  └─ GET /api/v1/public/plans ──► api-gateway ──► tenant-service /public/plans
+  └─ GET /api/v1/public/plans ──► api-gateway ──► billing-service /public/plans
                                                        └─ reads env vars
 
 User clicks "Start Free Trial"
