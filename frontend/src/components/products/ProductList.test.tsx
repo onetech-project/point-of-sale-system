@@ -5,6 +5,20 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
+interface MockProduct {
+  id: string | number;
+  name: string;
+  sku: string;
+  price?: string;
+  selling_price?: number;
+  quantity?: number;
+  stock_quantity?: number;
+  category_name?: string;
+  category_id?: string;
+  reorder_level?: number;
+  archived?: boolean;
+}
+
 // Mock ProductList component for testing
 const ProductList = ({ 
   products = [], 
@@ -13,6 +27,13 @@ const ProductList = ({
   onFilterChange = () => {},
   loading = false,
   showArchived = false,
+}: {
+  products?: MockProduct[];
+  onProductClick?: (product: MockProduct) => void;
+  onSearch?: (term: string) => void;
+  onFilterChange?: (filters: { category?: string; archived?: boolean }) => void;
+  loading?: boolean;
+  showArchived?: boolean;
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('');

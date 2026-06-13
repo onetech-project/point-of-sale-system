@@ -427,14 +427,28 @@ WHERE tenant_id = $1
 
 // GetOrderItemsByOrderID retrieves all items for a specific order
 func (r *OrderRepository) GetOrderItemsByOrderID(ctx context.Context, orderID string) ([]models.OrderItem, error) {
+	return r.GetOrderItemsByOrderIDTx(ctx, nil, orderID)
+}
+
+// GetOrderItemsByOrderIDTx retrieves all items for a specific order using the
+// provided transaction when one is available.
+func (r *OrderRepository) GetOrderItemsByOrderIDTx(ctx context.Context, tx *sql.Tx, orderID string) ([]models.OrderItem, error) {
 	query := `
-SELECT id, order_id, product_id, product_name, unit_price, quantity, total_price
+SELECT id, order_id, product_id, product_name, product_sku, unit_price, quantity, total_price,
+       item_type, bundle_id, list_unit_price, discount_rule_id, discount_type,
+       discount_value, discount_amount, pricing_snapshot, created_at
 FROM order_items
 WHERE order_id = $1
 ORDER BY id
 `
 
-	rows, err := r.db.QueryContext(ctx, query, orderID)
+	var rows *sql.Rows
+	var err error
+	if tx != nil {
+		rows, err = tx.QueryContext(ctx, query, orderID)
+	} else {
+		rows, err = r.db.QueryContext(ctx, query, orderID)
+	}
 	if err != nil {
 		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to query order items")
 		return nil, err
@@ -444,18 +458,57 @@ ORDER BY id
 	var items []models.OrderItem
 	for rows.Next() {
 		var item models.OrderItem
+		var productID sql.NullString
+		var productSKU sql.NullString
+		var itemType sql.NullString
+		var bundleID sql.NullString
+		var discountRuleID sql.NullString
+		var discountType sql.NullString
+		var discountValue sql.NullFloat64
 		err := rows.Scan(
 			&item.ID,
 			&item.OrderID,
-			&item.ProductID,
+			&productID,
 			&item.ProductName,
+			&productSKU,
 			&item.UnitPrice,
 			&item.Quantity,
 			&item.TotalPrice,
+			&itemType,
+			&bundleID,
+			&item.ListUnitPrice,
+			&discountRuleID,
+			&discountType,
+			&discountValue,
+			&item.DiscountAmount,
+			&item.PricingSnapshot,
+			&item.CreatedAt,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan order item row")
 			return nil, err
+		}
+		if productID.Valid {
+			item.ProductID = productID.String
+		}
+		if productSKU.Valid {
+			item.ProductSKU = &productSKU.String
+		}
+		if itemType.Valid {
+			item.ItemType = itemType.String
+		}
+		if bundleID.Valid {
+			item.BundleID = &bundleID.String
+		}
+		if discountRuleID.Valid {
+			item.DiscountRuleID = &discountRuleID.String
+		}
+		if discountType.Valid {
+			typed := models.DiscountType(discountType.String)
+			item.DiscountType = &typed
+		}
+		if discountValue.Valid {
+			item.DiscountValue = &discountValue.Float64
 		}
 		items = append(items, item)
 	}

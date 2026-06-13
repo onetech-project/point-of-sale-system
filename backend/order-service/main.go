@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/point-of-sale-system/order-service/api"
 	"github.com/point-of-sale-system/order-service/src/config"
+	"github.com/point-of-sale-system/order-service/src/jobs"
 	customMiddleware "github.com/point-of-sale-system/order-service/src/middleware"
 	"github.com/point-of-sale-system/order-service/src/observability"
 	"github.com/point-of-sale-system/order-service/src/queue"
@@ -96,6 +97,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize OrderRepository")
 	}
 	orderSettingsRepo := repository.NewOrderSettingsRepository(config.GetDB())
+	discountRepo := repository.NewDiscountRepository(config.GetDB())
 	addressRepo, err := repository.NewAddressRepositoryWithVault(config.GetDB())
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize AddressRepository")
@@ -127,8 +129,18 @@ func main() {
 	}
 	defer auditPublisher.Close()
 
+	outboxRepo := repository.NewOutboxRepository(config.GetDB())
+	eventPublisherConfig := services.EventPublisherConfig{
+		KafkaBrokers: brokerList,
+		MaxRetries:   5,
+	}
+	eventPublisher := services.NewEventPublisher(config.GetDB(), eventPublisherConfig)
+	defer eventPublisher.Close()
+	paymentCalculator := services.NewPaymentCalculator()
+	discountService := services.NewDiscountService(discountRepo)
+
 	// Initialize order service (with Kafka producer and all repos for event publishing)
-	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer)
+	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer, eventPublisher)
 
 	// Initialize payment service (needs orderService for adding notes)
 	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService)
@@ -150,14 +162,6 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize OfflineOrderRepository")
 	}
 
-	outboxRepo := repository.NewOutboxRepository(config.GetDB())
-	eventPublisherConfig := services.EventPublisherConfig{
-		KafkaBrokers: brokerList,
-		MaxRetries:   5,
-	}
-	eventPublisher := services.NewEventPublisher(config.GetDB(), eventPublisherConfig)
-	paymentCalculator := services.NewPaymentCalculator()
-
 	offlineOrderService := services.NewOfflineOrderService(
 		config.GetDB(),
 		offlineOrderRepo,
@@ -166,6 +170,7 @@ func main() {
 		outboxRepo,
 		eventPublisher,
 		paymentCalculator,
+		discountService,
 	)
 
 	offlineOrderHandler := api.NewOfflineOrderHandler(offlineOrderService)
@@ -182,6 +187,7 @@ func main() {
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
 	adminOrderHandler := api.NewAdminOrderHandler(orderService)
 	orderSettingsHandler := api.NewOrderSettingsHandler(orderSettingsRepo)
+	discountHandler := api.NewDiscountHandler(discountService)
 	cartHandler := api.NewCartHandlerWithService(cartService)
 	checkoutHandler := api.NewCheckoutHandler(
 		config.GetDB(),
@@ -210,6 +216,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go cleanupJob.Start(ctx)
+
+	outboxWorker := jobs.NewOutboxWorker(eventPublisher)
+	if err := outboxWorker.Start(ctx); err != nil {
+		log.Error().Err(err).Msg("Failed to start outbox worker")
+	}
 
 	// Public cart routes (guest shopping)
 	publicCart := e.Group("/api/v1/public/:tenantId")
@@ -256,6 +267,7 @@ func main() {
 
 	// T110: Pass rate limit middleware to offline order routes
 	api.RegisterOfflineOrderRoutes(e, offlineOrderHandler, noopJWTMiddleware, requireRoleWrapper, customMiddleware.RateLimit())
+	api.RegisterDiscountRoutes(e, discountHandler, requireRoleWrapper)
 
 	// Start server
 	port := config.GetEnvAsString("PORT")

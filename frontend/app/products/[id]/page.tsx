@@ -9,6 +9,7 @@ import { ROLES } from '@/constants/roles';
 import ProductForm from '@/components/products/ProductForm';
 import StockAdjustmentModal from '@/components/products/StockAdjustmentModal';
 import PhotoGallery from '@/components/products/PhotoGallery';
+import RecipeCostingPanel from '@/components/recipes/RecipeCostingPanel';
 import { product as productService } from '@/services/product';
 import { Product, UpdateProductRequest, StockAdjustmentRequest } from '@/types/product';
 import type { ProductPhoto } from '@/types/photo';
@@ -312,6 +313,8 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
                   </div>
+
+                  <RecipeCostingPanel product={product} />
 
                   {/* Actions Card */}
                   <div className="bg-white shadow rounded-lg p-6">

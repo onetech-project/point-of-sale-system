@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import offlineOrderService from '../../services/offlineOrders';
+import { inventory } from '../../services/inventory';
 import { product as productService } from '../../services/product';
 import { formatCurrency } from '../../utils/format';
 import { sanitizeNumericPhone } from '../../utils/phone';
@@ -11,6 +12,7 @@ import {
   ConsentMethod,
   PaymentSchedule,
 } from '../../types/offlineOrder';
+import type { Bundle } from '../../types/inventory';
 
 interface Product {
   id: string;
@@ -26,7 +28,9 @@ interface OfflineOrderFormProps {
 }
 
 interface OrderItem {
-  product_id: string;
+  item_type: 'product' | 'bundle';
+  product_id?: string;
+  bundle_id?: string;
   product_name: string;
   quantity: number;
   unit_price: number;
@@ -40,7 +44,9 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
 }) => {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>(initialProducts || []);
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(!initialProducts);
+  const [loadingBundles, setLoadingBundles] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +75,23 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
     fetchProducts();
   }, [initialProducts]);
 
+  useEffect(() => {
+    const fetchBundles = async () => {
+      try {
+        setLoadingBundles(true);
+        const response = await inventory.getBundles({ page: 1, limit: 100 });
+        setBundles(response.data || []);
+      } catch (err: any) {
+        console.error('Failed to load bundles:', err);
+        setBundles([]);
+      } finally {
+        setLoadingBundles(false);
+      }
+    };
+
+    fetchBundles();
+  }, []);
+
   // Customer Information
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -85,8 +108,11 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
 
   // Order Items
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [selectedItemType, setSelectedItemType] = useState<'product' | 'bundle'>('product');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedBundleId, setSelectedBundleId] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [applyActiveDiscounts, setApplyActiveDiscounts] = useState(false);
 
   // Payment Options
   const [paymentType, setPaymentType] = useState<'full' | 'installment'>('full');
@@ -99,8 +125,42 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   const total = subtotal + deliveryFee;
 
   const handleAddItem = () => {
-    if (!selectedProductId || quantity < 1) {
-      setError('Please select a product and quantity');
+    if (quantity < 1) {
+      setError('Please enter a valid quantity');
+      return;
+    }
+
+    if (selectedItemType === 'bundle') {
+      if (!selectedBundleId) {
+        setError('Please select a bundle');
+        return;
+      }
+
+      const bundle = bundles.find(item => item.id === selectedBundleId);
+      if (!bundle) {
+        setError('Bundle not found');
+        return;
+      }
+
+      const sellingPrice = Number(bundle.selling_price) || 0;
+      const newItem: OrderItem = {
+        item_type: 'bundle',
+        bundle_id: bundle.id,
+        product_name: bundle.name,
+        quantity,
+        unit_price: sellingPrice,
+        total_price: sellingPrice * quantity,
+      };
+
+      setOrderItems([...orderItems, newItem]);
+      setSelectedBundleId('');
+      setQuantity(1);
+      setError(null);
+      return;
+    }
+
+    if (!selectedProductId) {
+      setError('Please select a product');
       return;
     }
 
@@ -116,6 +176,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
     }
 
     const newItem: OrderItem = {
+      item_type: 'product',
       product_id: product.id,
       product_name: product.name,
       quantity,
@@ -168,10 +229,13 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       table_number: deliveryType === 'dine_in' ? tableNumber.trim() : undefined,
       notes: notes.trim() || undefined,
       items: orderItems.map(item => ({
-        product_id: item.product_id,
+        item_type: item.item_type,
+        product_id: item.product_id || '',
+        bundle_id: item.bundle_id,
         product_name: item.product_name,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        apply_discount: applyActiveDiscounts,
       })),
       data_consent_given: dataConsentGiven,
       consent_method: consentMethod,
@@ -225,9 +289,9 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
     >
       <h2 className="text-2xl font-bold text-gray-900">Create Offline Order</h2>
 
-      {loadingProducts && (
+      {(loadingProducts || loadingBundles) && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
-          Loading products...
+          Loading products and bundles...
         </div>
       )}
 
@@ -324,20 +388,47 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-800">Order Items</h3>
 
-        <div className="flex gap-2">
+        <div className="grid gap-2 lg:grid-cols-[140px_1fr_100px_auto]">
           <select
-            value={selectedProductId}
-            onChange={e => setSelectedProductId(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            value={selectedItemType}
+            onChange={e => {
+              setSelectedItemType(e.target.value as 'product' | 'bundle');
+              setSelectedProductId('');
+              setSelectedBundleId('');
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select Product</option>
-            {products?.map(product => (
-              <option key={product.id} value={product.id}>
-                {product.name} - {formatCurrency(product.selling_price)} (Stock:{' '}
-                {product.stock_quantity})
-              </option>
-            ))}
+            <option value="product">Product</option>
+            <option value="bundle">Bundle</option>
           </select>
+          {selectedItemType === 'product' ? (
+            <select
+              value={selectedProductId}
+              onChange={e => setSelectedProductId(e.target.value)}
+              className="min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Product</option>
+              {products?.map(product => (
+                <option key={product.id} value={product.id}>
+                  {product.name} - {formatCurrency(product.selling_price)} (Stock:{' '}
+                  {product.stock_quantity})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={selectedBundleId}
+              onChange={e => setSelectedBundleId(e.target.value)}
+              className="min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Bundle</option>
+              {bundles.map(bundle => (
+                <option key={bundle.id} value={bundle.id}>
+                  {bundle.name} - {formatCurrency(Number(bundle.selling_price) || 0)}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             type="number"
             min="1"
@@ -354,13 +445,23 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
           </button>
         </div>
 
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={applyActiveDiscounts}
+            onChange={e => setApplyActiveDiscounts(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Apply active discounts
+        </label>
+
         {orderItems.length > 0 && (
           <div className="border border-gray-200 rounded-md overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Product
+                    Item
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Qty
@@ -377,7 +478,18 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
               <tbody className="bg-white divide-y divide-gray-200">
                 {orderItems.map((item, index) => (
                   <tr key={index}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="font-medium">{item.product_name}</div>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          item.item_type === 'bundle'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {item.item_type === 'bundle' ? 'Bundle' : 'Product'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right">
                       {formatCurrency(item.unit_price)}
@@ -552,7 +664,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       <div className="flex gap-3 pt-4">
         <button
           type="submit"
-          disabled={loading || loadingProducts || orderItems.length === 0}
+          disabled={loading || loadingProducts || loadingBundles || orderItems.length === 0}
           className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
         >
           {loading ? 'Creating Order...' : 'Create Order'}
@@ -561,7 +673,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            disabled={loading || loadingProducts}
+            disabled={loading || loadingProducts || loadingBundles}
             className="px-6 py-3 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:bg-gray-50 font-medium"
           >
             Cancel

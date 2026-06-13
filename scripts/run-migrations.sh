@@ -58,6 +58,11 @@ apply_targeted_schema_patches() {
     apply_sql_file "000063_add_event_outbox.up.sql" "event outbox schema"
     apply_sql_file "000069_platform_owner_flow.up.sql" "platform-owner schema"
     apply_sql_file "000070_platform_command_center.up.sql" "platform command-center schema"
+    apply_sql_file "000075_create_inventory_foundation.up.sql" "inventory foundation schema"
+    apply_sql_file "000076_create_recipe_costing.up.sql" "recipe costing schema"
+    apply_sql_file "000077_create_order_item_cost_snapshots.up.sql" "order item cost snapshot schema"
+    apply_sql_file "000078_create_bundles.up.sql" "bundle schema"
+    apply_sql_file "000079_create_discount_rules_and_pricing_snapshots.up.sql" "discount rules and pricing snapshot schema"
     echo "✅ Schema patches applied"
 }
 

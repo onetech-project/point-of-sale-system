@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -14,11 +15,12 @@ import (
 
 // OrderService handles business logic for order management
 type OrderService struct {
-	db            *sql.DB
-	orderRepo     *repository.OrderRepository
-	addressRepo   *repository.AddressRepository
-	paymentRepo   *repository.PaymentRepository
-	kafkaProducer *queue.KafkaProducer
+	db             *sql.DB
+	orderRepo      *repository.OrderRepository
+	addressRepo    *repository.AddressRepository
+	paymentRepo    *repository.PaymentRepository
+	kafkaProducer  *queue.KafkaProducer
+	eventPublisher *EventPublisher
 }
 
 // NewOrderService creates a new order service
@@ -28,13 +30,15 @@ func NewOrderService(
 	addressRepo *repository.AddressRepository,
 	paymentRepo *repository.PaymentRepository,
 	kafkaProducer *queue.KafkaProducer,
+	eventPublisher *EventPublisher,
 ) *OrderService {
 	return &OrderService{
-		db:            db,
-		orderRepo:     orderRepo,
-		addressRepo:   addressRepo,
-		paymentRepo:   paymentRepo,
-		kafkaProducer: kafkaProducer,
+		db:             db,
+		orderRepo:      orderRepo,
+		addressRepo:    addressRepo,
+		paymentRepo:    paymentRepo,
+		kafkaProducer:  kafkaProducer,
+		eventPublisher: eventPublisher,
 	}
 }
 
@@ -112,6 +116,12 @@ func (s *OrderService) UpdateOrderStatus(
 		return fmt.Errorf("failed to update order status: %w", err)
 	}
 
+	if order.Status != newStatus {
+		if err := s.createLifecycleOutboxEvent(ctx, tx, order, newStatus, now); err != nil {
+			return fmt.Errorf("failed to create order lifecycle event: %w", err)
+		}
+	}
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -150,6 +160,86 @@ func (s *OrderService) UpdateOrderStatus(
 	}
 
 	return nil
+}
+
+func (s *OrderService) createLifecycleOutboxEvent(ctx context.Context, tx *sql.Tx, order *models.GuestOrder, newStatus models.OrderStatus, occurredAt time.Time) error {
+	if s.eventPublisher == nil {
+		return nil
+	}
+
+	eventType := ""
+	switch newStatus {
+	case models.OrderStatusComplete:
+		eventType = "order.fulfilled"
+	case models.OrderStatusCancelled:
+		eventType = "order.cancelled"
+	default:
+		return nil
+	}
+
+	items, err := s.orderRepo.GetOrderItemsByOrderIDTx(ctx, tx, order.ID)
+	if err != nil {
+		return fmt.Errorf("failed to load order items for lifecycle event: %w", err)
+	}
+
+	eventID := fmt.Sprintf("%s:%s", eventType, order.ID)
+	eventItems := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		itemType := item.ItemType
+		if itemType == "" {
+			itemType = "product"
+		}
+		payloadItem := map[string]interface{}{
+			"order_item_id":    item.ID,
+			"item_type":        itemType,
+			"product_name":     item.ProductName,
+			"quantity":         item.Quantity,
+			"list_unit_price":  item.ListUnitPrice,
+			"unit_price":       item.UnitPrice,
+			"total_price":      item.TotalPrice,
+			"discount_amount":  item.DiscountAmount,
+			"pricing_snapshot": item.PricingSnapshot,
+		}
+		if item.ProductID != "" {
+			payloadItem["product_id"] = item.ProductID
+		}
+		if item.BundleID != nil && *item.BundleID != "" {
+			payloadItem["bundle_id"] = *item.BundleID
+		}
+		if item.DiscountRuleID != nil && *item.DiscountRuleID != "" {
+			payloadItem["discount_rule_id"] = *item.DiscountRuleID
+		}
+		if item.DiscountType != nil {
+			payloadItem["discount_type"] = *item.DiscountType
+		}
+		if item.DiscountValue != nil {
+			payloadItem["discount_value"] = *item.DiscountValue
+		}
+		eventItems = append(eventItems, payloadItem)
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"event_id":        eventID,
+		"event_type":      eventType,
+		"tenant_id":       order.TenantID,
+		"order_id":        order.ID,
+		"order_reference": order.OrderReference,
+		"order_type":      order.OrderType,
+		"old_status":      order.Status,
+		"new_status":      newStatus,
+		"occurred_at":     occurredAt.Format(time.RFC3339Nano),
+		"items":           eventItems,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal lifecycle event payload: %w", err)
+	}
+
+	return s.eventPublisher.CreateEvent(ctx, tx, &models.CreateEventOutboxRequest{
+		EventType:    eventType,
+		EventKey:     order.ID,
+		EventPayload: payload,
+		Topic:        "order-events",
+	})
 }
 
 // isValidTransition validates state machine transitions

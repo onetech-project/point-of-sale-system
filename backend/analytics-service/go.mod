@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.11.1
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/zerolog v1.34.0
+	github.com/shopspring/decimal v1.2.0
 )
 
 require (

@@ -24,6 +24,7 @@ it('uses responsive and wrapping classes for product KPI values', async () => {
     total_value: 1234567890,
     low_stock_count: 8,
     out_of_stock_count: 2,
+    categories_count: 15,
   });
 
   render(<InventoryDashboard />);

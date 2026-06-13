@@ -79,6 +79,7 @@ func main() {
 
 	tenantServiceURL := utils.GetEnv("TENANT_SERVICE_URL")
 	productServiceURL := utils.GetEnv("PRODUCT_SERVICE_URL")
+	inventoryServiceURL := utils.GetEnv("INVENTORY_SERVICE_URL")
 	authServiceURL := utils.GetEnv("AUTH_SERVICE_URL")
 	userServiceURL := utils.GetEnv("USER_SERVICE_URL")
 	auditServiceURL := utils.GetEnv("AUDIT_SERVICE_URL")
@@ -183,6 +184,7 @@ func main() {
 	// All authenticated users can list invitations
 	protected.GET("/api/invitations", proxyHandler(userServiceURL, "/invitations"))
 
+	registerIngredientInventoryRoutes(protected, inventoryServiceURL)
 	registerProductRoutes(protected, productServiceURL)
 
 	// Order service routes
@@ -204,6 +206,11 @@ func main() {
 	adminSettings := protected.Group("/api/v1/admin")
 	adminSettings.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
 	adminSettings.Any("/settings*", proxyWildcard(orderServiceURL))
+
+	// Discount rules are managed by owner/manager and evaluated by order-service pricing.
+	adminDiscounts := protected.Group("/api/v1/admin")
+	adminDiscounts.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+	adminDiscounts.Any("/discount-rules*", proxyWildcard(orderServiceURL))
 
 	// Webhook routes (no auth, but signature verification in order-service)
 	e.Any("/api/v1/webhooks/*", proxyWildcard(orderServiceURL))
@@ -348,6 +355,29 @@ func registerProductRoutes(protected *echo.Group, productServiceURL string) {
 	productGroup.DELETE("/api/v1/products*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+}
+
+func registerIngredientInventoryRoutes(protected *echo.Group, inventoryServiceURL string) {
+	inventoryGroup := protected.Group("")
+	inventoryGroup.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager))
+
+	inventoryGroup.Any("/api/v1/uoms*", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.Any("/api/v1/ingredients*", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/products/:productId/recipe", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.POST("/api/v1/products/:productId/recipes", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/products/:productId/recipes", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/products/:productId/recipes/:version", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/products/:productId/recipe/cost", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.POST("/api/v1/inventory/initial-stock", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.POST("/api/v1/inventory/purchases", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.POST("/api/v1/inventory/adjustments", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.POST("/api/v1/inventory/waste", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/inventory/ingredients/:ingredientId/movements", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/inventory/low-stock", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/inventory/valuation", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/inventory/orders/:orderId/cost-snapshots", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.GET("/api/v1/inventory/orders/:orderId/profitability", proxyWildcard(inventoryServiceURL))
+	inventoryGroup.Any("/api/v1/inventory/bundles*", proxyWildcard(inventoryServiceURL))
 }
 
 func registerPublicPlansRoute(public *echo.Group, billingServiceURL string) {

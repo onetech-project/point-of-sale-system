@@ -5,9 +5,23 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
+interface MockProduct {
+  name?: string;
+  sku?: string;
+  price?: string;
+  category_id?: string;
+  description?: string;
+  quantity?: string;
+  tax_rate?: string;
+}
+
 // Mock ProductForm component for testing
 // In real implementation, this would import from ProductForm.tsx
-const ProductForm = ({ initialProduct = null, onSubmit = () => {}, onCancel = () => {} }) => {
+const ProductForm = ({ initialProduct = null, onSubmit = () => {}, onCancel = () => {} }: {
+  initialProduct?: MockProduct | null;
+  onSubmit?: (data: any) => void;
+  onCancel?: () => void;
+}) => {
   const [formData, setFormData] = React.useState({
     name: initialProduct?.name || '',
     sku: initialProduct?.sku || '',
@@ -18,7 +32,7 @@ const ProductForm = ({ initialProduct = null, onSubmit = () => {}, onCancel = ()
     tax_rate: initialProduct?.tax_rate || '',
   });
 
-  const [errors, setErrors] = React.useState({});
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

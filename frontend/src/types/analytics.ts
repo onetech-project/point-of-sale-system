@@ -242,6 +242,127 @@ export interface TaskFilterRequest {
   taskType?: 'restock' | 'review_price' | 'update_info';
 }
 
+// Inventory Analytics Types (Phase 5)
+
+export interface ProductProfitability {
+  product_id: string;
+  product_name: string;
+  total_revenue: number;
+  total_cogs: number;
+  gross_profit: number;
+  gross_margin_pct: number;
+  total_quantity_sold: number;
+  avg_selling_price: number;
+  avg_cogs_per_unit: number;
+  recipe_version: number;
+}
+
+export interface ProductProfitabilityResponse {
+  products: ProductProfitability[];
+  start_date: string;
+  end_date: string;
+  total_items: number;
+}
+
+export interface IngredientUsage {
+  ingredient_id: string;
+  ingredient_name: string;
+  total_consumed: number;
+  base_unit: string;
+  total_cost: number;
+  avg_cost_per_unit: number;
+  current_stock: number;
+  stock_after_forecast: number;
+  days_until_stockout: number | null;
+}
+
+export interface DailyBurnRate {
+  date: string;
+  ingredient_id: string;
+  quantity_used: number;
+}
+
+export interface IngredientForecastResponse {
+  ingredients: IngredientUsage[];
+  start_date: string;
+  end_date: string;
+  daily_burn_rate: DailyBurnRate[];
+}
+
+export interface RevenueTarget {
+  target_revenue: number;
+  period_days: number;
+  daily_target: number;
+  weekly_target: number;
+}
+
+export interface RecommendedProductMix {
+  product_id: string;
+  product_name: string;
+  recommended_quantity: number;
+  estimated_revenue: number;
+  estimated_cogs: number;
+  gross_margin_pct: number;
+  score_reason: string;
+}
+
+export interface RevenueSimulatorResponse {
+  target: RevenueTarget;
+  recommended_mix: RecommendedProductMix[];
+  estimated_ingredient_usage: IngredientUsage[];
+  estimated_budget: number;
+  projected_gross_profit: number;
+  projected_gross_margin: number;
+  feasibility_score: number;
+  feasibility_notes: string[];
+}
+
+export interface IngredientBudgetLine {
+  ingredient_id: string;
+  ingredient_name: string;
+  allocated_budget: number;
+  quantity_to_buy: number;
+  unit: string;
+  cost_per_unit: number;
+}
+
+export interface BudgetSimulatorResponse {
+  budget: number;
+  start_date: string;
+  end_date: string;
+  recommended_mix: RecommendedProductMix[];
+  ingredient_breakdown: IngredientBudgetLine[];
+  projected_revenue: number;
+  projected_gross_profit: number;
+  projected_gross_margin: number;
+  budget_utilization: number;
+}
+
+export interface ProductRecommendation {
+  product_id: string;
+  product_name: string;
+  total_score: number;
+  margin_score: number;
+  velocity_score: number;
+  stock_readiness_score: number;
+  trend_score: number;
+  bundle_opportunity: boolean;
+  recommendation_note: string;
+}
+
+export interface ScoringWeights {
+  margin: number;
+  velocity: number;
+  stock_readiness: number;
+  trend: number;
+}
+
+export interface ProductRecommendationResponse {
+  recommendations: ProductRecommendation[];
+  generated_at: string;
+  scoring_weights: ScoringWeights;
+}
+
 // Error Types
 export interface AnalyticsError {
   code: string;

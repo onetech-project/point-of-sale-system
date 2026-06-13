@@ -12,6 +12,7 @@
 #   ./stop-all.sh tenant              # Stop only Tenant Service
 #   ./stop-all.sh notification        # Stop only Notification Service
 #   ./stop-all.sh billing             # Stop only Billing Service
+#   ./stop-all.sh inventory           # Stop only Inventory Service
 #   ./stop-all.sh frontend            # Stop only Frontend
 #   ./stop-all.sh auth user tenant    # Stop multiple services
 #   ./stop-all.sh all                 # Stop all services and docker containers
@@ -47,6 +48,9 @@ else
             product|product-service)
                 TARGET_SERVICES+=("product")
                 ;;
+            inventory|inventory-service)
+                TARGET_SERVICES+=("inventory")
+                ;;
             order|order-service)
                 TARGET_SERVICES+=("order")
                 ;;
@@ -76,6 +80,7 @@ else
                 echo "  tenant           - Tenant Service"
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
+                echo "  inventory        - Inventory Service"
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
                 echo "  analytics        - Analytics Service"
@@ -141,6 +146,7 @@ USER_SERVICE_PORT=${USER_SERVICE_PORT:-8083}
 TENANT_SERVICE_PORT=${TENANT_SERVICE_PORT:-8084}
 NOTIFICATION_SERVICE_PORT=${NOTIFICATION_SERVICE_PORT:-8085}
 PRODUCT_SERVICE_PORT=${PRODUCT_SERVICE_PORT:-8086}
+INVENTORY_SERVICE_PORT=${INVENTORY_SERVICE_PORT:-8092}
 ORDER_SERVICE_PORT=${ORDER_SERVICE_PORT:-8087}
 AUDIT_SERVICE_PORT=${AUDIT_SERVICE_PORT:-8088}
 ANALYTICS_SERVICE_PORT=${ANALYTICS_SERVICE_PORT:-8089}
@@ -155,6 +161,7 @@ PORT_SERVICE_MAP[$USER_SERVICE_PORT]="user"
 PORT_SERVICE_MAP[$TENANT_SERVICE_PORT]="tenant"
 PORT_SERVICE_MAP[$NOTIFICATION_SERVICE_PORT]="notification"
 PORT_SERVICE_MAP[$PRODUCT_SERVICE_PORT]="product"
+PORT_SERVICE_MAP[$INVENTORY_SERVICE_PORT]="inventory"
 PORT_SERVICE_MAP[$ORDER_SERVICE_PORT]="order"
 PORT_SERVICE_MAP[$AUDIT_SERVICE_PORT]="audit"
 PORT_SERVICE_MAP[$ANALYTICS_SERVICE_PORT]="analytics"
@@ -163,7 +170,7 @@ PORT_SERVICE_MAP[$FRONTEND_PORT]="frontend"
 
 STOPPED_PORTS=()
 
-for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $ANALYTICS_SERVICE_PORT $BILLING_SERVICE_PORT $FRONTEND_PORT; do
+for port in $API_GATEWAY_PORT $AUTH_SERVICE_PORT $USER_SERVICE_PORT $TENANT_SERVICE_PORT $NOTIFICATION_SERVICE_PORT $PRODUCT_SERVICE_PORT $INVENTORY_SERVICE_PORT $ORDER_SERVICE_PORT $AUDIT_SERVICE_PORT $ANALYTICS_SERVICE_PORT $BILLING_SERVICE_PORT $FRONTEND_PORT; do
     service_name=${PORT_SERVICE_MAP[$port]}
     
     if should_stop_service "$service_name"; then
@@ -217,6 +224,9 @@ if should_stop_service "notification"; then
 fi
 if should_stop_service "product"; then
     LOG_FILES+=("/tmp/product-service.log")
+fi
+if should_stop_service "inventory"; then
+    LOG_FILES+=("/tmp/inventory-service.log")
 fi
 if should_stop_service "order"; then
     LOG_FILES+=("/tmp/order-service.log")

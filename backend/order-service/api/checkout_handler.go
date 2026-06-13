@@ -396,8 +396,8 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 				SubjectType:      "guest",
 				SubjectID:        orderID, // Real order_id from database
 				ConsentMethod:    "checkout",
-				PolicyVersion:    "1.0.0", // TODO: Get from database
-				Consents:         req.Consents, // Only optional consents provided by user
+				PolicyVersion:    "1.0.0",                               // TODO: Get from database
+				Consents:         req.Consents,                          // Only optional consents provided by user
 				RequiredConsents: validators.GetRequiredGuestConsents(), // Required consents (implicit)
 				Metadata: events.ConsentMetadata{
 					IPAddress: c.RealIP(),
@@ -517,13 +517,28 @@ func (h *CheckoutHandler) insertOrder(ctx context.Context, tx *sql.Tx, order *mo
 }
 
 func (h *CheckoutHandler) insertOrderItem(ctx context.Context, tx *sql.Tx, item *models.OrderItem) error {
+	// TODO: Apply discount rules to online checkout once cart rows can carry product/bundle pricing intent.
 	query := `
 		INSERT INTO order_items (
-			order_id, product_id, product_name, quantity, unit_price, total_price
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			order_id, product_id, product_name, quantity, unit_price, total_price,
+			item_type, list_unit_price, discount_amount, pricing_snapshot
+		) VALUES ($1, $2, $3, $4, $5, $6, 'product', $7, 0, $8)
 	`
 
-	_, err := tx.ExecContext(
+	pricingSnapshot, err := json.Marshal(map[string]interface{}{
+		"item_type":        "product",
+		"list_unit_price":  item.UnitPrice,
+		"unit_price":       item.UnitPrice,
+		"total_price":      item.TotalPrice,
+		"discount_amount":  0,
+		"discount_applied": false,
+		"snapshot_source":  "online_checkout",
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(
 		ctx,
 		query,
 		item.OrderID,
@@ -532,6 +547,8 @@ func (h *CheckoutHandler) insertOrderItem(ctx context.Context, tx *sql.Tx, item 
 		item.Quantity,
 		item.UnitPrice,
 		item.TotalPrice,
+		item.UnitPrice,
+		pricingSnapshot,
 	)
 
 	return err

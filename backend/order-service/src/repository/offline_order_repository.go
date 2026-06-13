@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -499,22 +500,53 @@ func (r *OfflineOrderRepository) UpdateOrderItems(ctx context.Context, tx *sql.T
 	// Insert new order items and calculate totals
 	insertQuery := `
 		INSERT INTO order_items (
-			order_id, product_id, product_name, quantity, unit_price, total_price
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			order_id, product_id, product_name, quantity, unit_price, total_price,
+			item_type, bundle_id, list_unit_price, discount_rule_id, discount_type,
+			discount_value, discount_amount, pricing_snapshot
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	subtotalAmount := 0
 	for _, item := range items {
 		totalPrice := item.Quantity * item.UnitPrice
-		_, err := executor.ExecContext(
+		itemType := "product"
+		if item.ItemType != nil && *item.ItemType != "" {
+			itemType = *item.ItemType
+		}
+		listUnitPrice := item.UnitPrice
+		if item.DiscountAmount > 0 && item.Quantity > 0 {
+			listUnitPrice += item.DiscountAmount / item.Quantity
+		}
+		pricingSnapshot, err := json.Marshal(map[string]interface{}{
+			"item_type":        itemType,
+			"list_unit_price":  listUnitPrice,
+			"unit_price":       item.UnitPrice,
+			"total_price":      totalPrice,
+			"discount_amount":  item.DiscountAmount,
+			"discount_applied": item.DiscountRuleID != nil && *item.DiscountRuleID != "",
+			"snapshot_source":  "offline_order_update",
+		})
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to marshal pricing snapshot: %w", err)
+		}
+
+		_, err = executor.ExecContext(
 			ctx,
 			insertQuery,
 			orderID,
-			item.ProductID,
+			nullableRepositoryString(item.ProductID),
 			item.ProductName,
 			item.Quantity,
 			item.UnitPrice,
 			totalPrice,
+			itemType,
+			item.BundleID,
+			listUnitPrice,
+			item.DiscountRuleID,
+			item.DiscountType,
+			item.DiscountValue,
+			item.DiscountAmount,
+			pricingSnapshot,
 		)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to insert order item: %w", err)
@@ -544,6 +576,13 @@ func (r *OfflineOrderRepository) UpdateOrderItems(ctx context.Context, tx *sql.T
 	}
 
 	return subtotalAmount, totalAmount, nil
+}
+
+func nullableRepositoryString(value string) interface{} {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 // ListOfflineOrdersFilters holds filter parameters for listing offline orders

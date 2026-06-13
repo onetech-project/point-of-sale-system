@@ -68,6 +68,11 @@ func main() {
 	taskRepo := repository.NewTaskRepository(config.GetDB(), encryptor, timezone)
 	tasksHandler := api.NewTasksHandler(taskRepo)
 
+	// Initialize inventory analytics
+	inventoryAnalyticsRepo := repository.NewInventoryAnalyticsRepository(config.GetDB(), timezone)
+	inventoryAnalyticsService := services.NewInventoryAnalyticsService(inventoryAnalyticsRepo)
+	inventoryAnalyticsHandler := api.NewInventoryAnalyticsHandler(inventoryAnalyticsService)
+
 	// Routes
 	e.GET("/health", healthHandler.Health)
 
@@ -81,6 +86,13 @@ func main() {
 	v1.GET("/analytics/top-customers", analyticsHandler.GetTopCustomers)
 	v1.GET("/analytics/sales-trend", analyticsHandler.GetSalesTrend)
 	v1.GET("/analytics/tasks", tasksHandler.GetOperationalTasks)
+
+	// Inventory analytics routes (Phase 5)
+	v1.GET("/analytics/inventory/profitability", inventoryAnalyticsHandler.GetProductProfitability)
+	v1.GET("/analytics/inventory/forecast", inventoryAnalyticsHandler.GetIngredientForecast)
+	v1.POST("/analytics/inventory/simulate/revenue", inventoryAnalyticsHandler.SimulateRevenueTarget)
+	v1.POST("/analytics/inventory/simulate/budget", inventoryAnalyticsHandler.SimulateBudget)
+	v1.GET("/analytics/inventory/recommendations", inventoryAnalyticsHandler.GetProductRecommendations)
 
 	// Start server
 	port := utils.GetEnv("PORT")

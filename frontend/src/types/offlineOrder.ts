@@ -76,11 +76,18 @@ export interface OfflineOrder {
 export interface OfflineOrderItem {
   id: string;
   order_id: string;
-  product_id: string;
+  item_type?: 'product' | 'bundle';
+  product_id?: string | null;
+  bundle_id?: string | null;
   product_name: string;
   quantity: number;
   unit_price: number;
   total_price: number;
+  list_unit_price?: number;
+  discount_rule_id?: string | null;
+  discount_type?: 'percentage' | 'fixed_amount' | null;
+  discount_value?: number | null;
+  discount_amount?: number;
 }
 
 /**
@@ -154,10 +161,14 @@ export interface CreateOfflineOrderRequest {
 
   // Order Items
   items: {
+    item_type?: 'product' | 'bundle';
     product_id: string;
+    bundle_id?: string;
     product_name: string;
     quantity: number;
     unit_price: number;
+    discount_rule_id?: string;
+    apply_discount?: boolean;
   }[];
 
   // Data Consent
@@ -225,8 +236,14 @@ export interface UpdateOfflineOrderRequest {
  * Order Item Input for creating/updating orders
  */
 export interface OrderItemInput {
+  item_type?: 'product' | 'bundle';
   product_id: string;
+  bundle_id?: string;
   product_name: string;
   quantity: number;
   unit_price: number;
+  discount_rule_id?: string;
+  discount_type?: 'percentage' | 'fixed_amount';
+  discount_value?: number;
+  discount_amount?: number;
 }

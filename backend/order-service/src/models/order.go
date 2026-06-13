@@ -100,10 +100,14 @@ type CreateOrderRequest struct {
 
 // CreateOrderItemReq represents an item in the create order request
 type CreateOrderItemReq struct {
-	ProductID   string `json:"product_id" validate:"required,uuid"`
-	ProductName string `json:"product_name" validate:"required,min=1"`
-	Quantity    int    `json:"quantity" validate:"required,min=1"`
-	UnitPrice   int    `json:"unit_price" validate:"required,min=0"`
+	ProductID      string  `json:"product_id" validate:"required,uuid"`
+	ProductName    string  `json:"product_name" validate:"required,min=1"`
+	Quantity       int     `json:"quantity" validate:"required,min=1"`
+	UnitPrice      int     `json:"unit_price" validate:"required,min=0"`
+	ItemType       *string `json:"item_type,omitempty" validate:"omitempty,oneof=product bundle"`
+	BundleID       *string `json:"bundle_id,omitempty" validate:"omitempty,uuid"`
+	DiscountRuleID *string `json:"discount_rule_id,omitempty" validate:"omitempty,uuid"`
+	ApplyDiscount  bool    `json:"apply_discount,omitempty"`
 }
 
 // DeliveryAddressReq represents delivery address in the create order request
@@ -210,8 +214,14 @@ type UpdateOfflineOrderRequest struct {
 
 // OrderItemInput represents an item for order creation or update
 type OrderItemInput struct {
-	ProductID   string `json:"product_id" validate:"required,uuid"`
-	ProductName string `json:"product_name" validate:"required"`
-	Quantity    int    `json:"quantity" validate:"required,min=1"`
-	UnitPrice   int    `json:"unit_price" validate:"required,min=0"`
+	ProductID      string   `json:"product_id" validate:"required,uuid"`
+	ProductName    string   `json:"product_name" validate:"required"`
+	Quantity       int      `json:"quantity" validate:"required,min=1"`
+	UnitPrice      int      `json:"unit_price" validate:"required,min=0"`
+	ItemType       *string  `json:"item_type,omitempty" validate:"omitempty,oneof=product bundle"`
+	BundleID       *string  `json:"bundle_id,omitempty" validate:"omitempty,uuid"`
+	DiscountRuleID *string  `json:"discount_rule_id,omitempty" validate:"omitempty,uuid"`
+	DiscountType   *string  `json:"discount_type,omitempty" validate:"omitempty,oneof=percentage fixed_amount"`
+	DiscountValue  *float64 `json:"discount_value,omitempty"`
+	DiscountAmount int      `json:"discount_amount,omitempty"`
 }

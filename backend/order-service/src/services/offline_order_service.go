@@ -22,14 +22,15 @@ import (
 // Implements User Story 1: Record Basic Offline Order (MVP)
 // Implements User Story 2: Manage Payment Terms and Installments
 type OfflineOrderService struct {
-	db                     *sql.DB
-	offlineOrderRepo       *repository.OfflineOrderRepository
-	orderItemRepo          *repository.OrderRepository // Reuse existing order item operations
-	paymentRepo            *repository.PaymentRepository
-	outboxRepo             *repository.OutboxRepository
-	eventPublisher         *EventPublisher
-	paymentCalculator      *PaymentCalculator
-	tracer                 trace.Tracer // T113: OpenTelemetry tracer
+	db                *sql.DB
+	offlineOrderRepo  *repository.OfflineOrderRepository
+	orderItemRepo     *repository.OrderRepository // Reuse existing order item operations
+	paymentRepo       *repository.PaymentRepository
+	outboxRepo        *repository.OutboxRepository
+	eventPublisher    *EventPublisher
+	paymentCalculator *PaymentCalculator
+	discountService   *DiscountService
+	tracer            trace.Tracer // T113: OpenTelemetry tracer
 }
 
 // NewOfflineOrderService creates a new offline order service
@@ -41,6 +42,7 @@ func NewOfflineOrderService(
 	outboxRepo *repository.OutboxRepository,
 	eventPublisher *EventPublisher,
 	paymentCalculator *PaymentCalculator,
+	discountService *DiscountService,
 ) *OfflineOrderService {
 	return &OfflineOrderService{
 		db:                db,
@@ -50,36 +52,37 @@ func NewOfflineOrderService(
 		outboxRepo:        outboxRepo,
 		eventPublisher:    eventPublisher,
 		paymentCalculator: paymentCalculator,
+		discountService:   discountService,
 		tracer:            otel.Tracer("offline-order-service"), // T113: Initialize tracer
 	}
 }
 
 // CreateOfflineOrderRequest represents the request to create an offline order
 type CreateOfflineOrderRequest struct {
-	TenantID          string                       `json:"tenant_id" validate:"required,uuid"`
-	CustomerName      string                       `json:"customer_name" validate:"required,min=2,max=255"`
-	CustomerPhone     string                       `json:"customer_phone" validate:"required,min=10,max=20"`
-	CustomerEmail     *string                      `json:"customer_email,omitempty" validate:"omitempty,email"`
-	DeliveryType      models.DeliveryType          `json:"delivery_type" validate:"required,oneof=pickup delivery dine_in"`
-	TableNumber       *string                      `json:"table_number,omitempty"`
-	Notes             *string                      `json:"notes,omitempty"`
-	Items             []models.CreateOrderItemReq  `json:"items" validate:"required,min=1,dive"`
-	DataConsentGiven  bool                         `json:"data_consent_given" validate:"required"`
-	ConsentMethod     *models.ConsentMethod        `json:"consent_method" validate:"required_if=DataConsentGiven true"`
-	RecordedByUserID  string                       `json:"recorded_by_user_id" validate:"required,uuid"`
-	PaymentInfo       *PaymentInfo                 `json:"payment,omitempty"` // US2: Payment terms
+	TenantID         string                      `json:"tenant_id" validate:"required,uuid"`
+	CustomerName     string                      `json:"customer_name" validate:"required,min=2,max=255"`
+	CustomerPhone    string                      `json:"customer_phone" validate:"required,min=10,max=20"`
+	CustomerEmail    *string                     `json:"customer_email,omitempty" validate:"omitempty,email"`
+	DeliveryType     models.DeliveryType         `json:"delivery_type" validate:"required,oneof=pickup delivery dine_in"`
+	TableNumber      *string                     `json:"table_number,omitempty"`
+	Notes            *string                     `json:"notes,omitempty"`
+	Items            []models.CreateOrderItemReq `json:"items" validate:"required,min=1,dive"`
+	DataConsentGiven bool                        `json:"data_consent_given" validate:"required"`
+	ConsentMethod    *models.ConsentMethod       `json:"consent_method" validate:"required_if=DataConsentGiven true"`
+	RecordedByUserID string                      `json:"recorded_by_user_id" validate:"required,uuid"`
+	PaymentInfo      *PaymentInfo                `json:"payment,omitempty"` // US2: Payment terms
 }
 
 // PaymentInfo represents payment details for an offline order
 type PaymentInfo struct {
-	Type                string                `json:"type" validate:"required,oneof=full installment"` // "full" or "installment"
-	Amount              *int                  `json:"amount,omitempty"`                                // For full payment
-	Method              *models.PaymentMethod `json:"method,omitempty"`                                // For full payment
-	DownPaymentAmount   *int                  `json:"down_payment_amount,omitempty"`                   // For installment
-	DownPaymentMethod   *models.PaymentMethod `json:"down_payment_method,omitempty"`                   // For installment
-	InstallmentCount    int                   `json:"installment_count,omitempty"`                     // Number of installments
-	InstallmentAmount   int                   `json:"installment_amount,omitempty"`                    // Amount per installment
-	PaymentSchedule     []models.Installment  `json:"payment_schedule,omitempty"`                      // Detailed schedule
+	Type              string                `json:"type" validate:"required,oneof=full installment"` // "full" or "installment"
+	Amount            *int                  `json:"amount,omitempty"`                                // For full payment
+	Method            *models.PaymentMethod `json:"method,omitempty"`                                // For full payment
+	DownPaymentAmount *int                  `json:"down_payment_amount,omitempty"`                   // For installment
+	DownPaymentMethod *models.PaymentMethod `json:"down_payment_method,omitempty"`                   // For installment
+	InstallmentCount  int                   `json:"installment_count,omitempty"`                     // Number of installments
+	InstallmentAmount int                   `json:"installment_amount,omitempty"`                    // Amount per installment
+	PaymentSchedule   []models.Installment  `json:"payment_schedule,omitempty"`                      // Detailed schedule
 }
 
 // CreateOfflineOrder creates a new offline order with full validation
@@ -96,10 +99,10 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		),
 	)
 	defer span.End()
-	
+
 	// T112: Start timer for order creation duration
 	startTime := time.Now()
-	
+
 	// Validate data consent requirement for offline orders
 	if !req.DataConsentGiven {
 		span.RecordError(fmt.Errorf("data consent required"))
@@ -113,21 +116,20 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		return nil, fmt.Errorf("consent method is required when data consent is given")
 	}
 
+	// Generate order reference (GO-XXXXXX format)
+	orderReference := s.generateOrderReference()
+
+	pricedItems, subtotalAmount, err := s.priceOfflineOrderItems(ctx, req.TenantID, req.Items)
+	if err != nil {
+		return nil, err
+	}
+
 	// Begin transaction for atomic operation
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
-
-	// Generate order reference (GO-XXXXXX format)
-	orderReference := s.generateOrderReference()
-
-	// Calculate totals from items
-	var subtotalAmount int
-	for _, item := range req.Items {
-		subtotalAmount += item.Quantity * item.UnitPrice
-	}
 
 	deliveryFee := 0 // Calculate based on delivery type if needed
 	totalAmount := subtotalAmount + deliveryFee
@@ -161,21 +163,34 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 
 	// Insert order items into database
 	insertItemQuery := `
-		INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO order_items (
+			order_id, product_id, product_name, quantity, unit_price, total_price,
+			item_type, bundle_id, list_unit_price, discount_rule_id, discount_type,
+			discount_value, discount_amount, pricing_snapshot
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
-	
-	for _, item := range req.Items {
-		totalPrice := item.Quantity * item.UnitPrice
+
+	for _, priced := range pricedItems {
+		item := priced.Item
+		pricing := priced.Pricing
 		_, err := tx.ExecContext(
 			ctx,
 			insertItemQuery,
 			orderID,
-			item.ProductID,
+			nullableString(item.ProductID),
 			item.ProductName,
 			item.Quantity,
-			item.UnitPrice,
-			totalPrice,
+			pricing.UnitPrice,
+			pricing.TotalPrice,
+			pricing.ItemType,
+			pricing.BundleID,
+			pricing.ListUnitPrice,
+			pricing.DiscountRuleID,
+			pricing.DiscountType,
+			pricing.DiscountValue,
+			pricing.DiscountAmount,
+			pricing.PricingSnapshot,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert order item: %w", err)
@@ -195,13 +210,13 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 
 		// Create payment terms
 		paymentTermsReq := &models.CreatePaymentTermsRequest{
-			OrderID:            orderID,
-			TotalAmount:        totalAmount,
-			DownPaymentAmount:  req.PaymentInfo.DownPaymentAmount,
-			InstallmentCount:   req.PaymentInfo.InstallmentCount,
-			InstallmentAmount:  req.PaymentInfo.InstallmentAmount,
-			PaymentSchedule:    req.PaymentInfo.PaymentSchedule,
-			CreatedByUserID:    req.RecordedByUserID,
+			OrderID:           orderID,
+			TotalAmount:       totalAmount,
+			DownPaymentAmount: req.PaymentInfo.DownPaymentAmount,
+			InstallmentCount:  req.PaymentInfo.InstallmentCount,
+			InstallmentAmount: req.PaymentInfo.InstallmentAmount,
+			PaymentSchedule:   req.PaymentInfo.PaymentSchedule,
+			CreatedByUserID:   req.RecordedByUserID,
 		}
 
 		termsID, err := s.paymentRepo.CreatePaymentTerms(ctx, tx, paymentTermsReq)
@@ -260,16 +275,16 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 
 	// Publish offline_order.created event to audit trail (T034)
 	eventPayload := map[string]interface{}{
-		"order_id":         orderID,
-		"order_reference":  orderReference,
-		"tenant_id":        req.TenantID,
-		"customer_name":    req.CustomerName,
-		"customer_phone":   req.CustomerPhone,
-		"total_amount":     totalAmount,
+		"order_id":            orderID,
+		"order_reference":     orderReference,
+		"tenant_id":           req.TenantID,
+		"customer_name":       req.CustomerName,
+		"customer_phone":      req.CustomerPhone,
+		"total_amount":        totalAmount,
 		"recorded_by_user_id": req.RecordedByUserID,
-		"consent_given":    req.DataConsentGiven,
-		"consent_method":   req.ConsentMethod,
-		"created_at":       time.Now().Format(time.RFC3339),
+		"consent_given":       req.DataConsentGiven,
+		"consent_method":      req.ConsentMethod,
+		"created_at":          time.Now().Format(time.RFC3339),
 	}
 
 	eventPayloadJSON, err := json.Marshal(eventPayload)
@@ -313,7 +328,7 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 	observability.OfflineOrdersTotal.WithLabelValues(string(order.Status), req.TenantID).Inc()
 	observability.OfflineOrderRevenue.WithLabelValues(req.TenantID).Add(float64(totalAmount))
 	observability.OfflineOrderCreationDuration.WithLabelValues(req.TenantID).Observe(time.Since(startTime).Seconds())
-	
+
 	// T112: Record installment metrics if applicable
 	if req.PaymentInfo != nil && req.PaymentInfo.Type == "installment" {
 		observability.PaymentInstallmentsTotal.WithLabelValues(req.TenantID, strconv.Itoa(req.PaymentInfo.InstallmentCount)).Inc()
@@ -335,6 +350,75 @@ func (s *OfflineOrderService) generateOrderReference() string {
 	// Generate 6-digit random number with leading zeros
 	randomNum := rand.Intn(1000000)
 	return fmt.Sprintf("GO-%06d", randomNum)
+}
+
+type pricedOfflineOrderItem struct {
+	Item    models.CreateOrderItemReq
+	Pricing *models.PricingResult
+}
+
+func (s *OfflineOrderService) priceOfflineOrderItems(ctx context.Context, tenantID string, items []models.CreateOrderItemReq) ([]pricedOfflineOrderItem, int, error) {
+	pricedItems := make([]pricedOfflineOrderItem, 0, len(items))
+	subtotalAmount := 0
+
+	for _, item := range items {
+		itemType := models.DiscountTargetProduct
+		if item.ItemType != nil && *item.ItemType != "" {
+			itemType = models.DiscountTargetType(*item.ItemType)
+		}
+
+		productID := item.ProductID
+		priceReq := &models.PricingPreviewRequest{
+			TenantID:       tenantID,
+			ItemType:       itemType,
+			ProductID:      stringPointerOrNil(productID),
+			BundleID:       item.BundleID,
+			Quantity:       item.Quantity,
+			UnitPrice:      item.UnitPrice,
+			DiscountRuleID: item.DiscountRuleID,
+			ApplyDiscount:  item.ApplyDiscount,
+		}
+
+		needsDiscountLookup := (item.DiscountRuleID != nil && *item.DiscountRuleID != "") || item.ApplyDiscount
+		var pricing *models.PricingResult
+		var err error
+		if needsDiscountLookup {
+			if s.discountService == nil {
+				return nil, 0, fmt.Errorf("discount service is unavailable")
+			}
+			pricing, err = s.discountService.PreviewPricing(ctx, priceReq)
+		} else {
+			if err := validatePricingRequest(priceReq); err != nil {
+				return nil, 0, err
+			}
+			pricing, err = buildPricingResult(priceReq, nil, time.Now().UTC())
+		}
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to price order item %s: %w", item.ProductName, err)
+		}
+
+		pricedItems = append(pricedItems, pricedOfflineOrderItem{
+			Item:    item,
+			Pricing: pricing,
+		})
+		subtotalAmount += pricing.TotalPrice
+	}
+
+	return pricedItems, subtotalAmount, nil
+}
+
+func stringPointerOrNil(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func nullableString(value string) interface{} {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 // GetOfflineOrderByID retrieves an offline order with authorization check
@@ -436,13 +520,13 @@ func (s *OfflineOrderService) ValidateOrderAccess(ctx context.Context, orderID s
 
 // RecordPaymentRequest represents a request to record a payment for an offline order
 type RecordPaymentRequest struct {
-	OrderID          string                `json:"order_id" validate:"required,uuid"`
-	TenantID         string                `json:"tenant_id" validate:"required,uuid"`
-	AmountPaid       int                   `json:"amount_paid" validate:"required,min=1"`
-	PaymentMethod    models.PaymentMethod  `json:"payment_method" validate:"required"`
-	RecordedByUserID string                `json:"recorded_by_user_id" validate:"required,uuid"`
-	Notes            *string               `json:"notes,omitempty"`
-	ReceiptNumber    *string               `json:"receipt_number,omitempty"`
+	OrderID          string               `json:"order_id" validate:"required,uuid"`
+	TenantID         string               `json:"tenant_id" validate:"required,uuid"`
+	AmountPaid       int                  `json:"amount_paid" validate:"required,min=1"`
+	PaymentMethod    models.PaymentMethod `json:"payment_method" validate:"required"`
+	RecordedByUserID string               `json:"recorded_by_user_id" validate:"required,uuid"`
+	Notes            *string              `json:"notes,omitempty"`
+	ReceiptNumber    *string              `json:"receipt_number,omitempty"`
 }
 
 // RecordPayment records a payment for an offline order with validation
@@ -460,7 +544,7 @@ func (s *OfflineOrderService) RecordPayment(ctx context.Context, req *RecordPaym
 		),
 	)
 	defer span.End()
-	
+
 	// Validate order access
 	order, err := s.offlineOrderRepo.GetOfflineOrderByID(ctx, req.OrderID, req.TenantID)
 	if err != nil || order == nil {
@@ -663,7 +747,7 @@ func (s *OfflineOrderService) UpdateOfflineOrder(ctx context.Context, req *Updat
 		),
 	)
 	defer span.End()
-	
+
 	// T078: Check status constraint - cannot edit orders that are PAID or later
 	existingOrder, err := s.offlineOrderRepo.GetOfflineOrderByID(ctx, req.OrderID, req.TenantID)
 	if err != nil {
@@ -710,7 +794,7 @@ func (s *OfflineOrderService) UpdateOfflineOrder(ctx context.Context, req *Updat
 		if err != nil {
 			return nil, fmt.Errorf("failed to update order items: %w", err)
 		}
-		
+
 		// Add totals to change log
 		changes["subtotal_amount"] = map[string]interface{}{
 			"old": existingOrder.SubtotalAmount,
@@ -725,11 +809,11 @@ func (s *OfflineOrderService) UpdateOfflineOrder(ctx context.Context, req *Updat
 	// T079: Publish offline_order.updated event with change details
 	changeDetailsJSON, _ := json.Marshal(changes)
 	eventPayload, _ := json.Marshal(map[string]interface{}{
-		"order_id":           req.OrderID,
-		"tenant_id":          req.TenantID,
+		"order_id":            req.OrderID,
+		"tenant_id":           req.TenantID,
 		"modified_by_user_id": req.ModifiedByUserID,
-		"changes":            string(changeDetailsJSON),
-		"modified_at":        time.Now().Unix(),
+		"changes":             string(changeDetailsJSON),
+		"modified_at":         time.Now().Unix(),
 	})
 
 	err = s.eventPublisher.CreateEvent(ctx, tx, &models.CreateEventOutboxRequest{
@@ -849,9 +933,9 @@ func (s *OfflineOrderService) detectChanges(existing *models.GuestOrder, req *Up
 // UpdateOfflineOrderRequest represents a request to update an offline order
 // US3: Edit offline orders with audit trail
 type UpdateOfflineOrderRequest struct {
-	OrderID          string                         `json:"order_id" validate:"required,uuid"`
-	TenantID         string                         `json:"tenant_id" validate:"required,uuid"`
-	ModifiedByUserID string                         `json:"modified_by_user_id" validate:"required,uuid"`
+	OrderID          string                           `json:"order_id" validate:"required,uuid"`
+	TenantID         string                           `json:"tenant_id" validate:"required,uuid"`
+	ModifiedByUserID string                           `json:"modified_by_user_id" validate:"required,uuid"`
 	ModelUpdates     models.UpdateOfflineOrderRequest // Actual field updates
 }
 
@@ -861,7 +945,7 @@ type DeleteOfflineOrderRequest struct {
 	OrderID         string `json:"order_id" validate:"required,uuid"`
 	TenantID        string `json:"tenant_id" validate:"required,uuid"`
 	DeletedByUserID string `json:"deleted_by_user_id" validate:"required,uuid"`
-	UserRole        string `json:"user_role"` // T112: User role for metrics
+	UserRole        string `json:"user_role"`                                // T112: User role for metrics
 	Reason          string `json:"reason" validate:"required,min=5,max=500"` // Deletion reason for audit
 }
 
@@ -882,7 +966,7 @@ func (s *OfflineOrderService) DeleteOfflineOrder(ctx context.Context, req *Delet
 		),
 	)
 	defer span.End()
-	
+
 	// Note: Role validation is handled by RequireRole middleware in the handler layer
 	// This service assumes the caller has already been authorized
 

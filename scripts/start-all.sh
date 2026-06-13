@@ -12,6 +12,7 @@
 #   ./start-all.sh tenant              # Start only Tenant Service
 #   ./start-all.sh notification        # Start only Notification Service
 #   ./start-all.sh platform            # Start only Platform Service
+#   ./start-all.sh inventory           # Start only Inventory Service
 #   ./start-all.sh frontend            # Start only Frontend
 #   ./start-all.sh auth user tenant    # Start multiple services
 #   ./start-all.sh all with-vault          # Start all services with Vault
@@ -52,6 +53,9 @@ else
             product|product-service)
                 TARGET_SERVICES+=("product")
                 ;;
+            inventory|inventory-service)
+                TARGET_SERVICES+=("inventory")
+                ;;
             order|order-service)
                 TARGET_SERVICES+=("order")
                 ;;
@@ -89,6 +93,7 @@ else
                 echo "  tenant           - Tenant Service"
                 echo "  notification     - Notification Service"
                 echo "  product          - Product Service"
+                echo "  inventory        - Inventory Service"
                 echo "  order            - Order Service"
                 echo "  audit            - Audit Service"
                 echo "  analytics        - Analytics Service"
@@ -176,8 +181,10 @@ ROOT_AUDIT_SERVICE_PORT="${AUDIT_SERVICE_PORT:-8088}"
 ROOT_ANALYTICS_SERVICE_PORT="${ANALYTICS_SERVICE_PORT:-8089}"
 ROOT_BILLING_SERVICE_PORT="${BILLING_SERVICE_PORT:-8090}"
 ROOT_PLATFORM_SERVICE_PORT="${PLATFORM_SERVICE_PORT:-8091}"
+ROOT_INVENTORY_SERVICE_PORT="${INVENTORY_SERVICE_PORT:-8092}"
 ROOT_BILLING_SERVICE_URL="${BILLING_SERVICE_URL:-http://localhost:${ROOT_BILLING_SERVICE_PORT}}"
 ROOT_PLATFORM_SERVICE_URL="${PLATFORM_SERVICE_URL:-http://localhost:${ROOT_PLATFORM_SERVICE_PORT}}"
+ROOT_INVENTORY_SERVICE_URL="${INVENTORY_SERVICE_URL:-http://localhost:${ROOT_INVENTORY_SERVICE_PORT}}"
 
 local_redis_addr() {
     if [[ "$ROOT_REDIS_HOST" == *":"* ]]; then
@@ -244,6 +251,7 @@ apply_local_runtime_overrides() {
             export ANALYTICS_SERVICE_URL="http://localhost:${ROOT_ANALYTICS_SERVICE_PORT}"
             export BILLING_SERVICE_URL="$ROOT_BILLING_SERVICE_URL"
             export PLATFORM_SERVICE_URL="$ROOT_PLATFORM_SERVICE_URL"
+            export INVENTORY_SERVICE_URL="$ROOT_INVENTORY_SERVICE_URL"
             ;;
         auth|user|tenant|notification|product)
             export REDIS_HOST="$redis_addr"
@@ -282,7 +290,7 @@ apply_local_runtime_overrides() {
 }
 
 # Check if service .env files exist
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend" || should_start_service "billing" || should_start_service "platform"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "inventory" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "frontend" || should_start_service "billing" || should_start_service "platform"; then
     echo "🔍 Checking service configuration files..."
     services_to_check=()
     
@@ -303,6 +311,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "product"; then
         services_to_check+=("backend/product-service/.env")
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "inventory"; then
+        services_to_check+=("backend/inventory-service/.env")
     fi
     if [ "$START_ALL" = true ] || should_start_service "order"; then
         services_to_check+=("backend/order-service/.env")
@@ -346,7 +357,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Check if Docker is running (only if starting backend services)
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing" || should_start_service "platform"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "inventory" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing" || should_start_service "platform"; then
     if ! docker info > /dev/null 2>&1; then
         echo "⚠️  Warning: Docker is not running. Database and Redis will not be available."
         echo "    Services will attempt to start but may fail without database connectivity."
@@ -409,7 +420,7 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
 fi
 
 # Build services
-if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing" || should_start_service "platform"; then
+if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_service "auth" || should_start_service "user" || should_start_service "tenant" || should_start_service "notification" || should_start_service "product" || should_start_service "inventory" || should_start_service "order" || should_start_service "audit" || should_start_service "analytics" || should_start_service "billing" || should_start_service "platform"; then
     echo "🔨 Building services..."
     
     if [ "$START_ALL" = true ] || should_start_service "gateway"; then
@@ -429,6 +440,9 @@ if [ "$START_ALL" = true ] || should_start_service "gateway" || should_start_ser
     fi
     if [ "$START_ALL" = true ] || should_start_service "product"; then
         cd "$PROJECT_ROOT/backend/product-service" && go build -o product-service.bin main.go &
+    fi
+    if [ "$START_ALL" = true ] || should_start_service "inventory"; then
+        cd "$PROJECT_ROOT/backend/inventory-service" && go build -o inventory-service.bin main.go &
     fi
     if [ "$START_ALL" = true ] || should_start_service "order"; then
         cd "$PROJECT_ROOT/backend/order-service" && go build -o order-service.bin main.go &
@@ -510,6 +524,10 @@ if [ "$START_ALL" = true ] || should_start_service "product"; then
     start_service_with_env "product" "Product Service" "$PROJECT_ROOT/backend/product-service" "product-service" "/tmp/product-service.log" "$ROOT_PRODUCT_SERVICE_PORT"
 fi
 
+if [ "$START_ALL" = true ] || should_start_service "inventory"; then
+    start_service_with_env "inventory" "Inventory Service" "$PROJECT_ROOT/backend/inventory-service" "inventory-service" "/tmp/inventory-service.log" "$ROOT_INVENTORY_SERVICE_PORT"
+fi
+
 if [ "$START_ALL" = true ] || should_start_service "order"; then
     start_service_with_env "order" "Order Service" "$PROJECT_ROOT/backend/order-service" "order-service" "/tmp/order-service.log" "$ROOT_ORDER_SERVICE_PORT"
 fi
@@ -564,6 +582,7 @@ echo "   User Service:         http://localhost:${USER_SERVICE_PORT:-8083}"
 echo "   Tenant Service:       http://localhost:${TENANT_SERVICE_PORT:-8084}"
 echo "   Notification Service: http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}"
 echo "   Product Service:      http://localhost:${PRODUCT_SERVICE_PORT:-8086}"
+echo "   Inventory Service:    http://localhost:${INVENTORY_SERVICE_PORT:-8092}"
 echo "   Order Service:        http://localhost:${ORDER_SERVICE_PORT:-8087}"
 echo "   Audit Service:        http://localhost:${AUDIT_SERVICE_PORT:-8088}"
 echo "   Analytics Service:    http://localhost:${ANALYTICS_SERVICE_PORT:-8089}"
@@ -578,6 +597,7 @@ echo "   curl http://localhost:${USER_SERVICE_PORT:-8083}/health"
 echo "   curl http://localhost:${TENANT_SERVICE_PORT:-8084}/health"
 echo "   curl http://localhost:${NOTIFICATION_SERVICE_PORT:-8085}/health"
 echo "   curl http://localhost:${PRODUCT_SERVICE_PORT:-8086}/health"
+echo "   curl http://localhost:${INVENTORY_SERVICE_PORT:-8092}/health"
 echo "   curl http://localhost:${ORDER_SERVICE_PORT:-8087}/health"
 echo "   curl http://localhost:${AUDIT_SERVICE_PORT:-8088}/health"
 echo "   curl http://localhost:${ANALYTICS_SERVICE_PORT:-8089}/health"
@@ -591,6 +611,7 @@ echo "   tail -f /tmp/user-service.log"
 echo "   tail -f /tmp/tenant-service.log"
 echo "   tail -f /tmp/notification-service.log"
 echo "   tail -f /tmp/product-service.log"
+echo "   tail -f /tmp/inventory-service.log"
 echo "   tail -f /tmp/order-service.log"
 echo "   tail -f /tmp/audit-service.log"
 echo "   tail -f /tmp/analytics-service.log"

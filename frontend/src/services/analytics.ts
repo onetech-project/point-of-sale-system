@@ -6,6 +6,11 @@ import {
   OperationalTasksResponse,
   SalesTrendResponse,
   TimeRange,
+  ProductProfitabilityResponse,
+  IngredientForecastResponse,
+  RevenueSimulatorResponse,
+  BudgetSimulatorResponse,
+  ProductRecommendationResponse,
 } from '../types/analytics';
 
 const ANALYTICS_BASE = '/api/v1/analytics';
@@ -118,6 +123,65 @@ class AnalyticsService {
 
     const url = `${ANALYTICS_BASE}/sales-trend?${params.toString()}`;
     return apiClient.get<SalesTrendResponse>(url);
+  }
+
+  // Inventory Analytics Methods (Phase 5)
+
+  async getProductProfitability(
+    startDate: string,
+    endDate: string,
+    limit: number = 20
+  ): Promise<ProductProfitabilityResponse> {
+    const params = new URLSearchParams();
+    params.append('start_date', startDate);
+    params.append('end_date', endDate);
+    params.append('limit', limit.toString());
+
+    const url = `${ANALYTICS_BASE}/inventory/profitability?${params.toString()}`;
+    return apiClient.get<ProductProfitabilityResponse>(url);
+  }
+
+  async getIngredientForecast(
+    startDate: string,
+    endDate: string
+  ): Promise<IngredientForecastResponse> {
+    const params = new URLSearchParams();
+    params.append('start_date', startDate);
+    params.append('end_date', endDate);
+
+    const url = `${ANALYTICS_BASE}/inventory/forecast?${params.toString()}`;
+    return apiClient.get<IngredientForecastResponse>(url);
+  }
+
+  async simulateRevenueTarget(
+    targetRevenue: string,
+    startDate: string,
+    endDate: string
+  ): Promise<RevenueSimulatorResponse> {
+    const url = `${ANALYTICS_BASE}/inventory/simulate/revenue`;
+    return apiClient.post<RevenueSimulatorResponse>(url, {
+      target_revenue: targetRevenue,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
+  async simulateBudget(
+    budgetAmount: string,
+    startDate: string,
+    endDate: string
+  ): Promise<BudgetSimulatorResponse> {
+    const url = `${ANALYTICS_BASE}/inventory/simulate/budget`;
+    return apiClient.post<BudgetSimulatorResponse>(url, {
+      budget_amount: budgetAmount,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
+  async getProductRecommendations(): Promise<ProductRecommendationResponse> {
+    const url = `${ANALYTICS_BASE}/inventory/recommendations`;
+    return apiClient.get<ProductRecommendationResponse>(url);
   }
 }
 

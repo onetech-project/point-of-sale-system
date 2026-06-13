@@ -290,6 +290,41 @@ services:
   #     service: "product-service"
   #     env: "development"
 
+  # inventory-service:
+  #   build:
+  #     context: ./backend/inventory-service
+  #     dockerfile: Dockerfile
+  #   container_name: inventory-service
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   env_file:
+  #     - ./backend/inventory-service/.env
+  #   ports:
+  #     - "8092:8080"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   restart: on-failure:5
+  #   networks:
+  #     - pos-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 128M
+  #       reservations:
+  #         memory: 128M
+  #   labels:
+  #     prometheus.scrape: "true"
+  #     prometheus.port: "8080"
+  #     service: "inventory-service"
+  #     env: "development"
+
   # tenant-service:
   #   build:
   #     context: ./backend/tenant-service
