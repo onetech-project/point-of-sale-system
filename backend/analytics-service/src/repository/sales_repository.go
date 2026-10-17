@@ -106,18 +106,28 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 	}
 
 	// US5: Calculate offline order metrics (T101-T102)
+	// An order is an installment order when it has payment terms with installments; EXISTS keeps
+	// an order from being counted twice if it ever has more than one payment_terms row.
 	offlineMetricsQuery := fmt.Sprintf(`
+		WITH offline_orders AS (
+			SELECT
+				go.total_amount,
+				EXISTS (
+					SELECT 1 FROM payment_terms pt
+					WHERE pt.order_id = go.id AND pt.installment_count > 0
+				) AS is_installment
+			FROM guest_orders go
+			WHERE go.tenant_id = $1 
+				AND go.order_type = 'offline'
+				AND go.%s
+				AND %s BETWEEN $2 AND $3
+		)
 		SELECT 
 			COUNT(*) as offline_count,
 			COALESCE(SUM(total_amount), 0) as offline_revenue,
-			COUNT(CASE WHEN pt.payment_type = 'installment' THEN 1 END) as installment_count,
-			COALESCE(SUM(CASE WHEN pt.payment_type = 'installment' THEN total_amount ELSE 0 END), 0) as installment_revenue
-		FROM guest_orders go
-		LEFT JOIN payment_terms pt ON pt.order_id = go.id AND pt.tenant_id = go.tenant_id
-		WHERE go.tenant_id = $1 
-			AND go.order_type = 'offline'
-			AND go.%s
-			AND %s BETWEEN $2 AND $3
+			COUNT(*) FILTER (WHERE is_installment) as installment_count,
+			COALESCE(SUM(total_amount) FILTER (WHERE is_installment), 0) as installment_revenue
+		FROM offline_orders
 	`, revenueStatusFilter, revenueAt("go."))
 
 	err = r.db.QueryRowContext(ctx, offlineMetricsQuery, tenantID, start, end).Scan(
@@ -140,14 +150,31 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		metrics.OfflinePercentage = (float64(metrics.OfflineOrderCount) / float64(metrics.TotalOrders)) * 100
 	}
 
-	// Calculate pending installments
-	pendingInstallmentsQuery := `
-		SELECT COALESCE(SUM(amount_due - amount_paid), 0) as pending_amount
-		FROM installment_schedules
-		WHERE tenant_id = $1 
-			AND status = 'pending'
-			AND due_date <= CURRENT_TIMESTAMP
-	`
+	// Calculate pending installments: what is already due on open installment orders but not yet
+	// paid. Per order that is the down payment plus every scheduled installment due by today,
+	// minus what has been paid, capped at the remaining balance (installment amounts are rounded
+	// up, so the schedule can add up to slightly more than the order total).
+	pendingInstallmentsQuery := fmt.Sprintf(`
+		SELECT COALESCE(SUM(
+			LEAST(
+				pt.remaining_balance,
+				GREATEST(0, COALESCE(pt.down_payment_amount, 0) + COALESCE(due.amount, 0) - pt.total_paid)
+			)
+		), 0) as pending_amount
+		FROM payment_terms pt
+		JOIN guest_orders go ON go.id = pt.order_id
+		LEFT JOIN LATERAL (
+			SELECT SUM((installment->>'amount')::bigint) AS amount
+			FROM jsonb_array_elements(pt.payment_schedule) AS installment
+			WHERE installment->>'due_date' ~ '^\d{4}-\d{2}-\d{2}$'
+				AND (installment->>'due_date')::date <= %s
+		) due ON true
+		WHERE go.tenant_id = $1
+			AND go.order_type = 'offline'
+			AND go.status = 'PENDING'
+			AND go.deleted_at IS NULL
+			AND pt.remaining_balance > 0
+	`, localDate("NOW()", r.timezone))
 
 	err = r.db.QueryRowContext(ctx, pendingInstallmentsQuery, tenantID).Scan(&metrics.PendingInstallments)
 	if err != nil {
