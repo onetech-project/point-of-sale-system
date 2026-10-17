@@ -572,12 +572,12 @@ func renderOrderDocumentPDF(snapshot *OrderDocumentSnapshot) ([]byte, error) {
 	pdf.SetFont("Helvetica", "", 10)
 	addTwoColumnRow(pdf, "Reference", snapshot.OrderReference, "Name", snapshot.CustomerName)
 	addTwoColumnRow(pdf, "Status", string(snapshot.Status), "Phone", snapshot.CustomerPhone)
-	addTwoColumnRow(pdf, "Created", snapshot.CreatedAt.Format("02 Jan 2006 15:04"), "Email", emptyDash(snapshot.CustomerEmail))
+	addTwoColumnRow(pdf, "Created", snapshot.CreatedAt.In(time.Local).Format("02 Jan 2006 15:04"), "Email", emptyDash(snapshot.CustomerEmail))
 	addTwoColumnRow(pdf, "Delivery", formatDeliveryType(snapshot.DeliveryType), "Table", emptyDash(snapshot.TableNumber))
 	if snapshot.DocumentType == OrderDocumentTypeReceipt {
 		paidAt := "-"
 		if snapshot.PaidAt != nil {
-			paidAt = snapshot.PaidAt.Format("02 Jan 2006 15:04")
+			paidAt = snapshot.PaidAt.In(time.Local).Format("02 Jan 2006 15:04")
 		}
 		addTwoColumnRow(pdf, "Paid At", paidAt, "Payment", emptyDash(snapshot.PaymentMethod))
 	}

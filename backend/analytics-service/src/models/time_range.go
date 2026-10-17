@@ -26,9 +26,10 @@ func (tr TimeRange) GetDateRange() (start, end time.Time, err error) {
 	now := time.Now()
 	loc := now.Location()
 
-	// Normalize to start of day
+	// Normalize to start of day. Ranges end on the last microsecond of a day: Postgres timestamps
+	// have microsecond precision and would round a nanosecond bound up to the next midnight.
 	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	endOfToday := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, loc)
+	endOfToday := startOfToday.AddDate(0, 0, 1).Add(-time.Microsecond)
 
 	switch tr {
 	case TimeRangeToday:
@@ -36,7 +37,7 @@ func (tr TimeRange) GetDateRange() (start, end time.Time, err error) {
 
 	case TimeRangeYesterday:
 		yesterday := startOfToday.AddDate(0, 0, -1)
-		return yesterday, yesterday.Add(24*time.Hour - time.Nanosecond), nil
+		return yesterday, startOfToday.Add(-time.Microsecond), nil
 
 	case TimeRangeThisWeek:
 		// Start from Monday
@@ -53,7 +54,7 @@ func (tr TimeRange) GetDateRange() (start, end time.Time, err error) {
 			weekday = 7
 		}
 		lastMonday := startOfToday.AddDate(0, 0, -(weekday + 6))
-		lastSunday := lastMonday.AddDate(0, 0, 6).Add(24*time.Hour - time.Nanosecond)
+		lastSunday := lastMonday.AddDate(0, 0, 7).Add(-time.Microsecond)
 		return lastMonday, lastSunday, nil
 
 	case TimeRangeThisMonth:
@@ -63,7 +64,7 @@ func (tr TimeRange) GetDateRange() (start, end time.Time, err error) {
 	case TimeRangeLastMonth:
 		firstDayThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		firstDayLastMonth := firstDayThisMonth.AddDate(0, -1, 0)
-		lastDayLastMonth := firstDayThisMonth.Add(-time.Nanosecond)
+		lastDayLastMonth := firstDayThisMonth.Add(-time.Microsecond)
 		return firstDayLastMonth, lastDayLastMonth, nil
 
 	case TimeRangeThisYear:

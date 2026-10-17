@@ -416,7 +416,7 @@ func (s *NotificationService) handleOrderInvoice(ctx context.Context, event mode
 		"CustomerName":   customerName,
 		"CustomerEmail":  email,
 		"DeliveryType":   deliveryType,
-		"CreatedAt":      createdAt.Format("02 January 2006 15:04"),
+		"CreatedAt":      createdAt.In(time.Local).Format("02 January 2006 15:04"),
 		"SubtotalAmount": formatIDR(subtotalAmount),
 		"DeliveryFee":    deliveryFeeStr,
 		"TotalAmount":    formatIDR(totalAmount),

@@ -2,6 +2,14 @@
 
 import React from 'react';
 
+// Formats a date as YYYY-MM-DD in the browser's timezone (toISOString would use UTC)
+const toLocalDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export type Granularity = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export interface TimeSeriesFilterProps {
@@ -85,7 +93,7 @@ export const TimeSeriesFilter: React.FC<TimeSeriesFilterProps> = ({
               onChange={handleEndDateChange}
               disabled={loading}
               min={startDate}
-              max={new Date().toISOString().split('T')[0]}
+              max={toLocalDateString(new Date())}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
@@ -102,10 +110,7 @@ export const TimeSeriesFilter: React.FC<TimeSeriesFilterProps> = ({
                 const end = new Date();
                 const start = new Date();
                 start.setDate(start.getDate() - 30);
-                onDateRangeChange(
-                  start.toISOString().split('T')[0],
-                  end.toISOString().split('T')[0]
-                );
+                onDateRangeChange(toLocalDateString(start), toLocalDateString(end));
               }}
               disabled={loading}
               className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -117,10 +122,7 @@ export const TimeSeriesFilter: React.FC<TimeSeriesFilterProps> = ({
                 const end = new Date();
                 const start = new Date();
                 start.setDate(start.getDate() - 90);
-                onDateRangeChange(
-                  start.toISOString().split('T')[0],
-                  end.toISOString().split('T')[0]
-                );
+                onDateRangeChange(toLocalDateString(start), toLocalDateString(end));
               }}
               disabled={loading}
               className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

@@ -20,6 +20,7 @@ type OrderService struct {
 	paymentRepo   *repository.PaymentRepository
 	kafkaProducer *queue.KafkaProducer
 	inventory     *InventoryService
+	analytics     *AnalyticsCacheInvalidator
 }
 
 // NewOrderService creates a new order service
@@ -30,6 +31,7 @@ func NewOrderService(
 	paymentRepo *repository.PaymentRepository,
 	kafkaProducer *queue.KafkaProducer,
 	inventory *InventoryService,
+	analytics *AnalyticsCacheInvalidator,
 ) *OrderService {
 	return &OrderService{
 		db:            db,
@@ -38,6 +40,7 @@ func NewOrderService(
 		paymentRepo:   paymentRepo,
 		kafkaProducer: kafkaProducer,
 		inventory:     inventory,
+		analytics:     analytics,
 	}
 }
 
@@ -123,6 +126,8 @@ func (s *OrderService) UpdateOrderStatus(
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.analytics.InvalidateTenant(ctx, order.TenantID)
 
 	log.Info().
 		Str("order_id", orderID).

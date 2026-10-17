@@ -70,7 +70,7 @@ func (h *AnalyticsHandler) GetSalesOverview(c echo.Context) error {
 			})
 		}
 
-		start, err := time.Parse("2006-01-02", startStr)
+		start, err := time.ParseInLocation("2006-01-02", startStr, time.Local)
 		if err != nil {
 			log.Warn().
 				Str("tenant_id", tenantID).
@@ -82,7 +82,7 @@ func (h *AnalyticsHandler) GetSalesOverview(c echo.Context) error {
 			})
 		}
 
-		end, err := time.Parse("2006-01-02", endStr)
+		end, err := time.ParseInLocation("2006-01-02", endStr, time.Local)
 		if err != nil {
 			log.Warn().
 				Str("tenant_id", tenantID).
@@ -93,6 +93,8 @@ func (h *AnalyticsHandler) GetSalesOverview(c echo.Context) error {
 				"error": "Invalid end_date format (use YYYY-MM-DD)",
 			})
 		}
+		// Include the whole end day (microsecond precision, matching Postgres timestamps)
+		end = end.AddDate(0, 0, 1).Add(-time.Microsecond)
 
 		startDate = &start
 		endDate = &end
@@ -167,19 +169,21 @@ func (h *AnalyticsHandler) GetTopProducts(c echo.Context) error {
 			})
 		}
 
-		start, err := time.Parse("2006-01-02", startStr)
+		start, err := time.ParseInLocation("2006-01-02", startStr, time.Local)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "Invalid start_date format (use YYYY-MM-DD)",
 			})
 		}
 
-		end, err := time.Parse("2006-01-02", endStr)
+		end, err := time.ParseInLocation("2006-01-02", endStr, time.Local)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "Invalid end_date format (use YYYY-MM-DD)",
 			})
 		}
+		// Include the whole end day (microsecond precision, matching Postgres timestamps)
+		end = end.AddDate(0, 0, 1).Add(-time.Microsecond)
 
 		startDate = &start
 		endDate = &end
@@ -255,19 +259,21 @@ func (h *AnalyticsHandler) GetTopCustomers(c echo.Context) error {
 			})
 		}
 
-		start, err := time.Parse("2006-01-02", startStr)
+		start, err := time.ParseInLocation("2006-01-02", startStr, time.Local)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "Invalid start_date format (use YYYY-MM-DD)",
 			})
 		}
 
-		end, err := time.Parse("2006-01-02", endStr)
+		end, err := time.ParseInLocation("2006-01-02", endStr, time.Local)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "Invalid end_date format (use YYYY-MM-DD)",
 			})
 		}
+		// Include the whole end day (microsecond precision, matching Postgres timestamps)
+		end = end.AddDate(0, 0, 1).Add(-time.Microsecond)
 
 		startDate = &start
 		endDate = &end
@@ -336,19 +342,21 @@ func (h *AnalyticsHandler) GetSalesTrend(c echo.Context) error {
 	}
 
 	// Parse dates
-	startDate, err := time.Parse("2006-01-02", startDateStr)
+	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, time.Local)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Invalid start_date format. Use YYYY-MM-DD",
 		})
 	}
 
-	endDate, err := time.Parse("2006-01-02", endDateStr)
+	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, time.Local)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Invalid end_date format. Use YYYY-MM-DD",
 		})
 	}
+	// Include the whole end day (microsecond precision, matching Postgres timestamps)
+	endDate = endDate.AddDate(0, 0, 1).Add(-time.Microsecond)
 
 	// Validate date range
 	if endDate.Before(startDate) {

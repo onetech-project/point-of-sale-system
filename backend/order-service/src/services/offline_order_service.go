@@ -30,6 +30,7 @@ type OfflineOrderService struct {
 	eventPublisher         *EventPublisher
 	paymentCalculator      *PaymentCalculator
 	inventoryService       *InventoryService
+	analyticsCache         *AnalyticsCacheInvalidator
 	tracer                 trace.Tracer // T113: OpenTelemetry tracer
 }
 
@@ -43,6 +44,7 @@ func NewOfflineOrderService(
 	eventPublisher *EventPublisher,
 	paymentCalculator *PaymentCalculator,
 	inventoryService *InventoryService,
+	analyticsCache *AnalyticsCacheInvalidator,
 ) *OfflineOrderService {
 	return &OfflineOrderService{
 		db:                db,
@@ -53,6 +55,7 @@ func NewOfflineOrderService(
 		eventPublisher:    eventPublisher,
 		paymentCalculator: paymentCalculator,
 		inventoryService:  inventoryService,
+		analyticsCache:    analyticsCache,
 		tracer:            otel.Tracer("offline-order-service"), // T113: Initialize tracer
 	}
 }
@@ -310,6 +313,8 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		span.SetAttributes(attribute.String("error.type", "transaction_commit_failed"))
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.analyticsCache.InvalidateTenant(ctx, req.TenantID)
 
 	// T113: Record successful operation in span
 	span.SetAttributes(
@@ -622,6 +627,8 @@ func (s *OfflineOrderService) RecordPayment(ctx context.Context, req *RecordPaym
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	s.analyticsCache.InvalidateTenant(ctx, req.TenantID)
+
 	// T113: Record successful operation in span
 	span.SetAttributes(
 		attribute.String("payment_record_id", paymentRecordID),
@@ -794,6 +801,8 @@ func (s *OfflineOrderService) UpdateOfflineOrder(ctx context.Context, req *Updat
 		span.SetAttributes(attribute.String("error.type", "transaction_commit_failed"))
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.analyticsCache.InvalidateTenant(ctx, req.TenantID)
 
 	// T113: Record successful operation in span
 	span.SetAttributes(
@@ -1003,6 +1012,8 @@ func (s *OfflineOrderService) DeleteOfflineOrder(ctx context.Context, req *Delet
 		span.SetAttributes(attribute.String("error.type", "transaction_commit_failed"))
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.analyticsCache.InvalidateTenant(ctx, req.TenantID)
 
 	// T113: Record successful operation in span
 	span.SetAttributes(

@@ -122,7 +122,7 @@ func formatDocumentTime(value interface{}) string {
 		return ""
 	}
 	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
-		return parsed.Format("02 January 2006 15:04")
+		return parsed.In(time.Local).Format("02 January 2006 15:04")
 	}
 	return raw
 }

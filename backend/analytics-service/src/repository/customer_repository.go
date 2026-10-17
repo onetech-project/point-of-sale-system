@@ -39,12 +39,12 @@ func (r *CustomerRepository) GetTopCustomersBySpending(ctx context.Context, tena
 			COALESCE(AVG(total_amount), 0) as average_order
 		FROM guest_orders
 		WHERE tenant_id = $1 
-			AND status = 'COMPLETE'
-			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND %s
+			AND %s BETWEEN $2 AND $3
 		GROUP BY customer_name, customer_phone, customer_email
 		ORDER BY total_spent DESC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt(""))
 
 	return r.queryCustomers(ctx, query, tenantID, start, end, limit)
 }
@@ -61,12 +61,12 @@ func (r *CustomerRepository) GetTopCustomersByOrders(ctx context.Context, tenant
 			COALESCE(AVG(total_amount), 0) as average_order
 		FROM guest_orders
 		WHERE tenant_id = $1 
-			AND status = 'COMPLETE'
-			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND %s
+			AND %s BETWEEN $2 AND $3
 		GROUP BY customer_name, customer_phone, customer_email
 		ORDER BY order_count DESC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt(""))
 
 	return r.queryCustomers(ctx, query, tenantID, start, end, limit)
 }

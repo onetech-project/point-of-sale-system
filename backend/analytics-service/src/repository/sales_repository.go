@@ -39,9 +39,9 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 			COALESCE(AVG(total_amount), 0) as average_order_value
 		FROM guest_orders
 		WHERE tenant_id = $1 
-			AND status = 'COMPLETE'
-			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
-	`, r.timezone)
+			AND %s
+			AND %s BETWEEN $2 AND $3
+	`, revenueStatusFilter, revenueAt(""))
 
 	metrics := &models.SalesMetrics{
 		StartDate: start,
@@ -74,7 +74,7 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 	// Calculate previous period metrics for comparison
 	duration := end.Sub(start)
 	prevStart := start.Add(-duration)
-	prevEnd := start.Add(-time.Second) // End just before current period starts
+	prevEnd := start.Add(-time.Microsecond) // End just before current period starts
 
 	err = r.db.QueryRowContext(ctx, query, tenantID, prevStart, prevEnd).Scan(
 		&metrics.PreviousRevenue,
@@ -116,9 +116,9 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		LEFT JOIN payment_terms pt ON pt.order_id = go.id AND pt.tenant_id = go.tenant_id
 		WHERE go.tenant_id = $1 
 			AND go.order_type = 'offline'
-			AND go.status = 'COMPLETE'
-			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
-	`, r.timezone)
+			AND go.%s
+			AND %s BETWEEN $2 AND $3
+	`, revenueStatusFilter, revenueAt("go."))
 
 	err = r.db.QueryRowContext(ctx, offlineMetricsQuery, tenantID, start, end).Scan(
 		&metrics.OfflineOrderCount,
@@ -162,16 +162,16 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 func (r *SalesRepository) GetDailySales(ctx context.Context, tenantID string, start, end time.Time) ([]models.DailySalesData, error) {
 	query := fmt.Sprintf(`
 		SELECT 
-			DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s') as date,
+			%[1]s as date,
 			COALESCE(SUM(total_amount), 0) as revenue,
 			COUNT(*) as orders
 		FROM guest_orders
 		WHERE tenant_id = $1 
-			AND status = 'COMPLETE'
-			AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
-		GROUP BY DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s')
+			AND %[2]s
+			AND %[3]s BETWEEN $2 AND $3
+		GROUP BY %[1]s
 		ORDER BY date ASC
-	`, r.timezone, r.timezone, r.timezone)
+	`, localDate(revenueAt(""), r.timezone), revenueStatusFilter, revenueAt(""))
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end)
 	if err != nil {
@@ -206,13 +206,13 @@ func (r *SalesRepository) GetCategoryBreakdown(ctx context.Context, tenantID str
 		LEFT JOIN order_items oi ON oi.product_id = p.id
 		LEFT JOIN guest_orders go ON go.id = oi.order_id 
 			AND go.tenant_id = $1 
-			AND go.status = 'COMPLETE'
-			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND go.%s
+			AND %s BETWEEN $2 AND $3
 		WHERE c.tenant_id = $1
 		GROUP BY c.id, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue DESC
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt("go."))
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end)
 	if err != nil {
@@ -271,12 +271,13 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 		interval = "1 day"
 	}
 
-	// Query with generate_series to fill gaps
+	// Query with generate_series to fill gaps. $2/$3 are instants; the series and buckets use
+	// the local calendar of the configured timezone.
 	query := fmt.Sprintf(`
 		WITH date_series AS (
 			SELECT generate_series(
-				date_trunc($4, $2::timestamp),
-				date_trunc($4, $3::timestamp),
+				date_trunc($4, %[1]s),
+				date_trunc($4, %[2]s),
 				$5::interval
 			)::date AS date
 		)
@@ -286,13 +287,14 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 			COUNT(go.id) as orders
 		FROM date_series ds
 		LEFT JOIN guest_orders go ON 
-			date_trunc($4, (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s') = ds.date
+			date_trunc($4, %[3]s)::date = ds.date
 			AND go.tenant_id = $1
-			AND go.status = 'COMPLETE'
-			AND (go.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND go.%[4]s
+			AND %[5]s BETWEEN $2::timestamptz AND $3::timestamptz
 		GROUP BY ds.date
 		ORDER BY ds.date ASC
-	`, r.timezone, r.timezone)
+	`, localTimestamp("$2::timestamptz", r.timezone), localTimestamp("$3::timestamptz", r.timezone),
+		localTimestamp(revenueAt("go."), r.timezone), revenueStatusFilter, revenueAt("go."))
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end, dateTrunc, interval)
 	if err != nil {

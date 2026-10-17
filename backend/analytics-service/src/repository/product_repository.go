@@ -38,15 +38,15 @@ func (r *ProductRepository) GetTopProductsByRevenue(ctx context.Context, tenantI
 		LEFT JOIN order_items oi ON oi.product_id = p.id
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
-			AND od.status = 'COMPLETE'
-			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND od.%[1]s
+			AND %[2]s BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
-		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.status = 'COMPLETE'
+		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.%[1]s
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue DESC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt("od."))
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
@@ -65,15 +65,15 @@ func (r *ProductRepository) GetTopProductsByQuantity(ctx context.Context, tenant
 		LEFT JOIN order_items oi ON oi.product_id = p.id
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
-			AND od.status = 'COMPLETE'
-			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND od.%[1]s
+			AND %[2]s BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
-		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.status = 'COMPLETE'
+		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.%[1]s
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.quantity) > 0
 		ORDER BY quantity_sold DESC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt("od."))
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
@@ -92,15 +92,15 @@ func (r *ProductRepository) GetBottomProductsByRevenue(ctx context.Context, tena
 		LEFT JOIN order_items oi ON oi.product_id = p.id
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
-			AND od.status = 'COMPLETE'
-			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND od.%[1]s
+			AND %[2]s BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
-		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.status = 'COMPLETE'
+		WHERE p.tenant_id = $1 AND p.archived_at IS NULL  AND od.%[1]s
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.total_price) > 0
 		ORDER BY revenue ASC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt("od."))
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
@@ -119,15 +119,15 @@ func (r *ProductRepository) GetBottomProductsByQuantity(ctx context.Context, ten
 		LEFT JOIN order_items oi ON oi.product_id = p.id
 		LEFT JOIN guest_orders od ON od.id = oi.order_id 
 			AND od.tenant_id = $1 
-			AND od.status = 'COMPLETE'
-			AND (od.created_at AT TIME ZONE 'UTC') AT TIME ZONE '%s' BETWEEN $2 AND $3
+			AND od.%[1]s
+			AND %[2]s BETWEEN $2 AND $3
 		LEFT JOIN categories c ON c.id = p.category_id AND c.tenant_id = p.tenant_id
-		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.status = 'COMPLETE'
+		WHERE p.tenant_id = $1 AND p.archived_at IS NULL AND od.%[1]s
 		GROUP BY p.id, p.name, p.sku, c.name
 		HAVING SUM(oi.quantity) > 0
 		ORDER BY quantity_sold ASC
 		LIMIT $4
-	`, r.timezone)
+	`, revenueStatusFilter, revenueAt("od."))
 
 	return r.queryProducts(ctx, query, tenantID, start, end, limit)
 }
