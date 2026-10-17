@@ -6,11 +6,7 @@ import offlineOrderService from '../../services/offlineOrders';
 import { product as productService } from '../../services/product';
 import { formatCurrency } from '../../utils/format';
 import { sanitizeNumericPhone } from '../../utils/phone';
-import {
-  CreateOfflineOrderRequest,
-  ConsentMethod,
-  PaymentSchedule,
-} from '../../types/offlineOrder';
+import { CreateOfflineOrderRequest, ConsentMethod, PaymentMethod } from '../../types/offlineOrder';
 
 interface Product {
   id: string;
@@ -90,7 +86,8 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   const [quantity, setQuantity] = useState('1');
 
   // Payment Options
-  const [paymentType, setPaymentType] = useState<'full' | 'installment'>('full');
+  const [paymentType, setPaymentType] = useState<'unpaid' | 'full' | 'installment'>('full');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [downPaymentAmount, setDownPaymentAmount] = useState(0);
   const [installmentCount, setInstallmentCount] = useState(2);
 
@@ -98,6 +95,11 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
   const deliveryFee = deliveryType === 'delivery' ? 10000 : 0; // 10,000 IDR for delivery
   const total = subtotal + deliveryFee;
+
+  // Mirrors the server's schedule: the remainder is spread over the first installments
+  const financedAmount = Math.max(total - downPaymentAmount, 0);
+  const baseInstallment = Math.floor(financedAmount / installmentCount);
+  const firstInstallment = baseInstallment + (financedAmount % installmentCount > 0 ? 1 : 0);
 
   const handleAddItem = () => {
     const parsedQuantity = parseInt(quantity, 10);
@@ -177,6 +179,10 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       setError('Table number is required for dine-in orders');
       return;
     }
+    if (paymentType === 'installment' && (downPaymentAmount < 0 || downPaymentAmount >= total)) {
+      setError('Down payment must be less than the order total');
+      return;
+    }
 
     // Build request
     const request: CreateOfflineOrderRequest = {
@@ -186,6 +192,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       delivery_type: deliveryType,
       table_number: deliveryType === 'dine_in' ? tableNumber.trim() : undefined,
       notes: notes.trim() || undefined,
+      delivery_fee: deliveryFee,
       items: orderItems.map(item => ({
         product_id: item.product_id,
         product_name: item.product_name,
@@ -196,27 +203,15 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       consent_method: consentMethod,
     };
 
-    // Add payment terms if installment
-    if (paymentType === 'installment') {
-      const installmentAmount = Math.ceil((total - downPaymentAmount) / installmentCount);
-      const schedule: PaymentSchedule[] = [];
-
-      for (let i = 1; i <= installmentCount; i++) {
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + i);
-        schedule.push({
-          installment_number: i,
-          due_date: dueDate.toISOString().split('T')[0],
-          amount: installmentAmount,
-          status: 'pending',
-        });
-      }
-
-      request.payment_terms = {
-        down_payment_amount: downPaymentAmount,
+    // The server validates amounts against its own total and builds the installment schedule
+    if (paymentType === 'full') {
+      request.payment = { type: 'full', method: paymentMethod, amount: total };
+    } else if (paymentType === 'installment') {
+      request.payment = {
+        type: 'installment',
         installment_count: installmentCount,
-        installment_amount: installmentAmount,
-        payment_schedule: schedule,
+        down_payment_amount: downPaymentAmount,
+        down_payment_method: downPaymentAmount > 0 ? paymentMethod : undefined,
       };
     }
 
@@ -408,7 +403,9 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
                     <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 break-words">
                       {item.product_name}
                     </td>
-                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{item.quantity}</td>
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                      {item.quantity}
+                    </td>
                     <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCurrency(item.unit_price)}
                     </td>
@@ -460,6 +457,19 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
               <input
                 type="radio"
                 name="paymentType"
+                value="unpaid"
+                checked={paymentType === 'unpaid'}
+                onChange={() => setPaymentType('unpaid')}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span className="ml-2 text-sm text-gray-700">
+                Pay Later (Record payment afterwards)
+              </span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="paymentType"
                 value="full"
                 checked={paymentType === 'full'}
                 onChange={() => setPaymentType('full')}
@@ -480,6 +490,26 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
             </label>
           </div>
         </div>
+
+        {(paymentType === 'full' || (paymentType === 'installment' && downPaymentAmount > 0)) && (
+          <div>
+            <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
+              {paymentType === 'full' ? 'Payment Method *' : 'Down Payment Method *'}
+            </label>
+            <select
+              id="paymentMethod"
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card (Debit/Credit)</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="check">Check</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        )}
 
         {paymentType === 'installment' && (
           <div className="space-y-4 p-4 bg-blue-50 rounded-md border border-blue-200">
@@ -531,8 +561,14 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
                   <div className="flex justify-between">
                     <span className="text-gray-600">Per Installment:</span>
                     <span className="font-medium">
-                      {formatCurrency(Math.ceil((total - downPaymentAmount) / installmentCount))}
+                      {formatCurrency(baseInstallment)}
+                      {firstInstallment !== baseInstallment &&
+                        ` (first: ${formatCurrency(firstInstallment)})`}
                     </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Due:</span>
+                    <span className="font-medium">Every 30 days</span>
                   </div>
                   <div className="flex justify-between pt-1 border-t">
                     <span className="text-gray-600">Total:</span>

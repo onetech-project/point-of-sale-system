@@ -74,6 +74,11 @@ func (h *OfflineOrderHandler) CreateOfflineOrder(c echo.Context) error {
 				"error": err.Error(),
 			})
 		}
+		if errors.Is(err, services.ErrInvalidPayment) {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to create offline order",
 		})

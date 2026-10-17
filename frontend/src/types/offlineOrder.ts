@@ -160,18 +160,34 @@ export interface CreateOfflineOrderRequest {
     unit_price: number;
   }[];
 
+  delivery_fee?: number;
+
   // Data Consent
   data_consent_given: boolean;
   consent_method: ConsentMethod;
 
-  // Payment Details (optional - for installment orders)
-  payment_terms?: {
-    down_payment_amount?: number;
-    installment_count: number;
-    installment_amount: number;
-    payment_schedule: PaymentSchedule[];
-  };
+  // Payment taken when the order is recorded; omit to record payments later
+  payment?: CreateOfflineOrderPayment;
 }
+
+/**
+ * Payment recorded together with a new offline order.
+ * Full payments mark the order PAID; installment orders stay PENDING until the balance is paid.
+ * The server derives the installment schedule when payment_schedule is omitted.
+ */
+export type CreateOfflineOrderPayment =
+  | {
+      type: 'full';
+      method: PaymentMethod;
+      amount?: number;
+    }
+  | {
+      type: 'installment';
+      installment_count: number;
+      down_payment_amount?: number;
+      down_payment_method?: PaymentMethod;
+      payment_schedule?: PaymentSchedule[];
+    };
 
 /**
  * Record Payment Request

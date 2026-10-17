@@ -243,13 +243,10 @@ func (r *PaymentRepository) CreatePaymentTerms(ctx context.Context, tx *sql.Tx, 
 		return "", models.ErrInvalidInstallmentAmount
 	}
 
-	// Calculate initial remaining balance (subtract down payment if exists)
+	// Terms start unpaid: every payment, including the down payment, is applied to the balance
+	// by RecordPayment, so pre-applying the down payment here would count it twice
 	remainingBalance := req.TotalAmount
 	totalPaid := 0
-	if req.DownPaymentAmount != nil && *req.DownPaymentAmount > 0 {
-		totalPaid = *req.DownPaymentAmount
-		remainingBalance = req.TotalAmount - *req.DownPaymentAmount
-	}
 
 	query := `
 		INSERT INTO payment_terms (

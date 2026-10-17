@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -70,6 +71,7 @@ type CreateOfflineOrderRequest struct {
 	TableNumber       *string                      `json:"table_number,omitempty"`
 	Notes             *string                      `json:"notes,omitempty"`
 	Items             []models.CreateOrderItemReq  `json:"items" validate:"required,min=1,dive"`
+	DeliveryFee       int                          `json:"delivery_fee,omitempty" validate:"min=0"`
 	DataConsentGiven  bool                         `json:"data_consent_given" validate:"required"`
 	ConsentMethod     *models.ConsentMethod        `json:"consent_method" validate:"required_if=DataConsentGiven true"`
 	RecordedByUserID  string                       `json:"recorded_by_user_id" validate:"required,uuid"`
@@ -79,13 +81,97 @@ type CreateOfflineOrderRequest struct {
 // PaymentInfo represents payment details for an offline order
 type PaymentInfo struct {
 	Type                string                `json:"type" validate:"required,oneof=full installment"` // "full" or "installment"
-	Amount              *int                  `json:"amount,omitempty"`                                // For full payment
+	Amount              *int                  `json:"amount,omitempty"`                                // For full payment; defaults to the order total
 	Method              *models.PaymentMethod `json:"method,omitempty"`                                // For full payment
 	DownPaymentAmount   *int                  `json:"down_payment_amount,omitempty"`                   // For installment
-	DownPaymentMethod   *models.PaymentMethod `json:"down_payment_method,omitempty"`                   // For installment
+	DownPaymentMethod   *models.PaymentMethod `json:"down_payment_method,omitempty"`                   // For installment, required with a down payment
 	InstallmentCount    int                   `json:"installment_count,omitempty"`                     // Number of installments
-	InstallmentAmount   int                   `json:"installment_amount,omitempty"`                    // Amount per installment
-	PaymentSchedule     []models.Installment  `json:"payment_schedule,omitempty"`                      // Detailed schedule
+	InstallmentAmount   int                   `json:"installment_amount,omitempty"`                    // Ignored, derived from the schedule
+	PaymentSchedule     []models.Installment  `json:"payment_schedule,omitempty"`                      // Optional; generated monthly when omitted
+}
+
+// ErrInvalidPayment is returned when the payment details of an offline order are inconsistent
+var ErrInvalidPayment = errors.New("invalid payment")
+
+// installmentIntervalDays is the gap between generated installment due dates
+const installmentIntervalDays = 30
+
+// isValidPaymentMethod reports whether method is one of the supported payment methods
+func isValidPaymentMethod(method *models.PaymentMethod) bool {
+	if method == nil {
+		return false
+	}
+	switch *method {
+	case models.PaymentMethodCash, models.PaymentMethodCard, models.PaymentMethodBankTransfer,
+		models.PaymentMethodCheck, models.PaymentMethodOther:
+		return true
+	}
+	return false
+}
+
+// preparePayment validates payment details against the order total before anything is written,
+// and fills in the full payment amount and the installment schedule when they are omitted
+func (s *OfflineOrderService) preparePayment(payment *PaymentInfo, totalAmount int) error {
+	if payment == nil {
+		return nil // Unpaid order, payments are recorded later
+	}
+
+	switch payment.Type {
+	case "full":
+		if !isValidPaymentMethod(payment.Method) {
+			return fmt.Errorf("%w: a valid payment method is required for full payment", ErrInvalidPayment)
+		}
+		if payment.Amount == nil {
+			payment.Amount = &totalAmount
+		}
+		if *payment.Amount != totalAmount {
+			return fmt.Errorf("%w: full payment amount %d does not match order total %d", ErrInvalidPayment, *payment.Amount, totalAmount)
+		}
+
+	case "installment":
+		if payment.InstallmentCount <= 0 {
+			return fmt.Errorf("%w: installment count must be greater than 0", ErrInvalidPayment)
+		}
+		downPayment := 0
+		if payment.DownPaymentAmount != nil {
+			downPayment = *payment.DownPaymentAmount
+		}
+		if downPayment < 0 || downPayment >= totalAmount {
+			return fmt.Errorf("%w: down payment must be at least 0 and less than the order total %d", ErrInvalidPayment, totalAmount)
+		}
+		if downPayment > 0 && !isValidPaymentMethod(payment.DownPaymentMethod) {
+			return fmt.Errorf("%w: a valid payment method is required for the down payment", ErrInvalidPayment)
+		}
+		payment.DownPaymentAmount = &downPayment
+
+		if len(payment.PaymentSchedule) == 0 {
+			schedule, err := s.paymentCalculator.CalculateInstallmentSchedule(
+				totalAmount, downPayment, payment.InstallmentCount, time.Now(), installmentIntervalDays)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidPayment, err)
+			}
+			payment.PaymentSchedule = schedule
+		}
+		if len(payment.PaymentSchedule) != payment.InstallmentCount {
+			return fmt.Errorf("%w: payment schedule has %d installments, expected %d", ErrInvalidPayment, len(payment.PaymentSchedule), payment.InstallmentCount)
+		}
+		scheduled := 0
+		for _, installment := range payment.PaymentSchedule {
+			if installment.Amount <= 0 {
+				return fmt.Errorf("%w: installment amounts must be greater than 0", ErrInvalidPayment)
+			}
+			scheduled += installment.Amount
+		}
+		if downPayment+scheduled != totalAmount {
+			return fmt.Errorf("%w: down payment and installments add up to %d, expected order total %d", ErrInvalidPayment, downPayment+scheduled, totalAmount)
+		}
+		payment.InstallmentAmount = payment.PaymentSchedule[0].Amount
+
+	default:
+		return fmt.Errorf("%w: payment type must be full or installment", ErrInvalidPayment)
+	}
+
+	return nil
 }
 
 // CreateOfflineOrder creates a new offline order with full validation
@@ -135,8 +221,17 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		subtotalAmount += item.Quantity * item.UnitPrice
 	}
 
-	deliveryFee := 0 // Calculate based on delivery type if needed
+	if req.DeliveryFee < 0 {
+		return nil, fmt.Errorf("%w: delivery fee cannot be negative", ErrInvalidPayment)
+	}
+	deliveryFee := req.DeliveryFee
 	totalAmount := subtotalAmount + deliveryFee
+
+	if err := s.preparePayment(req.PaymentInfo, totalAmount); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.String("error.type", "validation_error"))
+		return nil, err
+	}
 
 	// Create order entity
 	order := &models.GuestOrder{
@@ -198,15 +293,7 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 	// T058: Handle payment terms if installment payment is specified
 	var paymentTermsID *string
 	if req.PaymentInfo != nil && req.PaymentInfo.Type == "installment" {
-		// Validate installment payment info
-		if len(req.PaymentInfo.PaymentSchedule) == 0 {
-			return nil, fmt.Errorf("payment schedule is required for installment payments")
-		}
-		if req.PaymentInfo.InstallmentCount <= 0 {
-			return nil, fmt.Errorf("installment count must be greater than 0")
-		}
-
-		// Create payment terms
+		// Create payment terms (validated by preparePayment)
 		paymentTermsReq := &models.CreatePaymentTermsRequest{
 			OrderID:            orderID,
 			TotalAmount:        totalAmount,
@@ -241,11 +328,7 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 			}
 		}
 	} else if req.PaymentInfo != nil && req.PaymentInfo.Type == "full" {
-		// Record full payment
-		if req.PaymentInfo.Amount == nil || req.PaymentInfo.Method == nil {
-			return nil, fmt.Errorf("amount and method are required for full payment")
-		}
-
+		// Record full payment (validated by preparePayment)
 		paymentRecordReq := &models.CreatePaymentRecordRequest{
 			OrderID:               orderID,
 			PaymentTermsID:        nil, // No payment terms for full payment
