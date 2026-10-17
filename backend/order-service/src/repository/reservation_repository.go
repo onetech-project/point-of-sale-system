@@ -173,6 +173,74 @@ func (r *ReservationRepository) GetTotalReservedQuantity(ctx context.Context, pr
 	return total, err
 }
 
+// GetTotalReservedQuantityTx returns the total reserved quantity for a product within a transaction,
+// so reservations created or released earlier in the same transaction are taken into account
+func (r *ReservationRepository) GetTotalReservedQuantityTx(ctx context.Context, tx *sql.Tx, productID string) (int, error) {
+	query := `
+		SELECT COALESCE(SUM(quantity), 0)
+		FROM inventory_reservations
+		WHERE product_id = $1 AND status = 'active'
+	`
+
+	var total int
+	err := tx.QueryRowContext(ctx, query, productID).Scan(&total)
+	return total, err
+}
+
+// GetActiveReservationsByOrderIDTx retrieves active reservations for an order within a transaction
+func (r *ReservationRepository) GetActiveReservationsByOrderIDTx(ctx context.Context, tx *sql.Tx, orderID string) ([]*models.InventoryReservation, error) {
+	query := `
+		SELECT id, order_id, product_id, quantity, status,
+			   created_at, expires_at, released_at
+		FROM inventory_reservations
+		WHERE order_id = $1 AND status = 'active'
+		ORDER BY created_at ASC
+		FOR UPDATE
+	`
+
+	rows, err := tx.QueryContext(ctx, query, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reservations []*models.InventoryReservation
+	for rows.Next() {
+		reservation := &models.InventoryReservation{}
+		err := rows.Scan(
+			&reservation.ID,
+			&reservation.OrderID,
+			&reservation.ProductID,
+			&reservation.Quantity,
+			&reservation.Status,
+			&reservation.CreatedAt,
+			&reservation.ExpiresAt,
+			&reservation.ReleasedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		reservations = append(reservations, reservation)
+	}
+
+	return reservations, rows.Err()
+}
+
+// ReleaseActiveReservationsByOrderID releases all active reservations of an order
+func (r *ReservationRepository) ReleaseActiveReservationsByOrderID(ctx context.Context, tx *sql.Tx, orderID string) (int64, error) {
+	query := `
+		UPDATE inventory_reservations
+		SET status = 'released', released_at = NOW()
+		WHERE order_id = $1 AND status = 'active'
+	`
+
+	result, err := tx.ExecContext(ctx, query, orderID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // ConvertReservation converts a reservation to "converted" status
 func (r *ReservationRepository) ConvertReservation(ctx context.Context, tx *sql.Tx, id string) error {
 	query := `

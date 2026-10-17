@@ -19,6 +19,7 @@ type OrderService struct {
 	addressRepo   *repository.AddressRepository
 	paymentRepo   *repository.PaymentRepository
 	kafkaProducer *queue.KafkaProducer
+	inventory     *InventoryService
 }
 
 // NewOrderService creates a new order service
@@ -28,6 +29,7 @@ func NewOrderService(
 	addressRepo *repository.AddressRepository,
 	paymentRepo *repository.PaymentRepository,
 	kafkaProducer *queue.KafkaProducer,
+	inventory *InventoryService,
 ) *OrderService {
 	return &OrderService{
 		db:            db,
@@ -35,6 +37,7 @@ func NewOrderService(
 		addressRepo:   addressRepo,
 		paymentRepo:   paymentRepo,
 		kafkaProducer: kafkaProducer,
+		inventory:     inventory,
 	}
 }
 
@@ -112,6 +115,10 @@ func (s *OrderService) UpdateOrderStatus(
 		return fmt.Errorf("failed to update order status: %w", err)
 	}
 
+	if err := s.syncInventoryForStatus(ctx, tx, order, newStatus); err != nil {
+		return err
+	}
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -146,6 +153,31 @@ func (s *OrderService) UpdateOrderStatus(
 				Str("order_reference", order.OrderReference).
 				Msg("Failed to publish order.paid event to Kafka - notification may not be sent")
 			// Don't fail the status update if Kafka publish fails
+		}
+	}
+
+	return nil
+}
+
+// syncInventoryForStatus keeps inventory reservations in step with the order status:
+// offline orders take their reserved stock permanently once paid or completed (online orders are
+// converted by the payment webhook), and cancelled orders give their reserved stock back.
+func (s *OrderService) syncInventoryForStatus(ctx context.Context, tx *sql.Tx, order *models.GuestOrder, newStatus models.OrderStatus) error {
+	if s.inventory == nil {
+		return nil
+	}
+
+	switch newStatus {
+	case models.OrderStatusPaid, models.OrderStatusComplete:
+		if order.OrderType != models.OrderTypeOffline {
+			return nil
+		}
+		if err := s.inventory.ConvertReservationsTx(ctx, tx, order.ID); err != nil {
+			return fmt.Errorf("failed to allocate stock: %w", err)
+		}
+	case models.OrderStatusCancelled:
+		if err := s.inventory.ReleaseReservationsTx(ctx, tx, order.ID); err != nil {
+			return err
 		}
 	}
 

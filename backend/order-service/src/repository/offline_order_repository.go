@@ -558,7 +558,9 @@ type ListOfflineOrdersFilters struct {
 // T091: Soft delete implementation for US4 - Role-Based Deletion
 // Sets deleted_at timestamp and deleted_by_user_id for audit trail
 // Only allows deletion of PENDING or CANCELLED orders (not PAID/COMPLETE)
-func (r *OfflineOrderRepository) SoftDeleteOfflineOrder(ctx context.Context, orderID, tenantID, deletedByUserID string) error {
+func (r *OfflineOrderRepository) SoftDeleteOfflineOrder(ctx context.Context, tx *sql.Tx, orderID, tenantID, deletedByUserID string) error {
+	executor := r.getExecutor(tx)
+
 	query := `
 		UPDATE guest_orders 
 		SET 
@@ -573,7 +575,7 @@ func (r *OfflineOrderRepository) SoftDeleteOfflineOrder(ctx context.Context, ord
 			AND status IN ('PENDING', 'CANCELLED')
 	`
 
-	result, err := r.db.ExecContext(
+	result, err := executor.ExecContext(
 		ctx,
 		query,
 		time.Now(),
@@ -600,7 +602,7 @@ func (r *OfflineOrderRepository) SoftDeleteOfflineOrder(ctx context.Context, ord
 			FROM guest_orders 
 			WHERE id = $1 AND tenant_id = $2 AND order_type = 'offline'
 		`
-		err := r.db.QueryRowContext(ctx, checkQuery, orderID, tenantID).Scan(&status, &deletedAt)
+		err := executor.QueryRowContext(ctx, checkQuery, orderID, tenantID).Scan(&status, &deletedAt)
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("offline order not found")
 		}

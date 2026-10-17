@@ -29,6 +29,7 @@ type OfflineOrderService struct {
 	outboxRepo             *repository.OutboxRepository
 	eventPublisher         *EventPublisher
 	paymentCalculator      *PaymentCalculator
+	inventoryService       *InventoryService
 	tracer                 trace.Tracer // T113: OpenTelemetry tracer
 }
 
@@ -41,6 +42,7 @@ func NewOfflineOrderService(
 	outboxRepo *repository.OutboxRepository,
 	eventPublisher *EventPublisher,
 	paymentCalculator *PaymentCalculator,
+	inventoryService *InventoryService,
 ) *OfflineOrderService {
 	return &OfflineOrderService{
 		db:                db,
@@ -50,6 +52,7 @@ func NewOfflineOrderService(
 		outboxRepo:        outboxRepo,
 		eventPublisher:    eventPublisher,
 		paymentCalculator: paymentCalculator,
+		inventoryService:  inventoryService,
 		tracer:            otel.Tracer("offline-order-service"), // T113: Initialize tracer
 	}
 }
@@ -182,6 +185,13 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		}
 	}
 
+	// Lock and reserve stock so it can't be sold elsewhere while the order is pending
+	if err := s.inventoryService.ReserveStockForOrder(ctx, tx, req.TenantID, orderID, toCartItems(req.Items), time.Now().Add(OfflineReservationTTL)); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.String("error.type", "insufficient_stock"))
+		return nil, err
+	}
+
 	// T058: Handle payment terms if installment payment is specified
 	var paymentTermsID *string
 	if req.PaymentInfo != nil && req.PaymentInfo.Type == "installment" {
@@ -256,6 +266,11 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 			return nil, fmt.Errorf("failed to update order status: %w", err)
 		}
 		order.Status = models.OrderStatusPaid
+
+		// Paid orders take the reserved stock permanently
+		if err := s.inventoryService.ConvertReservationsTx(ctx, tx, orderID); err != nil {
+			return nil, fmt.Errorf("failed to allocate stock: %w", err)
+		}
 	}
 
 	// Publish offline_order.created event to audit trail (T034)
@@ -327,6 +342,22 @@ func (s *OfflineOrderService) CreateOfflineOrder(ctx context.Context, req *Creat
 		Msg("Offline order created successfully")
 
 	return order, nil
+}
+
+// toCartItems converts order item requests to the item shape used by the inventory service
+func toCartItems[T models.CreateOrderItemReq | models.OrderItemInput](items []T) []models.CartItem {
+	cartItems := make([]models.CartItem, len(items))
+	for i, item := range items {
+		in := models.OrderItemInput(item)
+		cartItems[i] = models.CartItem{
+			ProductID:   in.ProductID,
+			ProductName: in.ProductName,
+			Quantity:    in.Quantity,
+			UnitPrice:   in.UnitPrice,
+			TotalPrice:  in.Quantity * in.UnitPrice,
+		}
+	}
+	return cartItems
 }
 
 // generateOrderReference generates a unique order reference in GO-XXXXXX format
@@ -547,6 +578,11 @@ func (s *OfflineOrderService) RecordPayment(ctx context.Context, req *RecordPaym
 		if err != nil {
 			return nil, fmt.Errorf("failed to update order status: %w", err)
 		}
+
+		// Paid orders take the reserved stock permanently
+		if err := s.inventoryService.ConvertReservationsTx(ctx, tx, req.OrderID); err != nil {
+			return nil, fmt.Errorf("failed to allocate stock: %w", err)
+		}
 	}
 
 	// T062: Publish payment.received event
@@ -710,7 +746,17 @@ func (s *OfflineOrderService) UpdateOfflineOrder(ctx context.Context, req *Updat
 		if err != nil {
 			return nil, fmt.Errorf("failed to update order items: %w", err)
 		}
-		
+
+		// Swap the old reservations for ones matching the new items
+		if err := s.inventoryService.ReleaseReservationsTx(ctx, tx, req.OrderID); err != nil {
+			return nil, err
+		}
+		if err := s.inventoryService.ReserveStockForOrder(ctx, tx, req.TenantID, req.OrderID, toCartItems(req.ModelUpdates.Items), time.Now().Add(OfflineReservationTTL)); err != nil {
+			span.RecordError(err)
+			span.SetAttributes(attribute.String("error.type", "insufficient_stock"))
+			return nil, err
+		}
+
 		// Add totals to change log
 		changes["subtotal_amount"] = map[string]interface{}{
 			"old": existingOrder.SubtotalAmount,
@@ -896,7 +942,7 @@ func (s *OfflineOrderService) DeleteOfflineOrder(ctx context.Context, req *Delet
 	defer tx.Rollback() //nolint:errcheck
 
 	// Perform soft delete in repository
-	err = s.offlineOrderRepo.SoftDeleteOfflineOrder(ctx, req.OrderID, req.TenantID, req.DeletedByUserID)
+	err = s.offlineOrderRepo.SoftDeleteOfflineOrder(ctx, tx, req.OrderID, req.TenantID, req.DeletedByUserID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetAttributes(attribute.String("error.type", "soft_delete_failed"))
@@ -907,6 +953,12 @@ func (s *OfflineOrderService) DeleteOfflineOrder(ctx context.Context, req *Delet
 			Str("deleted_by_user_id", req.DeletedByUserID).
 			Msg("Failed to soft delete offline order")
 		return fmt.Errorf("failed to delete offline order: %w", err)
+	}
+
+	// Deleted orders give their reserved stock back
+	if err := s.inventoryService.ReleaseReservationsTx(ctx, tx, req.OrderID); err != nil {
+		span.RecordError(err)
+		return err
 	}
 
 	// Publish deletion event to audit trail (T093)

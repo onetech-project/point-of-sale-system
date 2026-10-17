@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -68,6 +69,11 @@ func (h *OfflineOrderHandler) CreateOfflineOrder(c echo.Context) error {
 			Str("tenant_id", tenantID).
 			Str("user_id", userID).
 			Msg("Failed to create offline order")
+		if errors.Is(err, services.ErrInsufficientStock) {
+			return c.JSON(http.StatusConflict, map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to create offline order",
 		})
@@ -412,6 +418,12 @@ func (h *OfflineOrderHandler) UpdateOfflineOrder(c echo.Context) error {
 			Msg("Failed to update offline order")
 		
 		// Check for specific error types
+		if errors.Is(err, services.ErrInsufficientStock) {
+			return c.JSON(http.StatusConflict, map[string]string{
+				"error": err.Error(),
+			})
+		}
+
 		if strings.Contains(err.Error(), "cannot edit order with status") {
 			return c.JSON(http.StatusForbidden, map[string]string{
 				"error": err.Error(),

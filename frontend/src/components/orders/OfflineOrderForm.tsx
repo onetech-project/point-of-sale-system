@@ -86,7 +86,8 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   // Order Items
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  // Kept as a string so the field can be cleared while typing a new quantity
+  const [quantity, setQuantity] = useState('1');
 
   // Payment Options
   const [paymentType, setPaymentType] = useState<'full' | 'installment'>('full');
@@ -99,7 +100,8 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   const total = subtotal + deliveryFee;
 
   const handleAddItem = () => {
-    if (!selectedProductId || quantity < 1) {
+    const parsedQuantity = parseInt(quantity, 10);
+    if (!selectedProductId || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
       setError('Please select a product and quantity');
       return;
     }
@@ -110,22 +112,39 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       return;
     }
 
-    if (quantity > product.stock_quantity) {
+    const existingIndex = orderItems.findIndex(item => item.product_id === product.id);
+    const existingQuantity = existingIndex >= 0 ? orderItems[existingIndex].quantity : 0;
+    const nextQuantity = existingQuantity + parsedQuantity;
+
+    if (nextQuantity > product.stock_quantity) {
       setError(`Only ${product.stock_quantity} items available in stock`);
       return;
     }
 
-    const newItem: OrderItem = {
-      product_id: product.id,
-      product_name: product.name,
-      quantity,
-      unit_price: product.selling_price,
-      total_price: product.selling_price * quantity,
-    };
+    if (existingIndex >= 0) {
+      // Merge into the existing line so the same product isn't listed twice
+      setOrderItems(
+        orderItems.map((item, i) =>
+          i === existingIndex
+            ? { ...item, quantity: nextQuantity, total_price: item.unit_price * nextQuantity }
+            : item
+        )
+      );
+    } else {
+      setOrderItems([
+        ...orderItems,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          quantity: parsedQuantity,
+          unit_price: product.selling_price,
+          total_price: product.selling_price * parsedQuantity,
+        },
+      ]);
+    }
 
-    setOrderItems([...orderItems, newItem]);
     setSelectedProductId('');
-    setQuantity(1);
+    setQuantity('1');
     setError(null);
   };
 
@@ -221,9 +240,9 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6 max-w-4xl mx-auto p-6 bg-white rounded-lg shadow"
+      className="space-y-6 w-full max-w-4xl mx-auto p-4 sm:p-6 bg-white rounded-lg shadow"
     >
-      <h2 className="text-2xl font-bold text-gray-900">Create Offline Order</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Create Offline Order</h2>
 
       {loadingProducts && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
@@ -324,11 +343,12 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-800">Order Items</h3>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={selectedProductId}
             onChange={e => setSelectedProductId(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            aria-label="Product"
+            className="w-full min-w-0 sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">Select Product</option>
             {products?.map(product => (
@@ -338,54 +358,64 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
               </option>
             ))}
           </select>
-          <input
-            type="number"
-            min="1"
-            value={quantity}
-            onChange={e => setQuantity(parseInt(e.target.value) || 1)}
-            className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          />
-          <button
-            type="button"
-            onClick={handleAddItem}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Add
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              aria-label="Quantity"
+              value={quantity}
+              onChange={e => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={() => {
+                if (!quantity || parseInt(quantity, 10) < 1) setQuantity('1');
+              }}
+              className="flex-1 sm:flex-none sm:w-24 min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Add
+            </button>
+          </div>
         </div>
 
         {orderItems.length > 0 && (
-          <div className="border border-gray-200 rounded-md overflow-hidden">
+          <div className="border border-gray-200 rounded-md overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Product
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Qty
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Price
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Total
                   </th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-3 sm:px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {orderItems.map((item, index) => (
                   <tr key={index}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 break-words">
+                      {item.product_name}
+                    </td>
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{item.quantity}</td>
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCurrency(item.unit_price)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCurrency(item.total_price)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(index)}
@@ -549,7 +579,7 @@ export const OfflineOrderForm: React.FC<OfflineOrderFormProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 pt-4">
+      <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
         <button
           type="submit"
           disabled={loading || loadingProducts || orderItems.length === 0}

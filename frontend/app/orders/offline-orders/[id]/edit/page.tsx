@@ -31,7 +31,8 @@ export default function EditOfflineOrderPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [newProductId, setNewProductId] = useState('');
-  const [newQuantity, setNewQuantity] = useState(1);
+  // Kept as a string so the field can be cleared while typing a new quantity
+  const [newQuantity, setNewQuantity] = useState('1');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,11 +136,13 @@ export default function EditOfflineOrderPage() {
     setItems(nextItems);
   };
 
-  const handleItemQuantityChange = (index: number, quantity: number) => {
+  // An empty field is stored as 0 so it can be cleared while typing; submit rejects quantities below 1
+  const handleItemQuantityChange = (index: number, value: string) => {
+    const quantity = parseInt(value.replace(/[^0-9]/g, ''), 10);
     const nextItems = [...items];
     nextItems[index] = {
       ...nextItems[index],
-      quantity: quantity > 0 ? quantity : 1,
+      quantity: Number.isInteger(quantity) ? quantity : 0,
     };
     setItems(nextItems);
   };
@@ -153,7 +156,8 @@ export default function EditOfflineOrderPage() {
       setError('Please select a product to add');
       return;
     }
-    if (newQuantity < 1) {
+    const parsedQuantity = parseInt(newQuantity, 10);
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
       setError('Quantity must be at least 1');
       return;
     }
@@ -169,13 +173,13 @@ export default function EditOfflineOrderPage() {
       {
         product_id: selectedProduct.id,
         product_name: selectedProduct.name,
-        quantity: newQuantity,
+        quantity: parsedQuantity,
         unit_price: Number(selectedProduct.selling_price) || 0,
       },
     ]);
 
     setNewProductId('');
-    setNewQuantity(1);
+    setNewQuantity('1');
     setError(null);
   };
 
@@ -481,7 +485,7 @@ export default function EditOfflineOrderPage() {
                     <select
                       value={newProductId}
                       onChange={e => setNewProductId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       disabled={loadingProducts}
                     >
                       <option value="">
@@ -499,8 +503,13 @@ export default function EditOfflineOrderPage() {
                     <input
                       type="number"
                       min={1}
+                      step={1}
+                      inputMode="numeric"
                       value={newQuantity}
-                      onChange={e => setNewQuantity(parseInt(e.target.value, 10) || 1)}
+                      onChange={e => setNewQuantity(e.target.value.replace(/[^0-9]/g, ''))}
+                      onBlur={() => {
+                        if (!newQuantity || parseInt(newQuantity, 10) < 1) setNewQuantity('1');
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -515,23 +524,23 @@ export default function EditOfflineOrderPage() {
                 </button>
 
                 {items.length > 0 ? (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Product
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Qty
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Unit Price
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Total
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Actions
                           </th>
                         </tr>
@@ -539,11 +548,12 @@ export default function EditOfflineOrderPage() {
                       <tbody className="divide-y divide-gray-200">
                         {items.map((item, index) => (
                           <tr key={`${item.product_id}-${index}`}>
-                            <td className="px-6 py-3 text-sm text-gray-900">
+                            <td className="px-3 sm:px-6 py-3 text-sm text-gray-900">
                               <select
                                 value={item.product_id}
+                                aria-label="Product"
                                 onChange={e => handleItemProductChange(index, e.target.value)}
-                                className="w-full px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-full min-w-[10rem] px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               >
                                 {products.map(product => (
                                   <option key={product.id} value={product.id}>
@@ -552,24 +562,25 @@ export default function EditOfflineOrderPage() {
                                 ))}
                               </select>
                             </td>
-                            <td className="px-6 py-3 text-sm text-gray-900">
+                            <td className="px-3 sm:px-6 py-3 text-sm text-gray-900">
                               <input
                                 type="number"
                                 min={1}
-                                value={item.quantity}
-                                onChange={e =>
-                                  handleItemQuantityChange(index, parseInt(e.target.value, 10) || 1)
-                                }
-                                className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                step={1}
+                                inputMode="numeric"
+                                aria-label={`Quantity for ${item.product_name}`}
+                                value={item.quantity || ''}
+                                onChange={e => handleItemQuantityChange(index, e.target.value)}
+                                className="w-20 sm:w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               />
                             </td>
-                            <td className="px-6 py-3 text-sm text-gray-900">
+                            <td className="px-3 sm:px-6 py-3 text-sm text-gray-900">
                               {formatCurrency(item.unit_price)}
                             </td>
-                            <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                            <td className="px-3 sm:px-6 py-3 text-sm font-medium text-gray-900">
                               {formatCurrency(item.quantity * item.unit_price)}
                             </td>
-                            <td className="px-6 py-3 text-sm text-gray-900">
+                            <td className="px-3 sm:px-6 py-3 text-sm text-gray-900">
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(index)}

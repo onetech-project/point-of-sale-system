@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -17,7 +19,15 @@ const (
 	ReservationTTL       = 15 * time.Minute
 	InventoryCachePrefix = "inventory:"
 	InventoryCacheTTL    = 5 * time.Minute
+
+	// OfflineReservationTTL keeps offline order reservations out of the cleanup job's reach:
+	// staff-recorded orders hold their stock until they are paid or cancelled, which can take
+	// months for installment orders.
+	OfflineReservationTTL = 10 * 365 * 24 * time.Hour
 )
+
+// ErrInsufficientStock is returned when a product does not have enough unreserved stock
+var ErrInsufficientStock = errors.New("insufficient stock")
 
 type InventoryService struct {
 	db              *sql.DB
@@ -104,30 +114,90 @@ func (s *InventoryService) CreateReservations(ctx context.Context, tx *sql.Tx, o
 	return nil
 }
 
-// ConvertReservationsToPermanent converts reservations to permanent inventory allocation after payment
-func (s *InventoryService) ConvertReservationsToPermanent(ctx context.Context, orderID string) error {
-	// Get all reservations for the order
-	reservations, err := s.reservationRepo.GetReservationsByOrderID(ctx, orderID)
+// ReserveStockForOrder locks the products, verifies availability and reserves the requested
+// quantities for an order inside the caller's transaction. Quantities of duplicate products are
+// combined, and products are locked in a stable order to avoid deadlocks between concurrent orders.
+func (s *InventoryService) ReserveStockForOrder(ctx context.Context, tx *sql.Tx, tenantID, orderID string, items []models.CartItem, expiresAt time.Time) error {
+	quantities := make(map[string]int)
+	names := make(map[string]string)
+	for _, item := range items {
+		quantities[item.ProductID] += item.Quantity
+		names[item.ProductID] = item.ProductName
+	}
+
+	productIDs := make([]string, 0, len(quantities))
+	for productID := range quantities {
+		productIDs = append(productIDs, productID)
+	}
+	sort.Strings(productIDs)
+
+	for _, productID := range productIDs {
+		requested := quantities[productID]
+
+		var currentQuantity int
+		query := `
+SELECT stock_quantity
+FROM products
+WHERE tenant_id = $1 AND id = $2
+FOR UPDATE
+`
+		err := tx.QueryRowContext(ctx, query, tenantID, productID).Scan(&currentQuantity)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("product %s not found", names[productID])
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check product %s: %w", productID, err)
+		}
+
+		// Read reservations through the transaction so reservations released earlier in it
+		// (e.g. when editing an order's items) are no longer counted
+		reserved, err := s.reservationRepo.GetTotalReservedQuantityTx(ctx, tx, productID)
+		if err != nil {
+			return fmt.Errorf("failed to get reservations for product %s: %w", productID, err)
+		}
+
+		available := currentQuantity - reserved
+		if available < requested {
+			if available < 0 {
+				available = 0
+			}
+			return fmt.Errorf("%w for product %s (available: %d, requested: %d)",
+				ErrInsufficientStock, names[productID], available, requested)
+		}
+
+		reservation := &models.InventoryReservation{
+			OrderID:   orderID,
+			ProductID: productID,
+			Quantity:  requested,
+			Status:    models.ReservationStatusActive,
+			ExpiresAt: expiresAt,
+		}
+		if err := s.reservationRepo.CreateReservation(ctx, tx, reservation); err != nil {
+			return fmt.Errorf("failed to create reservation for product %s: %w", productID, err)
+		}
+
+		log.Info().
+			Str("reservation_id", reservation.ID).
+			Str("order_id", orderID).
+			Str("product_id", productID).
+			Int("quantity", requested).
+			Time("expires_at", expiresAt).
+			Msg("Reservation created")
+	}
+
+	return nil
+}
+
+// ConvertReservationsTx converts an order's active reservations to permanent allocations inside
+// the caller's transaction, decrementing product stock. Already converted or released
+// reservations are skipped, so calling it more than once for an order is safe.
+func (s *InventoryService) ConvertReservationsTx(ctx context.Context, tx *sql.Tx, orderID string) error {
+	reservations, err := s.reservationRepo.GetActiveReservationsByOrderIDTx(ctx, tx, orderID)
 	if err != nil {
 		return fmt.Errorf("failed to get reservations for order %s: %w", orderID, err)
 	}
 
-	// Begin transaction for atomic conversion
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
 	for _, reservation := range reservations {
-		if reservation.Status != models.ReservationStatusActive {
-			log.Warn().
-				Str("reservation_id", reservation.ID).
-				Str("status", string(reservation.Status)).
-				Msg("Skipping non-active reservation")
-			continue
-		}
-
 		// Convert reservation status
 		if err := s.reservationRepo.ConvertReservation(ctx, tx, reservation.ID); err != nil {
 			return fmt.Errorf("failed to convert reservation %s: %w", reservation.ID, err)
@@ -151,7 +221,7 @@ WHERE id = $2 AND stock_quantity >= $1
 		}
 
 		if rows == 0 {
-			return fmt.Errorf("insufficient stock for product %s during conversion", reservation.ProductID)
+			return fmt.Errorf("%w for product %s during conversion", ErrInsufficientStock, reservation.ProductID)
 		}
 
 		log.Info().
@@ -162,8 +232,41 @@ WHERE id = $2 AND stock_quantity >= $1
 			Msg("Reservation converted to permanent allocation")
 	}
 
+	return nil
+}
+
+// ConvertReservationsToPermanent converts reservations to permanent inventory allocation after payment
+func (s *InventoryService) ConvertReservationsToPermanent(ctx context.Context, orderID string) error {
+	// Begin transaction for atomic conversion
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := s.ConvertReservationsTx(ctx, tx, orderID); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit conversion transaction: %w", err)
+	}
+
+	return nil
+}
+
+// ReleaseReservationsTx releases an order's active reservations inside the caller's transaction
+func (s *InventoryService) ReleaseReservationsTx(ctx context.Context, tx *sql.Tx, orderID string) error {
+	released, err := s.reservationRepo.ReleaseActiveReservationsByOrderID(ctx, tx, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to release reservations for order %s: %w", orderID, err)
+	}
+
+	if released > 0 {
+		log.Info().
+			Str("order_id", orderID).
+			Int64("released", released).
+			Msg("Reservations released")
 	}
 
 	return nil

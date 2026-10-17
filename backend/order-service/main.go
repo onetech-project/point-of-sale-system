@@ -128,7 +128,7 @@ func main() {
 	defer auditPublisher.Close()
 
 	// Initialize order service (with Kafka producer and all repos for event publishing)
-	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer)
+	orderService := services.NewOrderService(config.GetDB(), orderRepo, addressRepo, paymentRepo, kafkaProducer, inventoryService)
 
 	// Initialize payment service (needs orderService for adding notes)
 	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService)
@@ -166,6 +166,7 @@ func main() {
 		outboxRepo,
 		eventPublisher,
 		paymentCalculator,
+		inventoryService,
 	)
 
 	offlineOrderHandler := api.NewOfflineOrderHandler(offlineOrderService)
