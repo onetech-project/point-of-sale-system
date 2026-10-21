@@ -238,6 +238,14 @@ export interface UpdateOfflineOrderRequest {
 }
 
 /**
+ * Confirmation required for owner corrections of COMPLETE orders, which change financial records
+ */
+export interface CompletedOrderCorrection {
+  reason: string;
+  acknowledge_accounting_impact: boolean;
+}
+
+/**
  * Order Item Input for creating/updating orders
  */
 export interface OrderItemInput {

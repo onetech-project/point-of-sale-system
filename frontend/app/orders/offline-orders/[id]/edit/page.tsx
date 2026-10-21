@@ -8,9 +8,13 @@ import offlineOrderService from '@/services/offlineOrders';
 import { product as productService } from '@/services/product';
 import { formatCurrency } from '@/utils/format';
 import { sanitizeNumericPhone } from '@/utils/phone';
+import { useAuth } from '@/store/auth';
+import { ROLES } from '@/constants/roles';
+import { AccountingImpactConfirmModal } from '@/components/orders/AccountingImpactConfirmModal';
 import type {
   OfflineOrder,
   UpdateOfflineOrderRequest,
+  CompletedOrderCorrection,
   DeliveryType,
   OrderItemInput,
 } from '@/types/offlineOrder';
@@ -24,8 +28,13 @@ export default function EditOfflineOrderPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = params.id as string;
+  const { user, isLoading: authLoading } = useAuth();
+  const isOwner = user?.role === ROLES.OWNER;
 
   const [order, setOrder] = useState<OfflineOrder | null>(null);
+  // Edits of COMPLETE orders wait here until the owner confirms the accounting impact
+  const [pendingCompletedUpdate, setPendingCompletedUpdate] = useState<UpdateOfflineOrderRequest | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [items, setItems] = useState<OrderItemInput[]>([]);
   const [originalItems, setOriginalItems] = useState<OrderItemInput[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -73,6 +82,8 @@ export default function EditOfflineOrderPage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
+
     const fetchOrder = async () => {
       if (!orderId) {
         setError('Order ID is required');
@@ -87,10 +98,14 @@ export default function EditOfflineOrderPage() {
         const orderDetails = await offlineOrderService.getOfflineOrderWithDetails(orderId);
         const orderData = orderDetails.order;
 
-        // Check if order can be edited
-        if (orderData.status !== 'PENDING') {
+        // PENDING orders can be edited by staff; COMPLETE orders only by the owner
+        const editable =
+          orderData.status === 'PENDING' || (orderData.status === 'COMPLETE' && isOwner);
+        if (!editable) {
           setError(
-            `Cannot edit order with status ${orderData.status}. Only PENDING orders can be edited.`
+            orderData.status === 'COMPLETE'
+              ? 'Only the owner can edit completed orders.'
+              : `Cannot edit order with status ${orderData.status}. Only PENDING orders can be edited.`
           );
           setTimeout(() => {
             router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
@@ -120,7 +135,9 @@ export default function EditOfflineOrderPage() {
     };
 
     fetchOrder();
-  }, [orderId, router]);
+  }, [orderId, router, authLoading, isOwner]);
+
+  const isCompletedOrder = order?.status === 'COMPLETE';
 
   const handleItemProductChange = (index: number, productId: string) => {
     const selectedProduct = products.find(p => p.id === productId);
@@ -231,12 +248,16 @@ export default function EditOfflineOrderPage() {
         return;
       }
 
-      await offlineOrderService.updateOfflineOrder(orderId, updates);
+      // Completed orders are already in the books: ask the owner to confirm before submitting
+      if (isCompletedOrder) {
+        setConfirmError(null);
+        setPendingCompletedUpdate(updates);
+        setSubmitting(false);
+        return;
+      }
 
-      setSuccess(true);
-      setTimeout(() => {
-        router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
-      }, 1000);
+      await offlineOrderService.updateOfflineOrder(orderId, updates);
+      handleSaved();
     } catch (err: any) {
       console.error('Failed to update order:', err);
       setError(err.response?.data?.error || 'Failed to update order');
@@ -244,6 +265,37 @@ export default function EditOfflineOrderPage() {
       setSubmitting(false);
     }
   };
+
+  const handleSaved = () => {
+    setSuccess(true);
+    setTimeout(() => {
+      router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
+    }, 1000);
+  };
+
+  const handleConfirmCompletedUpdate = async (correction: CompletedOrderCorrection) => {
+    if (!pendingCompletedUpdate) return;
+
+    try {
+      setSubmitting(true);
+      setConfirmError(null);
+      await offlineOrderService.updateCompletedOfflineOrder(orderId, pendingCompletedUpdate, correction);
+      setPendingCompletedUpdate(null);
+      handleSaved();
+    } catch (err: any) {
+      console.error('Failed to update completed order:', err);
+      setConfirmError(err.response?.data?.error || 'Failed to update order');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const newSubtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const newTotal = newSubtotal + deliveryFee;
+  const completedImpactSummary =
+    order && newTotal !== order.total_amount
+      ? [`Total order: ${formatCurrency(order.total_amount)} → ${formatCurrency(newTotal)}`]
+      : [];
 
   const handleCancel = () => {
     router.push(`/orders?order_id=${encodeURIComponent(orderId)}&order_type=offline`);
@@ -336,12 +388,22 @@ export default function EditOfflineOrderPage() {
           {/* Edit Form */}
           {order && !loading && !error && !success && (
             <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Only PENDING orders can be edited. All changes are recorded
-                  in the audit trail.
-                </p>
-              </div>
+              {isCompletedOrder ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-red-800">
+                    <strong>Order ini sudah selesai.</strong> Perubahan akan memengaruhi pencatatan
+                    penjualan, pendapatan, dan stok. Anda akan diminta mengonfirmasi dan mengisi alasan
+                    sebelum perubahan disimpan, dan perubahan dicatat di audit trail.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> Only PENDING orders can be edited. All changes are recorded
+                    in the audit trail.
+                  </p>
+                </div>
+              )}
 
               {/* Customer Information */}
               <div className="space-y-4">
@@ -618,6 +680,19 @@ export default function EditOfflineOrderPage() {
                 </button>
               </div>
             </form>
+          )}
+
+          {order && (
+            <AccountingImpactConfirmModal
+              isOpen={pendingCompletedUpdate !== null}
+              mode="edit"
+              orderReference={order.order_reference}
+              impactSummary={completedImpactSummary}
+              isSubmitting={submitting}
+              error={confirmError}
+              onConfirm={handleConfirmCompletedUpdate}
+              onCancel={() => setPendingCompletedUpdate(null)}
+            />
           )}
         </div>
       </DashboardLayout>

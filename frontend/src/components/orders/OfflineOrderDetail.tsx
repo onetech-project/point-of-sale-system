@@ -12,9 +12,13 @@ import {
 } from '../../types/offlineOrder';
 import { AuditTrail } from './AuditTrail';
 import { DeleteOrderModal } from './DeleteOrderModal';
+import { AccountingImpactConfirmModal } from './AccountingImpactConfirmModal';
 import offlineOrderService from '../../services/offlineOrders';
 import type { OfflineOrderDocumentType } from '../../services/offlineOrders';
+import type { CompletedOrderCorrection } from '../../types/offlineOrder';
 import ActionMenu from '../ui/ActionMenu';
+import { useAuth } from '../../store/auth';
+import { ROLES } from '../../constants/roles';
 
 interface OfflineOrderDetailProps {
   order: OfflineOrder;
@@ -40,7 +44,10 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   onDeleted,
 }) => {
   const router = useRouter();
+  const { user } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteCompletedModal, setShowDeleteCompletedModal] = useState(false);
+  const [deleteCompletedError, setDeleteCompletedError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [documentAction, setDocumentAction] = useState<string | null>(null);
@@ -210,9 +217,32 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
     }
   };
 
-  // Check if user can delete (owner/manager only)
-  // Note: In a real app, get this from user context/auth
-  const canDelete = true; // TODO: Replace with actual role check from auth context
+  const handleConfirmDeleteCompleted = async (correction: CompletedOrderCorrection) => {
+    setIsDeleting(true);
+    setDeleteCompletedError(null);
+
+    try {
+      await offlineOrderService.deleteCompletedOfflineOrder(order.id, correction);
+      setShowDeleteCompletedModal(false);
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        router.push('/orders?deleted=true');
+      }
+    } catch (error: any) {
+      console.error('Failed to delete completed order:', error);
+      setDeleteCompletedError(
+        error?.response?.data?.error || error?.message || 'Failed to delete order'
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Deleting PENDING/CANCELLED orders is open to owners and managers; correcting COMPLETE orders
+  // changes financial records and is owner only. The API enforces the same rules.
+  const canDelete = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
+  const canCorrectCompleted = user?.role === ROLES.OWNER && order.status === 'COMPLETE';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -301,6 +331,25 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
             >
               {isCompleting ? 'Completing...' : 'Mark as Complete'}
             </button>
+          )}
+          {canCorrectCompleted && (
+            <>
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+              >
+                Edit Completed Order
+              </button>
+              <button
+                onClick={() => {
+                  setDeleteCompletedError(null);
+                  setShowDeleteCompletedModal(true);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
+              >
+                Delete Completed Order
+              </button>
+            </>
           )}
           {order.status === 'CANCELLED' && canDelete && (
             <button
@@ -639,6 +688,18 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
         isDeleting={isDeleting}
+      />
+
+      {/* Owner deletion of a COMPLETE order, which affects financial records */}
+      <AccountingImpactConfirmModal
+        isOpen={showDeleteCompletedModal}
+        mode="delete"
+        orderReference={order.order_reference}
+        impactSummary={[`Pendapatan berkurang ${formatCurrency(order.total_amount)}`]}
+        isSubmitting={isDeleting}
+        error={deleteCompletedError}
+        onConfirm={handleConfirmDeleteCompleted}
+        onCancel={() => setShowDeleteCompletedModal(false)}
       />
 
       {/* Delete Error Display */}

@@ -11,11 +11,17 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
+const mockUseAuth = jest.fn();
+jest.mock('../../store/auth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
 jest.mock('../../services/offlineOrders', () => ({
   __esModule: true,
   default: {
     batchDownloadDocuments: jest.fn(),
     completeOfflineOrder: jest.fn(),
+    deleteCompletedOfflineOrder: jest.fn(),
     deleteOfflineOrder: jest.fn(),
     downloadDocument: jest.fn(),
     resendDocument: jest.fn(),
@@ -48,8 +54,17 @@ const paidOrder: OfflineOrder = {
   paid_at: '2026-05-20T02:15:00Z',
 };
 
+const completedOrder: OfflineOrder = {
+  ...paidOrder,
+  status: 'COMPLETE',
+  completed_at: '2026-05-20T03:00:00Z',
+};
+
+const asRole = (role: string) => mockUseAuth.mockReturnValue({ user: { id: 'user-1', email: 'u@example.com', role } });
+
 beforeEach(() => {
   jest.clearAllMocks();
+  asRole('owner');
 });
 
 describe('OfflineOrderDetail document menu', () => {
@@ -98,5 +113,79 @@ describe('OfflineOrderDetail completion action', () => {
     await waitFor(() => {
       expect(onRefresh).toHaveBeenCalled();
     });
+  });
+});
+
+describe('OfflineOrderDetail completed order corrections', () => {
+  it('shows edit and delete for completed orders only to the owner', () => {
+    const { rerender } = render(<OfflineOrderDetail order={completedOrder} />);
+
+    expect(screen.getByRole('button', { name: 'Edit Completed Order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Completed Order' })).toBeInTheDocument();
+
+    for (const role of ['manager', 'cashier']) {
+      asRole(role);
+      rerender(<OfflineOrderDetail order={{ ...completedOrder }} />);
+      expect(screen.queryByRole('button', { name: 'Edit Completed Order' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete Completed Order' })).not.toBeInTheDocument();
+    }
+  });
+
+  it('hides the pending order delete button from cashiers', () => {
+    asRole('cashier');
+    render(<OfflineOrderDetail order={pendingOrder} />);
+
+    expect(screen.getByRole('button', { name: 'Edit Order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+  });
+
+  it('requires a reason and acknowledgement before deleting a completed order', async () => {
+    mockOfflineOrderService.deleteCompletedOfflineOrder.mockResolvedValue({
+      message: 'deleted',
+      order_id: 'order-1',
+    });
+    const onDeleted = jest.fn();
+
+    render(<OfflineOrderDetail order={completedOrder} onDeleted={onDeleted} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Completed Order' }));
+    expect(screen.getByText('Perubahan ini akan memengaruhi pencatatan')).toBeInTheDocument();
+
+    const confirm = screen.getByRole('button', { name: 'Ya, Hapus Order' });
+    expect(confirm).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Alasan penghapusan/), {
+      target: { value: '  Pesanan dobel  ' },
+    });
+    expect(confirm).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(confirm).toBeEnabled();
+
+    fireEvent.click(confirm);
+
+    await waitFor(() => {
+      expect(mockOfflineOrderService.deleteCompletedOfflineOrder).toHaveBeenCalledWith('order-1', {
+        reason: 'Pesanan dobel',
+        acknowledge_accounting_impact: true,
+      });
+    });
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it('keeps the dialog open and shows the API error when deletion fails', async () => {
+    mockOfflineOrderService.deleteCompletedOfflineOrder.mockRejectedValue({
+      response: { data: { error: 'order is not complete' } },
+    });
+
+    render(<OfflineOrderDetail order={completedOrder} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Completed Order' }));
+    fireEvent.change(screen.getByLabelText(/Alasan penghapusan/), { target: { value: 'Pesanan dobel' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Ya, Hapus Order' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('order is not complete');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
