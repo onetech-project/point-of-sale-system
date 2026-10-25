@@ -301,7 +301,7 @@ SELECT id, order_reference, tenant_id, status, subtotal_amount, delivery_fee, to
        created_at, paid_at, completed_at, cancelled_at, session_id, ip_address, user_agent,
        COALESCE(order_type, 'online') AS order_type
 FROM guest_orders
-WHERE tenant_id = $1
+WHERE tenant_id = $1 AND deleted_at IS NULL
 `
 
 	args := []interface{}{tenantID}

@@ -576,6 +576,147 @@ func (h *OfflineOrderHandler) DeleteOfflineOrder(c echo.Context) error {
 }
 
 // ============================================================================
+// Owner corrections of COMPLETE orders
+// ============================================================================
+
+// UpdateCompletedOfflineOrderRequest is the body of PATCH /offline-orders/:id/completed
+type UpdateCompletedOfflineOrderRequest struct {
+	models.UpdateOfflineOrderRequest
+	Reason                      string `json:"reason"`
+	AcknowledgeAccountingImpact bool   `json:"acknowledge_accounting_impact"`
+}
+
+// DeleteCompletedOfflineOrderRequest is the body of DELETE /offline-orders/:id/completed
+type DeleteCompletedOfflineOrderRequest struct {
+	Reason                      string `json:"reason"`
+	AcknowledgeAccountingImpact bool   `json:"acknowledge_accounting_impact"`
+}
+
+// correctionContext reads what every completed-order correction needs from the request,
+// writing the error response itself when something is missing
+func correctionContext(c echo.Context) (services.CompletedOrderCorrection, bool, error) {
+	header := c.Request().Header
+	correction := services.CompletedOrderCorrection{
+		OrderID:  c.Param("id"),
+		TenantID: header.Get("X-Tenant-ID"),
+		Actor: services.OrderCorrectionActor{
+			UserID:    header.Get("X-User-ID"),
+			Role:      strings.ToLower(header.Get("X-User-Role")),
+			UserAgent: c.Request().UserAgent(),
+			RequestID: c.Response().Header().Get(echo.HeaderXRequestID),
+		},
+	}
+
+	if correction.TenantID == "" {
+		return correction, false, c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
+	}
+	if correction.Actor.UserID == "" {
+		return correction, false, c.JSON(http.StatusUnauthorized, map[string]string{"error": "user authentication is required"})
+	}
+	if correction.OrderID == "" {
+		return correction, false, c.JSON(http.StatusBadRequest, map[string]string{"error": "order_id is required"})
+	}
+	return correction, true, nil
+}
+
+// correctionError maps completed-order correction errors to HTTP responses
+func correctionError(c echo.Context, err error, correction services.CompletedOrderCorrection, operation string) error {
+	switch {
+	case errors.Is(err, services.ErrAccountingImpactNotAcknowledged):
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "confirm that this change affects financial records (acknowledge_accounting_impact)",
+		})
+	case errors.Is(err, services.ErrInvalidCorrection):
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, services.ErrOrderNotFound):
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "offline order not found"})
+	case errors.Is(err, services.ErrOrderNotComplete):
+		return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
+	case errors.Is(err, services.ErrInsufficientStock):
+		return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
+	}
+
+	log.Error().
+		Err(err).
+		Str("order_id", correction.OrderID).
+		Str("tenant_id", correction.TenantID).
+		Str("user_id", correction.Actor.UserID).
+		Msgf("Failed to %s completed offline order", operation)
+	return c.JSON(http.StatusInternalServerError, map[string]string{
+		"error": "Failed to " + operation + " completed offline order",
+	})
+}
+
+// UpdateCompletedOfflineOrder handles PATCH /offline-orders/:id/completed
+// Owner only (RequireRole middleware). The caller must give a reason and acknowledge that the change
+// affects financial records; the change is recorded in the audit trail.
+func (h *OfflineOrderHandler) UpdateCompletedOfflineOrder(c echo.Context) error {
+	correction, ok, err := correctionContext(c)
+	if !ok {
+		return err
+	}
+
+	var body UpdateCompletedOfflineOrderRequest
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	updates := body.UpdateOfflineOrderRequest
+	if updates.CustomerName != nil && len(*updates.CustomerName) < 2 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "customer_name must be at least 2 characters"})
+	}
+	if updates.CustomerPhone != nil && len(*updates.CustomerPhone) < 10 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "customer_phone must be at least 10 characters"})
+	}
+	if updates.CustomerEmail != nil && *updates.CustomerEmail != "" && !strings.Contains(*updates.CustomerEmail, "@") {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "customer_email must be a valid email address"})
+	}
+
+	correction.Reason = body.Reason
+	correction.AcknowledgeAccountingImpact = body.AcknowledgeAccountingImpact
+
+	order, err := h.offlineOrderService.UpdateCompletedOfflineOrder(c.Request().Context(), &services.CompletedOrderEditRequest{
+		CompletedOrderCorrection: correction,
+		Updates:                  updates,
+	})
+	if err != nil {
+		return correctionError(c, err, correction, "update")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"order": order,
+	})
+}
+
+// DeleteCompletedOfflineOrder handles DELETE /offline-orders/:id/completed
+// Owner only (RequireRole middleware). The order is soft-deleted and moved out of revenue,
+// its stock is returned, and the deletion is recorded in the audit trail.
+func (h *OfflineOrderHandler) DeleteCompletedOfflineOrder(c echo.Context) error {
+	correction, ok, err := correctionContext(c)
+	if !ok {
+		return err
+	}
+
+	var body DeleteCompletedOfflineOrderRequest
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+	correction.Reason = body.Reason
+	correction.AcknowledgeAccountingImpact = body.AcknowledgeAccountingImpact
+
+	if err := h.offlineOrderService.DeleteCompletedOfflineOrder(c.Request().Context(), &services.CompletedOrderDeleteRequest{
+		CompletedOrderCorrection: correction,
+	}); err != nil {
+		return correctionError(c, err, correction, "delete")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":  "completed offline order deleted successfully",
+		"order_id": correction.OrderID,
+	})
+}
+
+// ============================================================================
 // Route Registration
 // ============================================================================
 
@@ -606,6 +747,10 @@ func RegisterOfflineOrderRoutes(e *echo.Echo, handler *OfflineOrderHandler, jwtM
 	// US4: Delete offline orders (owner and manager only)
 	// T095: Apply RequireRole middleware to DELETE route
 	offlineOrders.DELETE("/:id", handler.DeleteOfflineOrder, requireRoleMiddleware("owner", "manager"))
-	
+
+	// Corrections of COMPLETE orders change financial records (owner only)
+	offlineOrders.PATCH("/:id/completed", handler.UpdateCompletedOfflineOrder, requireRoleMiddleware("owner"))
+	offlineOrders.DELETE("/:id/completed", handler.DeleteCompletedOfflineOrder, requireRoleMiddleware("owner"))
+
 	log.Info().Msg("Offline order routes registered successfully with rate limiting")
 }

@@ -3,12 +3,17 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/point-of-sale-system/order-service/src/models"
 	"github.com/point-of-sale-system/order-service/src/utils"
 )
+
+// ErrOfflineOrderNotFound is returned when an offline order does not exist, belongs to another
+// tenant or has been deleted
+var ErrOfflineOrderNotFound = errors.New("offline order not found")
 
 // OfflineOrderRepository handles offline order persistence with PII encryption
 // Implements UU PDP compliance for offline customer data protection
@@ -252,7 +257,7 @@ func (r *OfflineOrderRepository) GetOfflineOrderByID(ctx context.Context, orderI
 // Supports filtering by status and search by order_reference
 func (r *OfflineOrderRepository) ListOfflineOrders(ctx context.Context, tenantID string, filters ListOfflineOrdersFilters) ([]models.GuestOrder, int, error) {
 	// Build WHERE clause dynamically based on filters
-	whereClause := "WHERE tenant_id = $1 AND order_type = 'offline'"
+	whereClause := "WHERE tenant_id = $1 AND order_type = 'offline' AND deleted_at IS NULL"
 	args := []interface{}{tenantID}
 	argCount := 1
 
@@ -621,4 +626,88 @@ func (r *OfflineOrderRepository) SoftDeleteOfflineOrder(ctx context.Context, tx 
 	}
 
 	return nil
+}
+
+// LockOfflineOrder locks a non-deleted offline order row for the rest of the transaction and
+// returns its current status, so status checks cannot race with concurrent changes
+func (r *OfflineOrderRepository) LockOfflineOrder(ctx context.Context, tx *sql.Tx, orderID, tenantID string) (models.OrderStatus, error) {
+	query := `
+		SELECT status
+		FROM guest_orders
+		WHERE id = $1 AND tenant_id = $2 AND order_type = 'offline' AND deleted_at IS NULL
+		FOR UPDATE
+	`
+
+	var status models.OrderStatus
+	err := tx.QueryRowContext(ctx, query, orderID, tenantID).Scan(&status)
+	if err == sql.ErrNoRows {
+		return "", ErrOfflineOrderNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to lock offline order: %w", err)
+	}
+
+	return status, nil
+}
+
+// RecalculateOrderTotals recomputes subtotal and total from the order's current items and delivery fee
+func (r *OfflineOrderRepository) RecalculateOrderTotals(ctx context.Context, tx *sql.Tx, orderID, tenantID string) (int, int, error) {
+	query := `
+		UPDATE guest_orders g
+		SET subtotal_amount = s.subtotal,
+			total_amount = s.subtotal + g.delivery_fee
+		FROM (SELECT COALESCE(SUM(total_price), 0) AS subtotal FROM order_items WHERE order_id = $1) s
+		WHERE g.id = $1 AND g.tenant_id = $2
+		RETURNING g.subtotal_amount, g.total_amount
+	`
+
+	var subtotal, total int
+	if err := r.getExecutor(tx).QueryRowContext(ctx, query, orderID, tenantID).Scan(&subtotal, &total); err != nil {
+		return 0, 0, fmt.Errorf("failed to recalculate order totals: %w", err)
+	}
+
+	return subtotal, total, nil
+}
+
+// SoftDeleteCompletedOfflineOrder marks a COMPLETE offline order as deleted. Deleted orders are
+// moved to CANCELLED so revenue reports, which count PAID and COMPLETE orders, no longer include them.
+func (r *OfflineOrderRepository) SoftDeleteCompletedOfflineOrder(ctx context.Context, tx *sql.Tx, orderID, tenantID, deletedByUserID string) error {
+	query := `
+		UPDATE guest_orders
+		SET
+			deleted_at = NOW(),
+			deleted_by_user_id = $1,
+			last_modified_by_user_id = $1,
+			last_modified_at = NOW(),
+			status = 'CANCELLED'
+		WHERE id = $2
+			AND tenant_id = $3
+			AND order_type = 'offline'
+			AND deleted_at IS NULL
+			AND status = 'COMPLETE'
+	`
+
+	result, err := r.getExecutor(tx).ExecContext(ctx, query, deletedByUserID, orderID, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to soft delete completed offline order: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrOfflineOrderNotFound
+	}
+
+	return nil
+}
+
+// EncryptPII encrypts a customer field with the same context used for guest_orders, for copies of
+// the data kept elsewhere such as audit snapshots
+func (r *OfflineOrderRepository) EncryptPII(ctx context.Context, field, value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	return r.encryptor.EncryptWithContext(ctx, value, "guest_order:"+field)
 }

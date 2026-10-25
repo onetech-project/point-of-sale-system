@@ -13,6 +13,7 @@ import (
 	"github.com/point-of-sale-system/order-service/src/models"
 	"github.com/point-of-sale-system/order-service/src/observability"
 	"github.com/point-of-sale-system/order-service/src/repository"
+	"github.com/point-of-sale-system/order-service/src/utils"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -32,6 +33,7 @@ type OfflineOrderService struct {
 	paymentCalculator      *PaymentCalculator
 	inventoryService       *InventoryService
 	analyticsCache         *AnalyticsCacheInvalidator
+	auditPublisher         utils.AuditPublisherInterface // Audit trail for owner corrections of completed orders
 	tracer                 trace.Tracer // T113: OpenTelemetry tracer
 }
 
@@ -46,6 +48,7 @@ func NewOfflineOrderService(
 	paymentCalculator *PaymentCalculator,
 	inventoryService *InventoryService,
 	analyticsCache *AnalyticsCacheInvalidator,
+	auditPublisher utils.AuditPublisherInterface,
 ) *OfflineOrderService {
 	return &OfflineOrderService{
 		db:                db,
@@ -57,6 +60,7 @@ func NewOfflineOrderService(
 		paymentCalculator: paymentCalculator,
 		inventoryService:  inventoryService,
 		analyticsCache:    analyticsCache,
+		auditPublisher:    auditPublisher,
 		tracer:            otel.Tracer("offline-order-service"), // T113: Initialize tracer
 	}
 }

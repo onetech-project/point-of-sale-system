@@ -54,9 +54,13 @@ func RequireRole(allowedRoles ...Role) echo.MiddlewareFunc {
 				Str("method", c.Request().Method).
 				Msg("Insufficient permissions for operation")
 
+			allowed := make([]string, len(allowedRoles))
+			for i, role := range allowedRoles {
+				allowed[i] = string(role)
+			}
 			return c.JSON(http.StatusForbidden, map[string]string{
 				"error":   "insufficient permissions",
-				"message": "only owners and managers can perform this operation",
+				"message": "this operation requires one of the roles: " + strings.Join(allowed, ", "),
 			})
 		}
 	}

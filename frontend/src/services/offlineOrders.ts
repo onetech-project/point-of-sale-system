@@ -10,6 +10,7 @@ import {
   OfflineOrderWithDetails,
   CreateOfflineOrderRequest,
   UpdateOfflineOrderRequest,
+  CompletedOrderCorrection,
   RecordPaymentRequest,
   ListOfflineOrdersResponse,
   ListOfflineOrdersFilters,
@@ -173,6 +174,46 @@ class OfflineOrderService {
       return response;
     } catch (error) {
       console.error('Failed to update offline order:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Correct a COMPLETE offline order (owner only)
+   * The change affects financial records, so a reason and an explicit acknowledgement are required.
+   * Totals are recalculated, stock is adjusted and the change is recorded in the audit trail.
+   */
+  async updateCompletedOfflineOrder(
+    orderId: string,
+    request: UpdateOfflineOrderRequest,
+    correction: CompletedOrderCorrection
+  ): Promise<{ order: OfflineOrder }> {
+    try {
+      return await apiClient.patch<{ order: OfflineOrder }>(
+        `/api/v1/admin/offline-orders/${orderId}/completed`,
+        { ...request, ...correction }
+      );
+    } catch (error) {
+      console.error('Failed to update completed offline order:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a COMPLETE offline order (owner only)
+   * The order is removed from revenue, its stock is returned and the deletion is recorded in the audit trail.
+   */
+  async deleteCompletedOfflineOrder(
+    orderId: string,
+    correction: CompletedOrderCorrection
+  ): Promise<{ message: string; order_id: string }> {
+    try {
+      return await apiClient.delete<{ message: string; order_id: string }>(
+        `/api/v1/admin/offline-orders/${orderId}/completed`,
+        { data: correction }
+      );
+    } catch (error) {
+      console.error('Failed to delete completed offline order:', error);
       throw error;
     }
   }

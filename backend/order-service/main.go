@@ -169,6 +169,7 @@ func main() {
 		paymentCalculator,
 		inventoryService,
 		analyticsCache,
+		auditPublisher,
 	)
 
 	offlineOrderHandler := api.NewOfflineOrderHandler(offlineOrderService)

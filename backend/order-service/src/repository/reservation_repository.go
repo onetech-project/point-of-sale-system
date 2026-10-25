@@ -241,6 +241,48 @@ func (r *ReservationRepository) ReleaseActiveReservationsByOrderID(ctx context.C
 	return result.RowsAffected()
 }
 
+// GetConvertedQuantitiesByOrderIDTx returns, per product, the quantity an order has permanently
+// taken from stock
+func (r *ReservationRepository) GetConvertedQuantitiesByOrderIDTx(ctx context.Context, tx *sql.Tx, orderID string) (map[string]int, error) {
+	query := `
+		SELECT product_id, SUM(quantity)
+		FROM inventory_reservations
+		WHERE order_id = $1 AND status = 'converted'
+		GROUP BY product_id
+	`
+
+	rows, err := tx.QueryContext(ctx, query, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	quantities := make(map[string]int)
+	for rows.Next() {
+		var productID string
+		var quantity int
+		if err := rows.Scan(&productID, &quantity); err != nil {
+			return nil, err
+		}
+		quantities[productID] = quantity
+	}
+
+	return quantities, rows.Err()
+}
+
+// ReleaseConvertedReservationsByOrderID marks an order's converted reservations as released once
+// their stock has been returned
+func (r *ReservationRepository) ReleaseConvertedReservationsByOrderID(ctx context.Context, tx *sql.Tx, orderID string) error {
+	query := `
+		UPDATE inventory_reservations
+		SET status = 'released', released_at = NOW()
+		WHERE order_id = $1 AND status = 'converted'
+	`
+
+	_, err := tx.ExecContext(ctx, query, orderID)
+	return err
+}
+
 // ConvertReservation converts a reservation to "converted" status
 func (r *ReservationRepository) ConvertReservation(ctx context.Context, tx *sql.Tx, id string) error {
 	query := `

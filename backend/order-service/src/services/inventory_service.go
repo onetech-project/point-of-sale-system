@@ -272,6 +272,51 @@ func (s *InventoryService) ReleaseReservationsTx(ctx context.Context, tx *sql.Tx
 	return nil
 }
 
+// ReturnAllocatedStockTx gives the stock an order took permanently back to its products and
+// releases all of the order's reservations inside the caller's transaction. It returns the
+// quantity returned per product, which is empty for orders recorded before stock was tracked.
+func (s *InventoryService) ReturnAllocatedStockTx(ctx context.Context, tx *sql.Tx, tenantID, orderID string) (map[string]int, error) {
+	allocated, err := s.reservationRepo.GetConvertedQuantitiesByOrderIDTx(ctx, tx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allocated stock for order %s: %w", orderID, err)
+	}
+
+	// Update products in a stable order to avoid deadlocks with concurrent reservations
+	productIDs := make([]string, 0, len(allocated))
+	for productID := range allocated {
+		productIDs = append(productIDs, productID)
+	}
+	sort.Strings(productIDs)
+
+	for _, productID := range productIDs {
+		query := `
+UPDATE products
+SET stock_quantity = stock_quantity + $1,
+    updated_at = NOW()
+WHERE id = $2 AND tenant_id = $3
+`
+		if _, err := tx.ExecContext(ctx, query, allocated[productID], productID, tenantID); err != nil {
+			return nil, fmt.Errorf("failed to return stock for product %s: %w", productID, err)
+		}
+	}
+
+	if err := s.reservationRepo.ReleaseConvertedReservationsByOrderID(ctx, tx, orderID); err != nil {
+		return nil, fmt.Errorf("failed to release allocations for order %s: %w", orderID, err)
+	}
+	if err := s.ReleaseReservationsTx(ctx, tx, orderID); err != nil {
+		return nil, err
+	}
+
+	if len(allocated) > 0 {
+		log.Info().
+			Str("order_id", orderID).
+			Int("products", len(allocated)).
+			Msg("Allocated stock returned")
+	}
+
+	return allocated, nil
+}
+
 // ReleaseReservations releases reservations (for expired or cancelled orders)
 func (s *InventoryService) ReleaseReservations(ctx context.Context, orderID string) error {
 	reservations, err := s.reservationRepo.GetReservationsByOrderID(ctx, orderID)

@@ -194,11 +194,7 @@ func main() {
 	// publicOrders.Use(middleware.RateLimit()) // Rate limiting will be added later
 	publicOrders.Any("/*", proxyWildcard(orderServiceURL))
 
-	// Admin order management routes (requires auth + appropriate role)
-	adminOrders := protected.Group("/api/v1/admin")
-	adminOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
-	adminOrders.Any("/orders*", proxyWildcard(orderServiceURL))
-	adminOrders.Any("/offline-orders*", proxyWildcard(orderServiceURL))
+	registerAdminOrderRoutes(protected, orderServiceURL)
 
 	// Admin order settings routes (requires auth, owner/manager only)
 	adminSettings := protected.Group("/api/v1/admin")
@@ -348,6 +344,21 @@ func registerProductRoutes(protected *echo.Group, productServiceURL string) {
 	productGroup.DELETE("/api/v1/products*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/categories*", proxyWildcard(productServiceURL))
 	productGroup.Any("/api/v1/inventory*", proxyWildcard(productServiceURL))
+}
+
+func registerAdminOrderRoutes(protected *echo.Group, orderServiceURL string) {
+	// Admin order management routes (requires auth + appropriate role)
+	adminOrders := protected.Group("/api/v1/admin")
+	adminOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
+	adminOrders.Any("/orders*", proxyWildcard(orderServiceURL))
+	adminOrders.Any("/offline-orders*", proxyWildcard(orderServiceURL))
+
+	// Editing or deleting COMPLETE orders changes financial records, so it is owner only.
+	// The specific path takes precedence over the /offline-orders* wildcard above.
+	completedOrders := protected.Group("/api/v1/admin/offline-orders/:id/completed")
+	completedOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	completedOrders.PATCH("", proxyWildcard(orderServiceURL))
+	completedOrders.DELETE("", proxyWildcard(orderServiceURL))
 }
 
 func registerPublicPlansRoute(public *echo.Group, billingServiceURL string) {
