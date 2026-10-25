@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Download, Pencil, Send, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import {
   OfflineOrder,
@@ -16,7 +17,7 @@ import { AccountingImpactConfirmModal } from './AccountingImpactConfirmModal';
 import offlineOrderService from '../../services/offlineOrders';
 import type { OfflineOrderDocumentType } from '../../services/offlineOrders';
 import type { CompletedOrderCorrection } from '../../types/offlineOrder';
-import ActionMenu from '../ui/ActionMenu';
+import ActionMenu, { type ActionMenuItem } from '../ui/ActionMenu';
 import { useAuth } from '../../store/auth';
 import { ROLES } from '../../constants/roles';
 
@@ -244,6 +245,57 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
   const canDelete = user?.role === ROLES.OWNER || user?.role === ROLES.MANAGER;
   const canCorrectCompleted = user?.role === ROLES.OWNER && order.status === 'COMPLETE';
 
+  const orderActions: ActionMenuItem[] = [];
+  if (order.status === 'PENDING') {
+    orderActions.push({ label: 'Edit Order', icon: Pencil, onSelect: handleEdit });
+  }
+  if (canCorrectCompleted) {
+    orderActions.push(
+      { label: 'Edit Completed Order', icon: Pencil, onSelect: handleEdit },
+      {
+        label: 'Delete Completed Order',
+        icon: Trash2,
+        variant: 'danger',
+        onSelect: () => {
+          setDeleteCompletedError(null);
+          setShowDeleteCompletedModal(true);
+        },
+      }
+    );
+  }
+  if ((order.status === 'PENDING' || order.status === 'CANCELLED') && canDelete) {
+    orderActions.push({ label: 'Delete Order', icon: Trash2, variant: 'danger', onSelect: handleDelete });
+  }
+
+  // The menu draws the divider only when order actions come before the document actions
+  const documentActions: ActionMenuItem[] = [
+    {
+      label: 'Download Invoice',
+      icon: Download,
+      separatorBefore: true,
+      onSelect: () => handleDownloadDocument('invoice'),
+      disabled: !canDownloadDocument('invoice') || documentAction === 'invoice-download',
+    },
+    {
+      label: 'Download Receipt',
+      icon: Download,
+      onSelect: () => handleDownloadDocument('receipt'),
+      disabled: !canDownloadDocument('receipt') || documentAction === 'receipt-download',
+    },
+    {
+      label: 'Resend Invoice',
+      icon: Send,
+      onSelect: () => handleResendDocument('invoice'),
+      disabled: !canResendDocument('invoice') || documentAction === 'invoice-resend',
+    },
+    {
+      label: 'Resend Receipt',
+      icon: Send,
+      onSelect: () => handleResendDocument('receipt'),
+      disabled: !canResendDocument('receipt') || documentAction === 'receipt-resend',
+    },
+  ];
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -267,61 +319,16 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
             {order.status}
           </span>
           <ActionMenu
-            ariaLabel={`Open document actions for order ${order.order_reference}`}
-            items={[
-              {
-                label: 'Download Invoice',
-                onSelect: () => handleDownloadDocument('invoice'),
-                disabled: !canDownloadDocument('invoice') || documentAction === 'invoice-download',
-              },
-              {
-                label: 'Download Receipt',
-                onSelect: () => handleDownloadDocument('receipt'),
-                disabled: !canDownloadDocument('receipt') || documentAction === 'receipt-download',
-              },
-              {
-                label: 'Resend Invoice',
-                onSelect: () => handleResendDocument('invoice'),
-                disabled: !canResendDocument('invoice') || documentAction === 'invoice-resend',
-              },
-              {
-                label: 'Resend Receipt',
-                onSelect: () => handleResendDocument('receipt'),
-                disabled: !canResendDocument('receipt') || documentAction === 'receipt-resend',
-              },
-            ]}
+            ariaLabel={`Open actions for order ${order.order_reference}`}
+            items={[...orderActions, ...documentActions]}
           />
           {order.status === 'PENDING' && (
-            <>
-              <button
-                onClick={handleEdit}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-              >
-                Edit Order
-              </button>
-              <button
-                onClick={handleRecordPayment}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
-              >
-                Record Payment
-              </button>
-              {canDelete && (
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Delete
-                </button>
-              )}
-            </>
+            <button
+              onClick={handleRecordPayment}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            >
+              Record Payment
+            </button>
           )}
           {order.status === 'PAID' && (
             <button
@@ -330,41 +337,6 @@ export const OfflineOrderDetail: React.FC<OfflineOrderDetailProps> = ({
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium"
             >
               {isCompleting ? 'Completing...' : 'Mark as Complete'}
-            </button>
-          )}
-          {canCorrectCompleted && (
-            <>
-              <button
-                onClick={handleEdit}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-              >
-                Edit Completed Order
-              </button>
-              <button
-                onClick={() => {
-                  setDeleteCompletedError(null);
-                  setShowDeleteCompletedModal(true);
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
-              >
-                Delete Completed Order
-              </button>
-            </>
-          )}
-          {order.status === 'CANCELLED' && canDelete && (
-            <button
-              onClick={handleDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              Delete
             </button>
           )}
         </div>

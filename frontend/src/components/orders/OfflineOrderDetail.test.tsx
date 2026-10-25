@@ -60,6 +60,9 @@ const completedOrder: OfflineOrder = {
   completed_at: '2026-05-20T03:00:00Z',
 };
 
+const openActions = (reference = 'GO-0001') =>
+  fireEvent.click(screen.getByLabelText(`Open actions for order ${reference}`));
+
 const asRole = (role: string) => mockUseAuth.mockReturnValue({ user: { id: 'user-1', email: 'u@example.com', role } });
 
 beforeEach(() => {
@@ -67,21 +70,46 @@ beforeEach(() => {
   asRole('owner');
 });
 
-describe('OfflineOrderDetail document menu', () => {
-  it('moves document actions into the three-dot menu and keeps workflow buttons visible', () => {
+describe('OfflineOrderDetail action menu', () => {
+  it('puts order and document actions in the three-dot menu and keeps payment visible', () => {
     render(<OfflineOrderDetail order={pendingOrder} />);
 
-    expect(screen.getByRole('button', { name: 'Edit Order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Invoice' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Receipt' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText('Open document actions for order GO-0001'));
+    openActions();
 
+    expect(screen.getByRole('menuitem', { name: 'Edit Order' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: 'Delete Order' })).toBeEnabled();
     expect(screen.getByRole('menuitem', { name: 'Download Invoice' })).toBeEnabled();
     expect(screen.getByRole('menuitem', { name: 'Download Receipt' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Resend Invoice' })).toBeEnabled();
     expect(screen.getByRole('menuitem', { name: 'Resend Receipt' })).toBeDisabled();
+
+    // Order actions and document actions are split by a divider
+    const menuChildren = Array.from(screen.getByRole('menu').children);
+    const separatorIndex = menuChildren.findIndex(el => el.getAttribute('role') === 'separator');
+    expect(menuChildren[separatorIndex - 1]).toHaveTextContent('Delete Order');
+    expect(menuChildren[separatorIndex + 1]).toHaveTextContent('Download Invoice');
+  });
+
+  it('shows no divider when only document actions are available', () => {
+    render(<OfflineOrderDetail order={paidOrder} />);
+
+    openActions();
+
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download Invoice' })).toBeInTheDocument();
+  });
+
+  it('opens the delete dialog for pending orders from the menu', () => {
+    render(<OfflineOrderDetail order={pendingOrder} />);
+
+    openActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete Order' }));
+
+    expect(screen.getByLabelText(/Reason for deletion/)).toBeInTheDocument();
   });
 });
 
@@ -118,25 +146,42 @@ describe('OfflineOrderDetail completion action', () => {
 
 describe('OfflineOrderDetail completed order corrections', () => {
   it('shows edit and delete for completed orders only to the owner', () => {
-    const { rerender } = render(<OfflineOrderDetail order={completedOrder} />);
+    const { unmount } = render(<OfflineOrderDetail order={completedOrder} />);
 
-    expect(screen.getByRole('button', { name: 'Edit Completed Order' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete Completed Order' })).toBeInTheDocument();
+    openActions();
+    expect(screen.getByRole('menuitem', { name: 'Edit Completed Order' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: 'Delete Completed Order' })).toBeEnabled();
+    expect(screen.queryByRole('menuitem', { name: 'Delete Order' })).not.toBeInTheDocument();
+    unmount();
 
     for (const role of ['manager', 'cashier']) {
       asRole(role);
-      rerender(<OfflineOrderDetail order={{ ...completedOrder }} />);
-      expect(screen.queryByRole('button', { name: 'Edit Completed Order' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Delete Completed Order' })).not.toBeInTheDocument();
+      const view = render(<OfflineOrderDetail order={completedOrder} />);
+      openActions();
+      expect(screen.queryByRole('menuitem', { name: 'Edit Completed Order' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Delete Completed Order' })).not.toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Download Invoice' })).toBeInTheDocument();
+      view.unmount();
     }
   });
 
-  it('hides the pending order delete button from cashiers', () => {
+  it('opens the edit page for a completed order from the menu', () => {
+    const onEdit = jest.fn();
+    render(<OfflineOrderDetail order={completedOrder} onEdit={onEdit} />);
+
+    openActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Completed Order' }));
+
+    expect(onEdit).toHaveBeenCalled();
+  });
+
+  it('hides the pending order delete action from cashiers', () => {
     asRole('cashier');
     render(<OfflineOrderDetail order={pendingOrder} />);
 
-    expect(screen.getByRole('button', { name: 'Edit Order' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    openActions();
+    expect(screen.getByRole('menuitem', { name: 'Edit Order' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete Order' })).not.toBeInTheDocument();
   });
 
   it('requires a reason and acknowledgement before deleting a completed order', async () => {
@@ -148,7 +193,8 @@ describe('OfflineOrderDetail completed order corrections', () => {
 
     render(<OfflineOrderDetail order={completedOrder} onDeleted={onDeleted} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Completed Order' }));
+    openActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete Completed Order' }));
     expect(screen.getByText('Perubahan ini akan memengaruhi pencatatan')).toBeInTheDocument();
 
     const confirm = screen.getByRole('button', { name: 'Ya, Hapus Order' });
@@ -180,7 +226,8 @@ describe('OfflineOrderDetail completed order corrections', () => {
 
     render(<OfflineOrderDetail order={completedOrder} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Completed Order' }));
+    openActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete Completed Order' }));
     fireEvent.change(screen.getByLabelText(/Alasan penghapusan/), { target: { value: 'Pesanan dobel' } });
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Ya, Hapus Order' }));
