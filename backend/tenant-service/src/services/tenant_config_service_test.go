@@ -25,7 +25,9 @@ func TestGetDeliveryConfigAllowsActiveTrialTenant(t *testing.T) {
 			"subscription_status",
 			"midtrans_configured",
 			"midtrans_environment",
-		}).AddRow("tenant-1", "Bistro One", "active", "trial", true, "sandbox"))
+			"payment_gateway",
+			"payment_configured",
+		}).AddRow("tenant-1", "Bistro One", "active", "trial", true, "sandbox", "midtrans", true))
 	mock.ExpectQuery(`SELECT delivery_enabled, pickup_enabled, dine_in_enabled,`).
 		WithArgs("tenant-1").
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -84,7 +86,9 @@ func TestGetDeliveryConfigRejectsUnavailableTenants(t *testing.T) {
 					"subscription_status",
 					"midtrans_configured",
 					"midtrans_environment",
-				}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus, true, "sandbox"))
+					"payment_gateway",
+					"payment_configured",
+				}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus, true, "sandbox", "midtrans", true))
 
 			svc := NewTenantConfigService(nil, db)
 			config, err := svc.GetDeliveryConfig(context.Background(), "bistro-one")
@@ -121,19 +125,21 @@ func TestGetDeliveryConfigRejectsMissingMidtransConfig(t *testing.T) {
 			"subscription_status",
 			"midtrans_configured",
 			"midtrans_environment",
-		}).AddRow("tenant-1", "Bistro One", "active", "active", false, "sandbox"))
+			"payment_gateway",
+			"payment_configured",
+		}).AddRow("tenant-1", "Bistro One", "active", "active", false, "sandbox", "midtrans", false))
 
 	svc := NewTenantConfigService(nil, db)
 	config, err := svc.GetDeliveryConfig(context.Background(), "bistro-one")
 	if config != nil {
 		t.Fatalf("config = %+v, want nil", config)
 	}
-	var midtransMissing *MidtransNotConfiguredError
-	if !errors.As(err, &midtransMissing) {
-		t.Fatalf("err = %v, want MidtransNotConfiguredError", err)
+	var paymentMissing *PaymentNotConfiguredError
+	if !errors.As(err, &paymentMissing) {
+		t.Fatalf("err = %v, want PaymentNotConfiguredError", err)
 	}
-	if midtransMissing.Status != "active" || midtransMissing.SubscriptionStatus != "active" {
-		t.Fatalf("unexpected error payload: %+v", midtransMissing)
+	if paymentMissing.Status != "active" || paymentMissing.SubscriptionStatus != "active" || paymentMissing.Reason() != "midtrans_not_configured" {
+		t.Fatalf("unexpected error payload: %+v", paymentMissing)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

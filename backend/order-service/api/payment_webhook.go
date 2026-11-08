@@ -2,13 +2,19 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 
+	"github.com/point-of-sale-system/order-service/src/manjo"
 	"github.com/point-of-sale-system/order-service/src/services"
 )
+
+// manjoNotificationPath is the route Manjo posts payment notifications to.
+// Register <public API URL> + this path as the notification URL at Manjo.
+const manjoNotificationPath = "/api/v1/webhooks/payments/manjo/notification"
 
 // PaymentWebhookHandler handles Midtrans payment webhook notifications
 type PaymentWebhookHandler struct {
@@ -98,4 +104,45 @@ func (h *PaymentWebhookHandler) RegisterRoutes(e *echo.Echo) {
 	// Signature verification is handled in the service layer
 	// Route matches API gateway path: /api/v1/webhooks/payments/midtrans/notification
 	e.POST("/api/v1/webhooks/payments/midtrans/notification", h.HandleMidtransNotification)
+	e.POST(manjoNotificationPath, h.HandleManjoNotification)
+}
+
+// HandleManjoNotification handles POST /api/v1/webhooks/payments/manjo/notification.
+// The signature is checked against the raw body, then the payment status is
+// confirmed with Manjo's query API before the order is updated.
+func (h *PaymentWebhookHandler) HandleManjoNotification(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	body, err := io.ReadAll(io.LimitReader(c.Request().Body, 1<<20))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, manjo.AckInvalidBody)
+	}
+
+	log.Info().
+		RawJSON("notification", compactJSONOrEmpty(body)).
+		Str("external_id", c.Request().Header.Get("X-EXTERNAL-ID")).
+		Str("remote_addr", c.RealIP()).
+		Msg("Received Manjo payment notification")
+
+	result, err := h.paymentService.ProcessManjoNotification(ctx, c.Request().Header, c.Request().URL.Path, body)
+	switch result {
+	case services.ManjoNotificationInvalidSignature:
+		return c.JSON(http.StatusUnauthorized, manjo.AckUnauthorized)
+	case services.ManjoNotificationInvalidBody:
+		log.Warn().Err(err).Msg("Rejected Manjo notification")
+		return c.JSON(http.StatusBadRequest, manjo.AckInvalidBody)
+	}
+	if err != nil {
+		// Acknowledge so Manjo does not retry forever; the guest order page
+		// re-checks the payment at Manjo while it is pending.
+		log.Error().Err(err).Msg("Failed to process Manjo notification - manual intervention may be required")
+	}
+	return c.JSON(http.StatusOK, manjo.AckSuccess)
+}
+
+func compactJSONOrEmpty(body []byte) []byte {
+	if json.Valid(body) {
+		return body
+	}
+	return []byte(`{}`)
 }

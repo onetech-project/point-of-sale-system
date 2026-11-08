@@ -58,6 +58,9 @@ type TenantConfigurationData struct {
 	AutoCalculateFees    bool                   `json:"auto_calculate_fees"`
 	MidtransConfigured   bool                   `json:"midtrans_configured"` // Don't expose actual keys
 	MidtransEnvironment  string                 `json:"midtrans_environment"`
+	ManjoConfigured      bool                   `json:"manjo_configured"` // Don't expose actual keys
+	ManjoEnvironment     string                 `json:"manjo_environment"`
+	PaymentGateway       string                 `json:"payment_gateway"`
 }
 
 // GetAllTenantData aggregates all data for a tenant (business profile, team members, configurations)
@@ -171,7 +174,7 @@ func (s *TenantDataService) getTenantConfiguration(ctx context.Context, tenantID
 	}
 
 	// Mask sensitive payment credentials - only indicate if configured
-	midtransConfigured := config.MidtransServerKey != "" && config.MidtransClientKey != ""
+	midtransConfigured := config.MidtransConfigured()
 
 	// Parse JSON fields
 	var serviceArea, deliveryFeeConfig map[string]interface{}
@@ -196,6 +199,9 @@ func (s *TenantDataService) getTenantConfiguration(ctx context.Context, tenantID
 		AutoCalculateFees:    config.AutoCalculateFees,
 		MidtransConfigured:   midtransConfigured,
 		MidtransEnvironment:  config.MidtransEnvironment,
+		ManjoConfigured:      config.ManjoConfigured(),
+		ManjoEnvironment:     config.ManjoEnvironment,
+		PaymentGateway:       config.PaymentGateway,
 	}, nil
 }
 

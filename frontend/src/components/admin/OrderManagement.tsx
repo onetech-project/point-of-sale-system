@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
-import { order, Order, OrderDocumentType, OrderWithDetails } from '../../services/order';
+import { order, Order, OrderDocumentType, OrderRefund, OrderWithDetails } from '../../services/order';
+import { useAuth } from '../../store/auth';
+import { ROLES } from '../../constants/roles';
 import offlineOrderService from '../../services/offlineOrders';
 import ActionMenu from '../ui/ActionMenu';
 import { OfflineOrderDetail } from '../orders/OfflineOrderDetail';
@@ -46,6 +48,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [batchDocumentType, setBatchDocumentType] = useState<OrderDocumentType>('invoice');
   const [documentAction, setDocumentAction] = useState<string | null>(null);
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundMessage, setRefundMessage] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isOwner = user?.role === ROLES.OWNER;
 
   const ITEMS_PER_PAGE = 20;
 
@@ -152,10 +161,71 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
     setSelectedOfflineOrderDetails(null);
     setSelectedOrderDetails(orderDetails);
+    setRefundMessage(null);
+    // The list endpoint does not include payment/refund data; load it for the modal.
+    loadOrderPaymentDetails(orderDetails.order.id);
+  };
+
+  const loadOrderPaymentDetails = async (orderId: string) => {
+    try {
+      const details = await order.getOrderById(orderId);
+      setSelectedOrderDetails(current =>
+        current && current.order.id === orderId
+          ? { ...current, order: details.order, payment: details.payment, refunds: details.refunds }
+          : current
+      );
+      setOrdersWithDetails(prev =>
+        prev.map(od => (od.order.id === orderId ? { ...od, order: details.order } : od))
+      );
+    } catch (err) {
+      console.error('Failed to load order payment details:', err);
+    }
+  };
+
+  const openRefundDialog = () => {
+    setRefundReason('');
+    setRefundError(null);
+    setShowRefundDialog(true);
+  };
+
+  const confirmRefund = async () => {
+    if (!selectedOrderDetails || !refundReason.trim()) return;
+
+    const orderId = selectedOrderDetails.order.id;
+    try {
+      setRefunding(true);
+      setRefundError(null);
+      const result = await order.refundOrder(orderId, refundReason.trim());
+      setShowRefundDialog(false);
+      setRefundMessage(
+        result.processing
+          ? 'Refund submitted. The payment gateway is still processing it.'
+          : 'Payment refunded successfully.'
+      );
+      await loadOrderPaymentDetails(orderId);
+    } catch (err: any) {
+      console.error('Failed to refund order:', err);
+      setRefundError(err?.response?.data?.error || 'Failed to refund payment. Please try again.');
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  const getRefundStatusColor = (status: OrderRefund['status']): string => {
+    switch (status) {
+      case 'success':
+        return 'bg-green-100 text-green-800';
+      case 'processing':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-red-100 text-red-800';
+    }
   };
 
   const handleCloseDetail = () => {
     setSelectedOrderDetails(null);
+    setShowRefundDialog(false);
+    setRefundMessage(null);
     setNote('');
     setShowNoteDialog(false);
     setShowStatusDialog(false);
@@ -731,6 +801,17 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       onSelect: () => handleResendDocument(selectedOrderDetails, 'receipt'),
                       disabled: !canResendDocument(selectedOrderDetails, 'receipt'),
                     },
+                    ...(isOwner
+                      ? [
+                          {
+                            label: 'Refund Payment',
+                            onSelect: openRefundDialog,
+                            disabled: !selectedOrderDetails.payment?.refundable,
+                            variant: 'danger' as const,
+                            separatorBefore: true,
+                          },
+                        ]
+                      : []),
                   ]}
                 />
                 <button
@@ -856,6 +937,65 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
               </div>
 
+              {refundMessage && (
+                <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+                  {refundMessage}
+                </div>
+              )}
+
+              {/* Payment */}
+              {selectedOrderDetails.payment && (
+                <div>
+                  <h4 className="font-semibold mb-2">Payment</h4>
+                  <div className="bg-gray-50 rounded p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Gateway:</span>
+                      <span className="font-medium capitalize">{selectedOrderDetails.payment.gateway}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className="font-medium">
+                        {selectedOrderDetails.payment.refunded
+                          ? 'Refunded'
+                          : selectedOrderDetails.payment.transaction_status || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount:</span>
+                      <span className="font-medium">{formatCurrency(selectedOrderDetails.payment.amount)}</span>
+                    </div>
+                  </div>
+                  {selectedOrderDetails.refunds && selectedOrderDetails.refunds.length > 0 && (
+                    <div className="mt-3">
+                      <h5 className="text-sm font-semibold text-gray-700 mb-2">Refund History</h5>
+                      <ul className="divide-y rounded border text-sm">
+                        {selectedOrderDetails.refunds.map(refund => (
+                          <li key={refund.id} className="p-3 space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-medium">{formatCurrency(refund.amount)}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRefundStatusColor(refund.status)}`}
+                              >
+                                {refund.status}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 break-words">{refund.reason}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(refund.created_at)}
+                              {refund.requested_by_name ? ` · ${refund.requested_by_name}` : ''}
+                              {refund.gateway_refund_no ? ` · Ref ${refund.gateway_refund_no}` : ''}
+                            </p>
+                            {refund.failure_reason && (
+                              <p className="text-xs text-red-600 break-words">{refund.failure_reason}</p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Status Update Actions - T097 */}
               <div>
                 <h4 className="font-semibold mb-2">Update Status</h4>
@@ -918,6 +1058,56 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
               >
                 {updating ? 'Updating...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Confirmation Dialog */}
+      {showRefundDialog && selectedOrderDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-bold mb-2">Refund Payment</h3>
+            <p className="text-gray-600 mb-4">
+              Refund{' '}
+              <strong>
+                {formatCurrency(
+                  selectedOrderDetails.payment?.amount ?? selectedOrderDetails.order.total_amount
+                )}
+              </strong>{' '}
+              to the customer for order{' '}
+              <strong>{selectedOrderDetails.order.order_reference}</strong>
+              {selectedOrderDetails.payment?.gateway ? ` via ${selectedOrderDetails.payment.gateway}` : ''}.
+              This cannot be undone.
+            </p>
+            <label htmlFor="refund-reason" className="block text-sm font-medium text-gray-700 mb-1">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="refund-reason"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              rows={3}
+              maxLength={256}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="e.g. Item out of stock, customer complaint..."
+            />
+            {refundError && <p className="mt-2 text-sm text-red-600">{refundError}</p>}
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setShowRefundDialog(false)}
+                disabled={refunding}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRefund}
+                disabled={refunding || !refundReason.trim()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
+              >
+                {refunding ? 'Refunding...' : 'Confirm Refund'}
               </button>
             </div>
           </div>

@@ -25,8 +25,9 @@ func (r *PaymentRepository) CreatePaymentTransaction(ctx context.Context, tx *sq
 			payment_type, transaction_status, fraud_status,
 			notification_payload, signature_key, signature_verified,
 			qr_code_url, qr_string, expiry_time,
-			idempotency_key, notification_received_at, settled_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			idempotency_key, notification_received_at, settled_at,
+			payment_gateway, gateway_reference_no, gateway_external_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id, created_at
 	`
 
@@ -49,6 +50,9 @@ func (r *PaymentRepository) CreatePaymentTransaction(ctx context.Context, tx *sq
 		payment.IdempotencyKey,
 		payment.NotificationReceivedAt,
 		payment.SettledAt,
+		payment.Gateway(),
+		payment.GatewayReferenceNo,
+		payment.GatewayExternalID,
 	).Scan(&payment.ID, &payment.CreatedAt)
 }
 
@@ -59,7 +63,8 @@ func (r *PaymentRepository) GetPaymentByOrderID(ctx context.Context, orderID str
 			amount, payment_type, transaction_status, fraud_status,
 			notification_payload, signature_key, signature_verified,
 			qr_code_url, qr_string, expiry_time,
-			created_at, notification_received_at, settled_at, idempotency_key
+			created_at, notification_received_at, settled_at, idempotency_key,
+			payment_gateway, gateway_reference_no, gateway_external_id
 		FROM payment_transactions
 		WHERE order_id = $1
 		ORDER BY created_at DESC
@@ -86,6 +91,9 @@ func (r *PaymentRepository) GetPaymentByOrderID(ctx context.Context, orderID str
 		&payment.NotificationReceivedAt,
 		&payment.SettledAt,
 		&payment.IdempotencyKey,
+		&payment.PaymentGateway,
+		&payment.GatewayReferenceNo,
+		&payment.GatewayExternalID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -102,7 +110,8 @@ func (r *PaymentRepository) GetPaymentByTransactionID(ctx context.Context, trans
 			amount, payment_type, transaction_status, fraud_status,
 			notification_payload, signature_key, signature_verified,
 			qr_code_url, qr_string, expiry_time,
-			created_at, notification_received_at, settled_at, idempotency_key
+			created_at, notification_received_at, settled_at, idempotency_key,
+			payment_gateway, gateway_reference_no, gateway_external_id
 		FROM payment_transactions
 		WHERE midtrans_transaction_id = $1
 	`
@@ -127,6 +136,9 @@ func (r *PaymentRepository) GetPaymentByTransactionID(ctx context.Context, trans
 		&payment.NotificationReceivedAt,
 		&payment.SettledAt,
 		&payment.IdempotencyKey,
+		&payment.PaymentGateway,
+		&payment.GatewayReferenceNo,
+		&payment.GatewayExternalID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -143,7 +155,8 @@ func (r *PaymentRepository) GetPaymentByIdempotencyKey(ctx context.Context, idem
 			amount, payment_type, transaction_status, fraud_status,
 			notification_payload, signature_key, signature_verified,
 			qr_code_url, qr_string, expiry_time,
-			created_at, notification_received_at, settled_at, idempotency_key
+			created_at, notification_received_at, settled_at, idempotency_key,
+			payment_gateway, gateway_reference_no, gateway_external_id
 		FROM payment_transactions
 		WHERE idempotency_key = $1
 	`
@@ -168,6 +181,9 @@ func (r *PaymentRepository) GetPaymentByIdempotencyKey(ctx context.Context, idem
 		&payment.NotificationReceivedAt,
 		&payment.SettledAt,
 		&payment.IdempotencyKey,
+		&payment.PaymentGateway,
+		&payment.GatewayReferenceNo,
+		&payment.GatewayExternalID,
 	)
 
 	if err == sql.ErrNoRows {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import MidtransConfigBanner from './MidtransConfigBanner';
 import { useAuth } from '@/store/auth';
@@ -50,7 +50,7 @@ it('shows a settings CTA for owners when Midtrans is not configured', async () =
   render(<MidtransConfigBanner />);
 
   expect(
-    await screen.findByText('Midtrans is not configured. Guest ordering is currently unavailable.')
+    await screen.findByText('Payment gateway is not configured. Guest ordering is currently unavailable.')
   ).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Configure Payment Settings' })).toHaveAttribute(
     'href',
@@ -71,6 +71,30 @@ it('shows contact-owner copy for managers when Midtrans is not configured', asyn
   expect(
     screen.queryByRole('link', { name: 'Configure Payment Settings' })
   ).not.toBeInTheDocument();
+});
+
+it('uses payment_configured when the default gateway is Manjo', async () => {
+  mockTenantService.getTenantInfo.mockResolvedValue({
+    id: 'tenant-1',
+    businessName: 'Bistro One',
+    slug: 'bistro-one',
+    status: 'active',
+    createdAt: '2026-05-21T00:00:00Z',
+    midtrans_configured: false,
+    midtrans_environment: 'sandbox',
+    payment_gateway: 'manjo',
+    payment_configured: true,
+  });
+  mockUseAuth.mockReturnValue({
+    user: { role: 'owner' },
+    isAuthenticated: true,
+    isLoading: false,
+  } as any);
+
+  const { container } = render(<MidtransConfigBanner />);
+
+  await waitFor(() => expect(mockTenantService.getTenantInfo).toHaveBeenCalled());
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
 });
 
 it('shows contact-owner copy for cashiers when Midtrans is not configured', async () => {

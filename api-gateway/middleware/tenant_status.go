@@ -21,6 +21,8 @@ type TenantAvailability struct {
 	SubscriptionStatus  string `json:"subscription_status"`
 	MidtransConfigured  *bool  `json:"midtrans_configured,omitempty"`
 	MidtransEnvironment string `json:"midtrans_environment,omitempty"`
+	PaymentGateway      string `json:"payment_gateway,omitempty"`
+	PaymentConfigured   *bool  `json:"payment_configured,omitempty"`
 }
 
 func NewTenantStatusEnforcer(tenantURL string) *TenantStatusEnforcer {
@@ -84,14 +86,17 @@ func (e *TenantStatusEnforcer) RequirePublicTenantAvailableParam(paramName strin
 					"subscription_status": availability.SubscriptionStatus,
 				})
 			}
-			if !availability.midtransConfigured() {
+			if !availability.paymentConfigured() {
+				gateway := availability.paymentGateway()
 				return c.JSON(http.StatusForbidden, map[string]interface{}{
-					"error":                "Midtrans is not configured",
-					"message":              "Guest ordering is unavailable until Midtrans is configured.",
-					"reason":               "midtrans_not_configured",
+					"error":                "Payment gateway is not configured",
+					"message":              "Guest ordering is unavailable until a payment gateway is configured.",
+					"reason":               gateway + "_not_configured",
 					"status":               availability.Status,
 					"subscription_status":  availability.SubscriptionStatus,
-					"midtrans_configured":  false,
+					"payment_gateway":      gateway,
+					"payment_configured":   false,
+					"midtrans_configured":  availability.midtransConfigured(),
 					"midtrans_environment": availability.MidtransEnvironment,
 				})
 			}
@@ -175,6 +180,23 @@ func (e *TenantStatusEnforcer) fetchTenantAvailability(c echo.Context, tenantID 
 
 func (a TenantAvailability) midtransConfigured() bool {
 	return a.MidtransConfigured == nil || *a.MidtransConfigured
+}
+
+func (a TenantAvailability) paymentGateway() string {
+	if a.PaymentGateway == "" {
+		return "midtrans"
+	}
+	return a.PaymentGateway
+}
+
+// paymentConfigured reports whether the tenant's default gateway can take
+// payments. Older tenant-service responses without payment_configured fall back
+// to the Midtrans flag.
+func (a TenantAvailability) paymentConfigured() bool {
+	if a.PaymentConfigured != nil {
+		return *a.PaymentConfigured
+	}
+	return a.midtransConfigured()
 }
 
 func boolPtr(value bool) *bool {

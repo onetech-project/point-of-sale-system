@@ -22,16 +22,20 @@ import (
 	"github.com/point-of-sale-system/order-service/src/repository"
 )
 
-// PaymentService handles payment operations with Midtrans integration
+// PaymentService handles guest order QRIS payments through the tenant's
+// payment gateway (Midtrans or Manjo).
 type PaymentService struct {
 	db               *sql.DB
 	snapClient       *snap.Client
 	coreAPIClient    *coreapi.Client
 	serverKey        string
 	paymentRepo      *repository.PaymentRepository
+	refundRepo       *repository.PaymentRefundRepository
 	orderRepo        *repository.OrderRepository
 	inventoryService *InventoryService
 	orderService     *OrderService
+	manjo            manjoGateway
+	syncThrottle     *syncThrottle
 }
 
 // NewPaymentService creates a new payment service
@@ -48,10 +52,70 @@ func NewPaymentService(
 		coreAPIClient:    config.GetCoreAPIClient(),
 		serverKey:        config.GetMidtransServerKey(),
 		paymentRepo:      paymentRepo,
+		refundRepo:       repository.NewPaymentRefundRepository(db),
 		orderRepo:        orderRepo,
 		inventoryService: inventoryService,
 		orderService:     orderService,
+		manjo:            defaultManjoGateway{},
+		syncThrottle:     newSyncThrottle(manjoPollInterval),
 	}
+}
+
+// QRISCharge is a QRIS payment created at a payment gateway.
+type QRISCharge struct {
+	Gateway           string
+	TransactionID     string // Midtrans transaction_id, or Manjo referenceNo
+	MerchantReference string // order reference sent to the gateway
+	PaymentType       string
+	TransactionStatus string
+	FraudStatus       string
+	QRCodeURL         string // image URL (Midtrans); empty when only QRString is available
+	QRString          string // raw QRIS payload
+	ExpiryTime        time.Time
+	ExternalID        string // Manjo X-EXTERNAL-ID of the generate request
+	RawResponse       interface{}
+}
+
+// CreateQRISCharge creates a QRIS payment at the tenant's default payment gateway.
+func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.GuestOrder, items []models.CartItem) (*QRISCharge, error) {
+	gateway, err := config.GetPaymentGatewayForTenant(ctx, order.TenantID)
+	if err != nil {
+		log.Error().Err(err).Str("tenant_id", order.TenantID).Msg("Failed to fetch tenant payment gateway")
+		return nil, fmt.Errorf("failed to get payment gateway: %w", err)
+	}
+
+	if gateway == config.PaymentGatewayManjo {
+		return s.createManjoQRISCharge(ctx, order)
+	}
+
+	resp, err := s.createMidtransQRISCharge(ctx, order, items)
+	if err != nil {
+		return nil, err
+	}
+
+	charge := &QRISCharge{
+		Gateway:           config.PaymentGatewayMidtrans,
+		TransactionID:     resp.TransactionID,
+		MerchantReference: resp.OrderID,
+		PaymentType:       resp.PaymentType,
+		TransactionStatus: resp.TransactionStatus,
+		FraudStatus:       resp.FraudStatus,
+		QRString:          resp.QRString,
+		ExpiryTime:        time.Now().Add(15 * time.Minute),
+		RawResponse:       resp,
+	}
+	if len(resp.Actions) > 0 {
+		charge.QRCodeURL = resp.Actions[0].URL
+	}
+	if resp.ExpiryTime != "" {
+		// Midtrans returns WIB wall-clock time, which is what expiry_time stores.
+		if expiryTime, err := time.Parse("2006-01-02 15:04:05", resp.ExpiryTime); err != nil {
+			log.Error().Err(err).Str("expiry_time", resp.ExpiryTime).Msg("Failed to parse expiry time, using default")
+		} else {
+			charge.ExpiryTime = expiryTime
+		}
+	}
+	return charge, nil
 }
 
 // convertCartItemsToMidtransItems converts []models.CartItem to *[]midtrans.ItemDetails
@@ -75,9 +139,9 @@ type Action struct {
 	URL    string `json:"url"`
 }
 
-// CreateQRISCharge creates a QRIS payment charge using Midtrans Core API
+// createMidtransQRISCharge creates a QRIS payment charge using Midtrans Core API
 // Implements integration with /v2/charge endpoint for QRIS generation
-func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.GuestOrder, items []models.CartItem) (*coreapi.ChargeResponse, error) {
+func (s *PaymentService) createMidtransQRISCharge(ctx context.Context, order *models.GuestOrder, items []models.CartItem) (*coreapi.ChargeResponse, error) {
 	// Fetch tenant-specific Midtrans configuration
 	midtransConfig, err := config.GetMidtransConfigForTenant(ctx, order.TenantID)
 	if err != nil {
@@ -139,7 +203,6 @@ func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.Gue
 		Str("order_id", order.ID).
 		Str("order_reference", order.OrderReference).
 		Str("transaction_id", resp.TransactionID).
-		Str("qr_code_url", resp.Actions[0].URL).
 		Str("expiry_time", resp.ExpiryTime).
 		Msg("QRIS charge created successfully with tenant-specific credentials")
 
@@ -147,72 +210,43 @@ func (s *PaymentService) CreateQRISCharge(ctx context.Context, order *models.Gue
 }
 
 // SaveQRISPaymentInfo saves QRIS payment information to database
-func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, tx *sql.Tx, orderID string, amount int, chargeResp *coreapi.ChargeResponse) error {
-	// Parse expiry time - Midtrans returns time in Asia/Jakarta timezone (WIB)
-	// Since our database column is TIMESTAMP WITHOUT TIME ZONE, we need to convert to UTC
-	// loc, err := time.LoadLocation("Asia/Jakarta")
-	// if err != nil {
-	// 	log.Error().Err(err).Msg("Failed to load Asia/Jakarta location, using UTC fallback")
-	// 	loc = time.UTC
-	// }
-	// expiryTimeWIB, err := time.ParseInLocation("2006-01-02 15:04:05", chargeResp.ExpiryTime, loc)
-	// if err != nil {
-	// 	log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time")
-	// 	// Continue with nil expiry time rather than failing
-	// }
-
-	// Convert to UTC for storage (since DB column is WITHOUT TIME ZONE, it stores as-is)
-	// expiryTime := expiryTimeWIB.UTC()
-
-	// Get QR code URL from actions array (first action)
-	var qrCodeURL string
-	if len(chargeResp.Actions) > 0 {
-		qrCodeURL = chargeResp.Actions[0].URL
-	}
-
-	// Create payment transaction record
-	transactionID := chargeResp.TransactionID
-	paymentType := chargeResp.PaymentType
-	transactionStatus := chargeResp.TransactionStatus
-	fraudStatus := chargeResp.FraudStatus
-
-	// Marshal charge response to JSON for notification_payload
-	chargeJSON, err := json.Marshal(chargeResp)
+func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, tx *sql.Tx, orderID string, amount int, charge *QRISCharge) error {
+	chargeJSON, err := json.Marshal(charge.RawResponse)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal charge response")
-		chargeJSON = json.RawMessage(`{}`) // Use empty JSON object as fallback
+		chargeJSON = json.RawMessage(`{}`)
 	}
 
-	// Parse expiry time string to *time.Time default is 15 minutes from now with RFC3339 format
-	expiryTimePtr := time.Now().Add(15 * time.Minute)
-	if chargeResp.ExpiryTime != "" {
-		// Try parsing with common Midtrans format: "2006-01-02 15:04:05"
-		expiryTime, err := time.Parse("2006-01-02 15:04:05", chargeResp.ExpiryTime)
-		if err != nil {
-			log.Error().Err(err).Str("expiry_time", chargeResp.ExpiryTime).Msg("Failed to parse expiry time, storing as nil")
-		} else {
-			expiryTimePtr = expiryTime
-		}
-	}
+	transactionID := charge.TransactionID
+	paymentType := charge.PaymentType
+	transactionStatus := charge.TransactionStatus
+	fraudStatus := charge.FraudStatus
+	expiryTime := charge.ExpiryTime
 
 	// Generate idempotency key for initial pending status
 	idempotencyKey := transactionID + ":" + strings.ToLower(transactionStatus)
 
-	// Use expiryTimePtr as *time.Time for ExpiryTime
 	payment := &models.PaymentTransaction{
 		OrderID:               orderID,
+		PaymentGateway:        charge.Gateway,
 		MidtransTransactionID: &transactionID,
-		MidtransOrderID:       chargeResp.OrderID,
+		MidtransOrderID:       charge.MerchantReference,
 		Amount:                amount,
 		PaymentType:           &paymentType,
 		TransactionStatus:     &transactionStatus,
-		FraudStatus:           &fraudStatus,
 		NotificationPayload:   chargeJSON,
-		QRCodeURL:             &qrCodeURL,
-		QRString:              &chargeResp.QRString,
-		ExpiryTime:            &expiryTimePtr,
+		QRCodeURL:             optionalString(charge.QRCodeURL),
+		QRString:              optionalString(charge.QRString),
+		ExpiryTime:            &expiryTime,
 		SignatureVerified:     false, // Will be verified on webhook
 		IdempotencyKey:        &idempotencyKey,
+	}
+	if fraudStatus != "" {
+		payment.FraudStatus = &fraudStatus
+	}
+	if charge.Gateway == config.PaymentGatewayManjo {
+		payment.GatewayReferenceNo = &transactionID
+		payment.GatewayExternalID = optionalString(charge.ExternalID)
 	}
 
 	err = s.paymentRepo.CreatePaymentTransaction(ctx, tx, payment)
@@ -220,15 +254,16 @@ func (s *PaymentService) SaveQRISPaymentInfo(ctx context.Context, tx *sql.Tx, or
 		log.Error().
 			Err(err).
 			Str("order_id", orderID).
-			Str("transaction_id", chargeResp.TransactionID).
+			Str("payment_gateway", charge.Gateway).
+			Str("transaction_id", transactionID).
 			Msg("Failed to save QRIS payment info")
 		return fmt.Errorf("failed to save payment info: %w", err)
 	}
 
 	log.Info().
 		Str("order_id", orderID).
-		Str("transaction_id", chargeResp.TransactionID).
-		Str("qr_code_url", qrCodeURL).
+		Str("payment_gateway", charge.Gateway).
+		Str("transaction_id", transactionID).
 		Msg("QRIS payment info saved successfully")
 
 	return nil
@@ -412,7 +447,7 @@ func (s *PaymentService) ProcessNotification(ctx context.Context, notification *
 	switch strings.ToLower(notification.TransactionStatus) {
 	case "settlement", "capture":
 		// Payment successful - update order to PAID and convert inventory reservations
-		return s.handlePaymentSuccess(ctx, order.ID, order.TenantID, notification)
+		return s.handlePaymentSuccess(ctx, order.ID, order.TenantID, notification.OrderID, notification.TransactionID)
 
 	case "pending":
 		// Payment still pending - keep reservation active
@@ -424,7 +459,7 @@ func (s *PaymentService) ProcessNotification(ctx context.Context, notification *
 
 	case "cancel", "deny", "expire":
 		// Payment failed or expired - release inventory reservations
-		return s.handlePaymentFailure(ctx, order.ID, order.TenantID, notification)
+		return s.handlePaymentFailure(ctx, order.ID, order.TenantID, notification.OrderID, notification.TransactionStatus)
 
 	default:
 		log.Warn().
@@ -438,7 +473,7 @@ func (s *PaymentService) ProcessNotification(ctx context.Context, notification *
 // handlePaymentSuccess handles successful payment
 // Implements T061: Order status update for settlement
 // Implements T062: Inventory reservation conversion
-func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tenantID string, notification *MidtransNotification) error {
+func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tenantID, orderReference, transactionID string) error {
 	// Step 1: Update order status to PAID using OrderService
 	// This will handle the transaction, timestamp updates, AND publish order.paid event to Kafka
 	err := s.orderService.UpdateOrderStatus(ctx, orderID, models.OrderStatusPaid)
@@ -466,8 +501,8 @@ func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tena
 
 	log.Info().
 		Str("order_id", orderID).
-		Str("order_reference", notification.OrderID).
-		Str("transaction_id", notification.TransactionID).
+		Str("order_reference", orderReference).
+		Str("transaction_id", transactionID).
 		Msg("Payment successful - order PAID and inventory converted")
 
 	return nil
@@ -475,7 +510,7 @@ func (s *PaymentService) handlePaymentSuccess(ctx context.Context, orderID, tena
 
 // handlePaymentFailure handles payment failure, cancellation, or expiration
 // Implements T061: Order status update for failed payments with reservation release
-func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tenantID string, notification *MidtransNotification) error {
+func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tenantID, orderReference, transactionStatus string) error {
 	// Step 1: Release inventory reservations
 	// This marks reservations as 'expired' and increments Redis cache
 	err := s.inventoryService.ReleaseReservations(ctx, orderID)
@@ -501,7 +536,7 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 
 	// Step 3: Add system note explaining the cancellation reason
 	var noteMessage string
-	switch strings.ToLower(notification.TransactionStatus) {
+	switch strings.ToLower(transactionStatus) {
 	case "expire":
 		noteMessage = "Order automatically cancelled due to payment expiration. Payment was not completed within the allocated time."
 	case "cancel":
@@ -509,7 +544,7 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 	case "deny":
 		noteMessage = "Order cancelled due to payment denial by payment gateway."
 	default:
-		noteMessage = fmt.Sprintf("Order cancelled due to payment failure (status: %s).", notification.TransactionStatus)
+		noteMessage = fmt.Sprintf("Order cancelled due to payment failure (status: %s).", transactionStatus)
 	}
 
 	err = s.orderService.AddOrderNote(ctx, orderID, noteMessage, "System")
@@ -523,8 +558,8 @@ func (s *PaymentService) handlePaymentFailure(ctx context.Context, orderID, tena
 
 	log.Info().
 		Str("order_id", orderID).
-		Str("order_reference", notification.OrderID).
-		Str("transaction_status", notification.TransactionStatus).
+		Str("order_reference", orderReference).
+		Str("transaction_status", transactionStatus).
 		Msg("Payment failed/cancelled/expired - order CANCELLED and inventory released")
 
 	return nil

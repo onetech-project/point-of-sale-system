@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeCanvas } from 'qrcode.react';
 import { PaymentInfo, OrderItem } from '../../types/cart';
 import { renderTextWithLinks } from '../../utils/text';
 import { download } from '../../utils/download';
@@ -46,6 +47,28 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
 }) => {
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Midtrans returns a hosted QR image; Manjo only returns the raw QRIS string,
+  // which is rendered here. Manjo sends "-" for fields it leaves empty.
+  const usableUrl = (value?: string | null): string | undefined =>
+    value && value !== '-' ? value : undefined;
+  const qrImageUrl = usableUrl(paymentInfo?.qr_code_url) || usableUrl(paymentQrUrl);
+  const qrString = qrImageUrl ? undefined : usableUrl(paymentInfo?.qr_string);
+
+  const handleDownloadQr = () => {
+    const filename = `QRIS_${orderReference}.png`;
+    if (qrImageUrl) {
+      download(qrImageUrl, filename, 'image/png');
+      return;
+    }
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = filename;
+    link.click();
+  };
 
   // Countdown timer for payment expiry
   useEffect(() => {
@@ -195,7 +218,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
       </div>
 
       {/* Payment QR Code - Show for PENDING orders */}
-      {orderStatus === 'PENDING' && (paymentInfo?.qr_code_url || paymentQrUrl) && (
+      {orderStatus === 'PENDING' && (qrImageUrl || qrString) && (
         <div className="my-6 p-6 bg-white border-2 border-blue-500 rounded-lg">
           <div className="text-center">
             <h2 className="text-xl font-bold text-gray-900 mb-2">
@@ -205,16 +228,29 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
               {t('orderConfirmation.qrisInstruction', 'Scan this QR code with your mobile banking or e-wallet app')}
             </p>
             <div className="flex justify-center">
-              <img
-                data-testid="payment-qris-qr-code"
-                src={paymentInfo?.qr_code_url || paymentQrUrl || ''}
-                alt="QRIS Payment QR Code"
-                className="w-64 h-64 border-4 border-gray-200 rounded-lg"
-                onError={(e) => {
-                  console.error('Failed to load QR code image');
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              {qrImageUrl ? (
+                <img
+                  data-testid="payment-qris-qr-code"
+                  src={qrImageUrl}
+                  alt="QRIS Payment QR Code"
+                  className="w-64 h-64 border-4 border-gray-200 rounded-lg"
+                  onError={(e) => {
+                    console.error('Failed to load QR code image');
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <QRCodeCanvas
+                  data-testid="payment-qris-qr-code"
+                  ref={qrCanvasRef}
+                  value={qrString || ''}
+                  size={256}
+                  marginSize={2}
+                  level="M"
+                  aria-label="QRIS Payment QR Code"
+                  className="w-64 h-64 border-4 border-gray-200 rounded-lg bg-white"
+                />
+              )}
             </div>
             {timeRemaining && (
               <div className="mt-4">
@@ -233,7 +269,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           {/* rounded block button for download the QR code with fetch */}
           <div className="mt-6 text-center">
             <div
-              onClick={() => download(paymentInfo?.qr_code_url || paymentQrUrl || '', `QRIS_${orderReference}.png`, 'image/png')}
+              onClick={handleDownloadQr}
               className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 cursor-pointer"
             >
               {t('orderConfirmation.downloadQr', 'Download QR Code')}
