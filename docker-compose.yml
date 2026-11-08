@@ -91,7 +91,7 @@ services:
 
   # MinIO Object Storage for Product Photos (Feature 005)
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:latest
     container_name: pos-minio
     command: server /data --console-address ":9001"
     environment:
