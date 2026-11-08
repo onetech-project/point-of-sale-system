@@ -206,6 +206,64 @@ func TestTenantStatusEnforcerBlocksPublicGuestOrderingWhenMidtransMissing(t *tes
 	}
 }
 
+func TestTenantStatusEnforcerUsesDefaultPaymentGateway(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   string
+		wantNext   bool
+		wantReason string
+	}{
+		{
+			name:       "manjo selected but not configured",
+			response:   `{"status":"active","subscription_status":"active","midtrans_configured":true,"payment_gateway":"manjo","payment_configured":false}`,
+			wantReason: "manjo_not_configured",
+		},
+		{
+			name:     "manjo selected and configured without midtrans",
+			response: `{"status":"active","subscription_status":"active","midtrans_configured":false,"payment_gateway":"manjo","payment_configured":true}`,
+			wantNext: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = fmt.Fprint(w, tt.response)
+			}))
+			t.Cleanup(server.Close)
+			enforcer := &TenantStatusEnforcer{tenantURL: server.URL, httpClient: server.Client()}
+
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/public/menu/tenant-1/products", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("tenant_id")
+			c.SetParamValues("tenant-1")
+
+			nextRan := false
+			next := func(c echo.Context) error {
+				nextRan = true
+				return c.NoContent(http.StatusNoContent)
+			}
+			if err := enforcer.RequirePublicTenantAvailableParam("tenant_id")(next)(c); err != nil {
+				t.Fatalf("middleware returned error: %v", err)
+			}
+			if nextRan != tt.wantNext {
+				t.Fatalf("nextRan = %v, want %v; body=%s", nextRan, tt.wantNext, rec.Body.String())
+			}
+			if tt.wantReason != "" {
+				var body map[string]interface{}
+				if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if body["reason"] != tt.wantReason || body["payment_configured"] != false {
+					t.Fatalf("unexpected body: %+v", body)
+				}
+			}
+		})
+	}
+}
+
 func newTenantStatusTestEnforcer(t *testing.T, status, subscriptionStatus string) *TenantStatusEnforcer {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

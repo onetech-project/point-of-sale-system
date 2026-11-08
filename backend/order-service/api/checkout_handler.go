@@ -364,9 +364,10 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		})
 	}
 
-	// Get QR code URL from actions array
-	if len(qrisResp.Actions) > 0 {
-		paymentURL = &qrisResp.Actions[0].URL
+	// Midtrans returns a QR image URL; Manjo only returns the QRIS string, which
+	// the order page renders itself.
+	if qrisResp.QRCodeURL != "" {
+		paymentURL = &qrisResp.QRCodeURL
 	}
 
 	log.Info().
@@ -375,8 +376,8 @@ func (h *CheckoutHandler) CreateOrder(c echo.Context) error {
 		Str("delivery_type", req.DeliveryType).
 		Int64("total", int64(order.TotalAmount)).
 		Int("delivery_fee", deliveryFee).
+		Str("payment_gateway", qrisResp.Gateway).
 		Str("transaction_id", qrisResp.TransactionID).
-		Str("qr_code_url", *paymentURL).
 		Msg("Order created successfully with QRIS payment")
 
 	// Publish invoice notification event if customer provided email
@@ -660,6 +661,23 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 		// Continue without payment info - not critical
 	}
 
+	// Manjo notifications can be lost, so a pending Manjo payment is also
+	// checked at Manjo while the guest watches the order (throttled).
+	if payment != nil && h.paymentService != nil {
+		changed, syncErr := h.paymentService.SyncPendingManjoPayment(ctx, order, payment)
+		if syncErr != nil {
+			log.Warn().Err(syncErr).Str("order_id", order.ID).Msg("Failed to sync Manjo payment status")
+		}
+		if changed {
+			if refreshed, err := orderRepo.GetOrderByReference(ctx, orderReference); err == nil && refreshed != nil {
+				order = refreshed
+			}
+			if refreshed, err := paymentRepo.GetPaymentByOrderID(ctx, order.ID); err == nil && refreshed != nil {
+				payment = refreshed
+			}
+		}
+	}
+
 	// Get order items
 	items, itemsErr := orderRepo.GetOrderItemsByOrderID(ctx, order.ID)
 	if itemsErr != nil {
@@ -705,7 +723,9 @@ func (h *CheckoutHandler) GetPublicOrder(c echo.Context) error {
 		response["payment"] = map[string]interface{}{
 			"transaction_id":     payment.MidtransTransactionID,
 			"transaction_status": payment.TransactionStatus,
+			"payment_gateway":    payment.Gateway(),
 			"qr_code_url":        payment.QRCodeURL,
+			"qr_string":          publicQRString(payment),
 			"expiry_time":        expiryTimeStr,
 			"server_time":        now.Format(time.RFC3339),
 			"remaining_time":     remainingTime,
@@ -789,4 +809,17 @@ func (h *CheckoutHandler) publishInvoiceEvent(
 			Str("customer_email", *customerEmail).
 			Msg("Invoice notification event published successfully")
 	}
+}
+
+// publicQRString returns the raw QRIS string for the guest to scan. It is only
+// exposed for Manjo, which has no QR image URL, and only while the payment is
+// pending.
+func publicQRString(payment *models.PaymentTransaction) *string {
+	if payment.Gateway() != "manjo" || payment.QRString == nil {
+		return nil
+	}
+	if payment.TransactionStatus != nil && *payment.TransactionStatus != "pending" {
+		return nil
+	}
+	return payment.QRString
 }

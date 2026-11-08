@@ -44,7 +44,9 @@ func TestGetPublicTenantConfigAvailability(t *testing.T) {
 					"subscription_status",
 					"midtrans_configured",
 					"midtrans_environment",
-				}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus, true, "sandbox"))
+					"payment_gateway",
+					"payment_configured",
+				}).AddRow("tenant-1", "Bistro One", tt.status, tt.subscriptionStatus, true, "sandbox", "midtrans", true))
 			if tt.wantCode == http.StatusOK {
 				mock.ExpectQuery(`SELECT delivery_enabled, pickup_enabled, dine_in_enabled,`).
 					WithArgs("tenant-1").
@@ -95,7 +97,9 @@ func TestGetPublicTenantConfigReturnsMidtransNotConfigured(t *testing.T) {
 			"subscription_status",
 			"midtrans_configured",
 			"midtrans_environment",
-		}).AddRow("tenant-1", "Bistro One", "active", "active", false, "sandbox"))
+			"payment_gateway",
+			"payment_configured",
+		}).AddRow("tenant-1", "Bistro One", "active", "active", false, "sandbox", "midtrans", false))
 
 	rec := callGetPublicTenantConfig(t, db, "bistro-one")
 	if rec.Code != http.StatusForbidden {
@@ -105,7 +109,44 @@ func TestGetPublicTenantConfigReturnsMidtransNotConfigured(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if body["reason"] != "midtrans_not_configured" || body["midtrans_configured"] != false {
+	if body["reason"] != "midtrans_not_configured" || body["midtrans_configured"] != false || body["payment_configured"] != false {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestGetPublicTenantConfigReturnsManjoNotConfigured(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("failed to create sql mock: %v", err)
+	}
+	defer db.Close()
+
+	// Midtrans is configured but the tenant chose Manjo, which is not.
+	mock.ExpectQuery(`SELECT\s+t\.id,\s+t\.business_name,\s+t\.status,\s+t\.subscription_status,`).
+		WithArgs("bistro-one").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"business_name",
+			"status",
+			"subscription_status",
+			"midtrans_configured",
+			"midtrans_environment",
+			"payment_gateway",
+			"payment_configured",
+		}).AddRow("tenant-1", "Bistro One", "active", "active", true, "sandbox", "manjo", false))
+
+	rec := callGetPublicTenantConfig(t, db, "bistro-one")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body["reason"] != "manjo_not_configured" || body["payment_gateway"] != "manjo" || body["payment_configured"] != false {
 		t.Fatalf("unexpected body: %+v", body)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

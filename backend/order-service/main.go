@@ -184,7 +184,7 @@ func main() {
 
 	// Initialize handlers
 	webhookHandler := api.NewPaymentWebhookHandler(paymentService)
-	adminOrderHandler := api.NewAdminOrderHandler(orderService)
+	adminOrderHandler := api.NewAdminOrderHandler(orderService).WithPaymentService(paymentService)
 	orderSettingsHandler := api.NewOrderSettingsHandler(orderSettingsRepo)
 	cartHandler := api.NewCartHandlerWithService(cartService)
 	checkoutHandler := api.NewCheckoutHandler(

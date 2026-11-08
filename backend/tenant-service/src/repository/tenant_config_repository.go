@@ -48,6 +48,13 @@ type TenantConfig struct {
 	MidtransClientKey    string                 `json:"midtrans_client_key,omitempty"`
 	MidtransMerchantID   string                 `json:"midtrans_merchant_id,omitempty"`
 	MidtransEnvironment  string                 `json:"midtrans_environment"`
+	PaymentGateway       string                 `json:"payment_gateway"`
+	ManjoClientID        string                 `json:"manjo_client_id,omitempty"`
+	ManjoClientSecret    string                 `json:"manjo_client_secret,omitempty"`
+	ManjoPrivateKey      string                 `json:"manjo_private_key,omitempty"`
+	ManjoMerchantID      string                 `json:"manjo_merchant_id,omitempty"`
+	ManjoPartnerID       string                 `json:"manjo_partner_id,omitempty"`
+	ManjoEnvironment     string                 `json:"manjo_environment"`
 	CreatedAt            string                 `json:"created_at"`
 	UpdatedAt            string                 `json:"updated_at"`
 }
@@ -64,6 +71,13 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 			COALESCE(midtrans_client_key, '') as midtrans_client_key,
 			COALESCE(midtrans_merchant_id, '') as midtrans_merchant_id,
 			COALESCE(midtrans_environment, 'sandbox') as midtrans_environment,
+			COALESCE(payment_gateway, 'midtrans') as payment_gateway,
+			COALESCE(manjo_client_id, '') as manjo_client_id,
+			COALESCE(manjo_client_secret, '') as manjo_client_secret,
+			COALESCE(manjo_private_key, '') as manjo_private_key,
+			COALESCE(manjo_merchant_id, '') as manjo_merchant_id,
+			COALESCE(manjo_partner_id, '') as manjo_partner_id,
+			COALESCE(manjo_environment, 'sandbox') as manjo_environment,
 			created_at,
 			updated_at
 		FROM tenant_configs
@@ -73,6 +87,7 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 	var config TenantConfig
 	var serviceArea, deliveryFeeConfig []byte
 	var encryptedServerKey, encryptedClientKey string
+	var encryptedManjoSecret, encryptedManjoPrivateKey string
 
 	err := r.db.QueryRowContext(ctx, query, tenantID).Scan(
 		&config.TenantID,
@@ -84,6 +99,13 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 		&encryptedClientKey,
 		&config.MidtransMerchantID,
 		&config.MidtransEnvironment,
+		&config.PaymentGateway,
+		&config.ManjoClientID,
+		&encryptedManjoSecret,
+		&encryptedManjoPrivateKey,
+		&config.ManjoMerchantID,
+		&config.ManjoPartnerID,
+		&config.ManjoEnvironment,
 		&config.CreatedAt,
 		&config.UpdatedAt,
 	)
@@ -97,6 +119,8 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 			DeliveryFeeConfig:    map[string]interface{}{},
 			AutoCalculateFees:    false,
 			MidtransEnvironment:  "sandbox",
+			PaymentGateway:       PaymentGatewayMidtrans,
+			ManjoEnvironment:     "sandbox",
 		}, nil
 	}
 
@@ -117,6 +141,13 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt midtrans_client_key: %w", err)
 		}
+	}
+
+	if config.ManjoClientSecret, err = r.decrypt(ctx, encryptedManjoSecret, "manjo_client_secret"); err != nil {
+		return nil, err
+	}
+	if config.ManjoPrivateKey, err = r.decrypt(ctx, encryptedManjoPrivateKey, "manjo_private_key"); err != nil {
+		return nil, err
 	}
 
 	// Unmarshal JSON fields
@@ -150,6 +181,11 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 		}
 	}
 
+	manjo, err := r.encryptManjoSecrets(ctx, config)
+	if err != nil {
+		return err
+	}
+
 	serviceArea, err := json.Marshal(config.ServiceArea)
 	if err != nil {
 		return fmt.Errorf("failed to marshal service_area: %w", err)
@@ -170,8 +206,15 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 			midtrans_server_key,
 			midtrans_client_key,
 			midtrans_merchant_id,
-			midtrans_environment
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			midtrans_environment,
+			payment_gateway,
+			manjo_client_id,
+			manjo_client_secret,
+			manjo_private_key,
+			manjo_merchant_id,
+			manjo_partner_id,
+			manjo_environment
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
 	_, err = r.db.ExecContext(
@@ -186,6 +229,13 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 		encryptedClientKey,
 		config.MidtransMerchantID,
 		config.MidtransEnvironment,
+		paymentGatewayOrDefault(config.PaymentGateway),
+		config.ManjoClientID,
+		manjo.secret,
+		manjo.privateKey,
+		config.ManjoMerchantID,
+		config.ManjoPartnerID,
+		environmentOrDefault(config.ManjoEnvironment),
 	)
 
 	if err != nil {
@@ -214,6 +264,11 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 		}
 	}
 
+	manjo, err := r.encryptManjoSecrets(ctx, config)
+	if err != nil {
+		return err
+	}
+
 	serviceArea, err := json.Marshal(config.ServiceArea)
 	if err != nil {
 		return fmt.Errorf("failed to marshal service_area: %w", err)
@@ -235,6 +290,13 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 			midtrans_client_key = $7,
 			midtrans_merchant_id = $8,
 			midtrans_environment = $9,
+			payment_gateway = $10,
+			manjo_client_id = $11,
+			manjo_client_secret = $12,
+			manjo_private_key = $13,
+			manjo_merchant_id = $14,
+			manjo_partner_id = $15,
+			manjo_environment = $16,
 			updated_at = NOW()
 		WHERE tenant_id = $1
 	`
@@ -251,6 +313,13 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 		encryptedClientKey,
 		config.MidtransMerchantID,
 		config.MidtransEnvironment,
+		paymentGatewayOrDefault(config.PaymentGateway),
+		config.ManjoClientID,
+		manjo.secret,
+		manjo.privateKey,
+		config.ManjoMerchantID,
+		config.ManjoPartnerID,
+		environmentOrDefault(config.ManjoEnvironment),
 	)
 
 	if err != nil {
@@ -267,12 +336,19 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 	}
 
 	// T102: Publish ConfigUpdatedEvent when payment credentials changed
-	if r.auditPublisher != nil && (config.MidtransServerKey != "" || config.MidtransClientKey != "") {
+	if r.auditPublisher != nil && (config.MidtransServerKey != "" || config.MidtransClientKey != "" || config.ManjoClientID != "") {
 		afterValue := map[string]interface{}{
-			"midtrans_server_key": encryptedServerKey,
-			"midtrans_client_key": encryptedClientKey,
+			"midtrans_server_key":  encryptedServerKey,
+			"midtrans_client_key":  encryptedClientKey,
 			"midtrans_merchant_id": config.MidtransMerchantID,
 			"midtrans_environment": config.MidtransEnvironment,
+			"payment_gateway":      paymentGatewayOrDefault(config.PaymentGateway),
+			"manjo_client_id":      config.ManjoClientID,
+			"manjo_client_secret":  manjo.secret,
+			"manjo_private_key":    manjo.privateKey,
+			"manjo_merchant_id":    config.ManjoMerchantID,
+			"manjo_partner_id":     config.ManjoPartnerID,
+			"manjo_environment":    environmentOrDefault(config.ManjoEnvironment),
 		}
 
 		auditEvent := &utils.AuditEvent{
@@ -293,4 +369,84 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 	}
 
 	return nil
+}
+
+// Payment gateways a tenant can choose as default for guest QRIS payments.
+const (
+	PaymentGatewayMidtrans = "midtrans"
+	PaymentGatewayManjo    = "manjo"
+)
+
+func paymentGatewayOrDefault(gateway string) string {
+	if gateway == "" {
+		return PaymentGatewayMidtrans
+	}
+	return gateway
+}
+
+func environmentOrDefault(environment string) string {
+	if environment == "" {
+		return "sandbox"
+	}
+	return environment
+}
+
+type encryptedManjoSecrets struct {
+	secret     string
+	privateKey string
+}
+
+func (r *TenantConfigRepository) encryptManjoSecrets(ctx context.Context, config *TenantConfig) (encryptedManjoSecrets, error) {
+	var out encryptedManjoSecrets
+	var err error
+	if out.secret, err = r.encrypt(ctx, config.ManjoClientSecret, "manjo_client_secret"); err != nil {
+		return out, err
+	}
+	if out.privateKey, err = r.encrypt(ctx, config.ManjoPrivateKey, "manjo_private_key"); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// encrypt encrypts a tenant_configs column value with Vault, bound to the column name.
+func (r *TenantConfigRepository) encrypt(ctx context.Context, plaintext, column string) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+	ciphertext, err := r.encryptor.EncryptWithContext(ctx, plaintext, "tenant_config:"+column)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt %s: %w", column, err)
+	}
+	return ciphertext, nil
+}
+
+func (r *TenantConfigRepository) decrypt(ctx context.Context, ciphertext, column string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+	plaintext, err := r.encryptor.DecryptWithContext(ctx, ciphertext, "tenant_config:"+column)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt %s: %w", column, err)
+	}
+	return plaintext, nil
+}
+
+// SQL expressions over tenant_configs aliased as tc, shared by every query that
+// reports whether guest ordering can take payments.
+const (
+	MidtransConfiguredSQL = `(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '')`
+	ManjoConfiguredSQL    = `(COALESCE(tc.manjo_client_id, '') <> '' AND COALESCE(tc.manjo_client_secret, '') <> '' AND COALESCE(tc.manjo_private_key, '') <> '' AND COALESCE(tc.manjo_merchant_id, '') <> '')`
+	PaymentGatewaySQL     = `COALESCE(tc.payment_gateway, 'midtrans')`
+	// PaymentConfiguredSQL is true when the tenant's default gateway has credentials.
+	PaymentConfiguredSQL = `(CASE WHEN ` + PaymentGatewaySQL + ` = 'manjo' THEN ` + ManjoConfiguredSQL + ` ELSE ` + MidtransConfiguredSQL + ` END)`
+)
+
+// MidtransConfigured reports whether the Midtrans credentials are complete.
+func (c *TenantConfig) MidtransConfigured() bool {
+	return c.MidtransServerKey != "" && c.MidtransClientKey != ""
+}
+
+// ManjoConfigured reports whether the Manjo credentials are complete.
+func (c *TenantConfig) ManjoConfigured() bool {
+	return c.ManjoClientID != "" && c.ManjoClientSecret != "" && c.ManjoPrivateKey != "" && c.ManjoMerchantID != ""
 }

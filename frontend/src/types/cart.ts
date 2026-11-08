@@ -75,7 +75,9 @@ export interface OrderNote {
 export interface PaymentInfo {
   transaction_id: string;
   transaction_status: string;
-  qr_code_url?: string;
+  qr_code_url?: string | null;
+  qr_string?: string | null;
+  payment_gateway?: 'midtrans' | 'manjo';
   expiry_time?: string;
   server_time?: string;
   remaining_time?: number;

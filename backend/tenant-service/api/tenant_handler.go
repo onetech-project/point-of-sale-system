@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/pos/tenant-service/src/repository"
 )
 
 type TenantHandler struct {
@@ -19,6 +21,8 @@ type TenantInfo struct {
 	CreatedAt           string `json:"createdAt"`
 	MidtransConfigured  bool   `json:"midtrans_configured"`
 	MidtransEnvironment string `json:"midtrans_environment"`
+	PaymentGateway      string `json:"payment_gateway"`
+	PaymentConfigured   bool   `json:"payment_configured"`
 }
 
 func NewTenantHandler(db *sql.DB) *TenantHandler {
@@ -49,8 +53,10 @@ func (h *TenantHandler) GetTenant(c echo.Context) error {
 			t.slug,
 			t.status,
 			t.created_at,
-			(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '') AS midtrans_configured,
-			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment
+			` + repository.MidtransConfiguredSQL + ` AS midtrans_configured,
+			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment,
+			` + repository.PaymentGatewaySQL + ` AS payment_gateway,
+			` + repository.PaymentConfiguredSQL + ` AS payment_configured
 		FROM tenants t
 		LEFT JOIN tenant_configs tc ON tc.tenant_id = t.id
 		WHERE t.id = $1 AND t.status = 'active'
@@ -67,6 +73,8 @@ func (h *TenantHandler) GetTenant(c echo.Context) error {
 		&createdAt,
 		&tenant.MidtransConfigured,
 		&tenant.MidtransEnvironment,
+		&tenant.PaymentGateway,
+		&tenant.PaymentConfigured,
 	)
 
 	if err == sql.ErrNoRows {
@@ -96,14 +104,16 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
 	}
 
-	var status, subscriptionStatus, midtransEnvironment string
-	var midtransConfigured bool
+	var status, subscriptionStatus, midtransEnvironment, paymentGateway string
+	var midtransConfigured, paymentConfigured bool
 	err := h.db.QueryRowContext(c.Request().Context(), `
 		SELECT
 			t.status,
 			t.subscription_status,
-			(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '') AS midtrans_configured,
-			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment
+			`+repository.MidtransConfiguredSQL+` AS midtrans_configured,
+			COALESCE(tc.midtrans_environment, 'sandbox') AS midtrans_environment,
+			`+repository.PaymentGatewaySQL+` AS payment_gateway,
+			`+repository.PaymentConfiguredSQL+` AS payment_configured
 		FROM tenants t
 		LEFT JOIN tenant_configs tc ON tc.tenant_id = t.id
 		WHERE t.id = $1`, tenantID).Scan(
@@ -111,6 +121,8 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		&subscriptionStatus,
 		&midtransConfigured,
 		&midtransEnvironment,
+		&paymentGateway,
+		&paymentConfigured,
 	)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
@@ -126,5 +138,7 @@ func (h *TenantHandler) GetInternalTenantStatus(c echo.Context) error {
 		"subscription_status":  subscriptionStatus,
 		"midtrans_configured":  midtransConfigured,
 		"midtrans_environment": midtransEnvironment,
+		"payment_gateway":      paymentGateway,
+		"payment_configured":   paymentConfigured,
 	})
 }

@@ -24,7 +24,9 @@ func TestGetInternalTenantStatusIncludesSubscriptionStatus(t *testing.T) {
 			"subscription_status",
 			"midtrans_configured",
 			"midtrans_environment",
-		}).AddRow("active", "grace_period", false, "sandbox"))
+			"payment_gateway",
+			"payment_configured",
+		}).AddRow("active", "grace_period", false, "sandbox", "midtrans", false))
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/internal/tenants/tenant-1/status", nil)
@@ -49,6 +51,9 @@ func TestGetInternalTenantStatusIncludesSubscriptionStatus(t *testing.T) {
 	}
 	if body["midtrans_configured"] != false || body["midtrans_environment"] != "sandbox" {
 		t.Fatalf("unexpected midtrans response: %+v", body)
+	}
+	if body["payment_gateway"] != "midtrans" || body["payment_configured"] != false {
+		t.Fatalf("unexpected payment gateway response: %+v", body)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

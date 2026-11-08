@@ -95,6 +95,14 @@ func main() {
 	admin.PATCH("/:tenant_id/config", configHandler.UpdateTenantConfig)
 	admin.GET("/:tenant_id/midtrans-config", configHandler.GetMidtransConfig)
 	admin.PATCH("/:tenant_id/midtrans-config", configHandler.UpdateMidtransConfig)
+	admin.GET("/:tenant_id/manjo-config", configHandler.GetManjoConfig)
+	admin.PATCH("/:tenant_id/manjo-config", configHandler.UpdateManjoConfig)
+	admin.GET("/:tenant_id/payment-gateway", configHandler.GetPaymentGateway)
+	admin.PATCH("/:tenant_id/payment-gateway", configHandler.UpdatePaymentGateway)
+
+	// Internal route for order-service: returns decrypted Manjo secrets.
+	// Not routed by the API gateway.
+	e.GET("/internal/tenants/:tenant_id/manjo-credentials", configHandler.GetInternalManjoCredentials)
 
 	// Tenant data rights routes - UU PDP compliance (owner only via API Gateway RBAC)
 	tenantDataHandler, err := api.NewTenantDataHandler(db, auditPublisher)

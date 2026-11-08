@@ -23,7 +23,11 @@ export interface TenantInfo {
   createdAt: string;
   midtrans_configured?: boolean;
   midtrans_environment?: 'sandbox' | 'production';
+  payment_gateway?: PaymentGatewayName;
+  payment_configured?: boolean;
 }
+
+export type PaymentGatewayName = 'midtrans' | 'manjo';
 
 export interface TeamMember {
   id: string;
@@ -59,6 +63,8 @@ export interface TenantConfig {
   subscription_status?: string;
   midtrans_configured?: boolean;
   midtrans_environment?: 'sandbox' | 'production';
+  payment_gateway?: PaymentGatewayName;
+  payment_configured?: boolean;
   logo_url?: string;
   description?: string;
   enabled_delivery_types: string[];
