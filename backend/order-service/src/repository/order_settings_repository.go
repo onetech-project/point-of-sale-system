@@ -65,6 +65,7 @@ func (r *OrderSettingsRepository) Create(ctx context.Context, tenantID string) (
 			estimated_prep_time, auto_accept_orders, require_phone_verification,
 			charge_delivery_fee
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		ON CONFLICT (tenant_id) DO NOTHING
 		RETURNING id, tenant_id, delivery_enabled, pickup_enabled, dine_in_enabled,
 		          default_delivery_fee, min_order_amount, max_delivery_distance,
 		          estimated_prep_time, auto_accept_orders, require_phone_verification,
@@ -100,6 +101,18 @@ func (r *OrderSettingsRepository) Create(ctx context.Context, tenantID string) (
 		&settings.CreatedAt,
 		&settings.UpdatedAt,
 	)
+	if err == sql.ErrNoRows {
+		// A concurrent request created the row between our read and insert;
+		// return the row that won instead of failing on the unique constraint.
+		existing, getErr := r.GetByTenantID(ctx, tenantID)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if existing == nil {
+			return nil, sql.ErrNoRows
+		}
+		return existing, nil
+	}
 	if err != nil {
 		return nil, err
 	}
