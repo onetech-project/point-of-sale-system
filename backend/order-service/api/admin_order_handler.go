@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 
 	"github.com/point-of-sale-system/order-service/src/models"
+	"github.com/point-of-sale-system/order-service/src/services"
 )
 
 type orderService interface {
@@ -22,9 +24,16 @@ type orderService interface {
 	AddOrderNote(ctx context.Context, orderID, note, userName string) error
 }
 
+// paymentDetailsService exposes an order's payment and refunds to admins.
+type paymentDetailsService interface {
+	GetPaymentDetails(ctx context.Context, order *models.GuestOrder) (*services.PaymentSummary, []models.PaymentRefund, error)
+	RefundOrderPayment(ctx context.Context, order *models.GuestOrder, req services.RefundRequest) (*models.PaymentRefund, error)
+}
+
 // AdminOrderHandler handles admin order management operations
 type AdminOrderHandler struct {
-	orderService orderService
+	orderService   orderService
+	paymentService paymentDetailsService
 }
 
 // NewAdminOrderHandler creates a new admin order handler
@@ -32,6 +41,12 @@ func NewAdminOrderHandler(orderService orderService) *AdminOrderHandler {
 	return &AdminOrderHandler{
 		orderService: orderService,
 	}
+}
+
+// WithPaymentService enables payment details and refunds.
+func (h *AdminOrderHandler) WithPaymentService(paymentService paymentDetailsService) *AdminOrderHandler {
+	h.paymentService = paymentService
+	return h
 }
 
 // ListOrders handles GET /admin/orders
@@ -213,10 +228,101 @@ func (h *AdminOrderHandler) GetOrder(c echo.Context) error {
 		latestNote = notes[0]
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	response := map[string]interface{}{
 		"order":       order,
 		"items":       items,
 		"latest_note": latestNote,
+	}
+	if h.paymentService != nil {
+		payment, refunds, err := h.paymentService.GetPaymentDetails(ctx, order)
+		if err != nil {
+			log.Warn().Err(err).Str("order_id", order.ID).Msg("Failed to fetch payment details")
+		} else {
+			response["payment"] = payment
+			response["refunds"] = refunds
+		}
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// RefundOrderRequest is the body of a refund request.
+type RefundOrderRequest struct {
+	Reason string `json:"reason"`
+}
+
+// RefundOrder handles POST /admin/orders/:id/refund. It fully refunds the
+// order's QRIS payment. The API gateway restricts it to owners; the role is
+// checked again here in case the service is reached directly.
+func (h *AdminOrderHandler) RefundOrder(c echo.Context) error {
+	ctx := c.Request().Context()
+	orderID := c.Param("id")
+	tenantID := c.Request().Header.Get("X-Tenant-ID")
+	if orderID == "" || tenantID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "order_id and tenant_id are required"})
+	}
+	if !strings.EqualFold(c.Request().Header.Get("X-User-Role"), "owner") {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Only owners can refund payments"})
+	}
+	if h.paymentService == nil {
+		return c.JSON(http.StatusNotImplemented, map[string]string{"error": "Refunds are not available"})
+	}
+
+	var req RefundOrderRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" || len([]rune(req.Reason)) > 256 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "reason is required (max 256 characters)"})
+	}
+
+	order, err := h.orderService.GetOrderByID(ctx, orderID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to get order for refund")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to retrieve order"})
+	}
+	if order == nil || order.TenantID != tenantID {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Order not found"})
+	}
+
+	userName := c.Request().Header.Get("X-User-Name")
+	if userName == "" {
+		userName = c.Request().Header.Get("X-User-Email")
+	}
+
+	refund, err := h.paymentService.RefundOrderPayment(ctx, order, services.RefundRequest{
+		OrderID:  order.ID,
+		TenantID: tenantID,
+		Reason:   req.Reason,
+		UserID:   c.Request().Header.Get("X-User-ID"),
+		UserName: userName,
+	})
+
+	var gatewayErr *services.RefundGatewayError
+	switch {
+	case errors.Is(err, services.ErrRefundInProgress):
+		return c.JSON(http.StatusConflict, map[string]string{"error": "This payment already has a refund in progress or completed"})
+	case errors.Is(err, services.ErrRefundUnsupported):
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Refunds are only available for payments made through Manjo"})
+	case errors.Is(err, services.ErrRefundNotAllowed):
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Only paid orders with a settled payment can be refunded"})
+	case errors.As(err, &gatewayErr):
+		return c.JSON(http.StatusBadGateway, map[string]interface{}{"error": gatewayErr.Message, "refund": refund})
+	case err != nil:
+		log.Error().Err(err).Str("order_id", orderID).Msg("Failed to refund order payment")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to refund payment"})
+	}
+
+	if refund.Status == models.RefundStatusProcessing {
+		return c.JSON(http.StatusAccepted, map[string]interface{}{
+			"message": "Refund is being processed by the payment gateway",
+			"refund":  refund,
+		})
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Payment refunded",
+		"refund":  refund,
 	})
 }
 
@@ -425,4 +531,5 @@ func (h *AdminOrderHandler) RegisterRoutes(e *echo.Echo) {
 	admin.GET("/:id", h.GetOrder)
 	admin.PATCH("/:id/status", h.UpdateOrderStatus)
 	admin.POST("/:id/notes", h.AddOrderNote)
+	admin.POST("/:id/refund", h.RefundOrder)
 }

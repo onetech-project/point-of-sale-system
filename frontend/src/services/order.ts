@@ -7,10 +7,41 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 // Re-export types for backward compatibility
 export type { Order, OrderItem, OrderNote };
 
+export type RefundStatus = 'processing' | 'success' | 'failed';
+
+/** Payment summary returned by the admin order detail endpoint */
+export interface AdminOrderPayment {
+  gateway: 'midtrans' | 'manjo' | string;
+  transaction_status?: string;
+  amount: number;
+  refundable: boolean;
+  refunded: boolean;
+}
+
+export interface OrderRefund {
+  id: string;
+  amount: number;
+  reason: string;
+  status: RefundStatus;
+  gateway_refund_no?: string;
+  failure_reason?: string;
+  requested_by_name?: string;
+  created_at: string;
+}
+
+export interface RefundOrderResponse {
+  message: string;
+  refund: OrderRefund;
+  /** true when the gateway accepted the refund but is still processing it */
+  processing: boolean;
+}
+
 export interface OrderWithDetails {
   order: Order;
   items: OrderItem[];
   latest_note?: OrderNote;
+  payment?: AdminOrderPayment | null;
+  refunds?: OrderRefund[];
 }
 
 export interface OrderListResponse {
@@ -201,6 +232,23 @@ class GuestOrderService {
       console.error('Failed to add order note:', error);
       throw error;
     }
+  }
+
+  /**
+   * Refund the gateway payment of an order (owner only).
+   * Resolves for both a completed refund (200) and one still processing at the gateway (202).
+   */
+  async refundOrder(orderId: string, reason: string): Promise<RefundOrderResponse> {
+    const response = await apiClient
+      .getAxiosInstance()
+      .post<{ message: string; refund: OrderRefund }>(`/api/v1/admin/orders/${orderId}/refund`, {
+        reason,
+      });
+    return {
+      message: response.data.message,
+      refund: response.data.refund,
+      processing: response.status === 202,
+    };
   }
 
   async downloadOrderDocument(

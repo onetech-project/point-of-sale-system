@@ -49,16 +49,18 @@ func (h *TenantConfigHandler) GetPublicTenantConfig(c echo.Context) error {
 		})
 	}
 
-	var midtransMissing *services.MidtransNotConfiguredError
-	if errors.As(err, &midtransMissing) {
+	var paymentMissing *services.PaymentNotConfiguredError
+	if errors.As(err, &paymentMissing) {
 		return c.JSON(http.StatusForbidden, map[string]interface{}{
-			"error":                "Midtrans is not configured",
-			"message":              "Guest ordering is unavailable until Midtrans is configured.",
-			"reason":               "midtrans_not_configured",
-			"status":               midtransMissing.Status,
-			"subscription_status":  midtransMissing.SubscriptionStatus,
-			"midtrans_configured":  false,
-			"midtrans_environment": midtransMissing.MidtransEnvironment,
+			"error":                "Payment gateway is not configured",
+			"message":              "Guest ordering is unavailable until a payment gateway is configured.",
+			"reason":               paymentMissing.Reason(),
+			"status":               paymentMissing.Status,
+			"subscription_status":  paymentMissing.SubscriptionStatus,
+			"payment_gateway":      paymentMissing.PaymentGateway,
+			"payment_configured":   false,
+			"midtrans_configured":  paymentMissing.PaymentGateway != "midtrans",
+			"midtrans_environment": paymentMissing.MidtransEnvironment,
 		})
 	}
 
@@ -146,9 +148,7 @@ func (h *TenantConfigHandler) UpdateMidtransConfig(c echo.Context) error {
 	req.TenantID = tenantID
 
 	if err := h.configService.UpdateMidtransConfig(c.Request().Context(), &req); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
+		return paymentConfigError(c, err, "Failed to update Midtrans configuration")
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
@@ -156,12 +156,125 @@ func (h *TenantConfigHandler) UpdateMidtransConfig(c echo.Context) error {
 	})
 }
 
+// GetManjoConfig handles GET /admin/tenants/:tenant_id/manjo-config.
+// The client secret and private key are never returned.
+func (h *TenantConfigHandler) GetManjoConfig(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
+
+	config, err := h.configService.GetManjoConfig(c.Request().Context(), tenantID)
+	if err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to get Manjo config")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to retrieve Manjo configuration",
+		})
+	}
+	return c.JSON(http.StatusOK, config)
+}
+
+// UpdateManjoConfig handles PATCH /admin/tenants/:tenant_id/manjo-config
+func (h *TenantConfigHandler) UpdateManjoConfig(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
+
+	var req services.UpdateManjoConfigRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+	req.TenantID = tenantID
+
+	if err := h.configService.UpdateManjoConfig(c.Request().Context(), &req); err != nil {
+		return paymentConfigError(c, err, "Failed to update Manjo configuration")
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Manjo configuration updated successfully",
+	})
+}
+
+// GetInternalManjoCredentials handles GET /internal/tenants/:tenant_id/manjo-credentials.
+// It returns the decrypted secrets, so it is only reachable inside the service
+// network: the API gateway does not route /internal paths.
+func (h *TenantConfigHandler) GetInternalManjoCredentials(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant_id is required"})
+	}
+
+	creds, err := h.configService.GetManjoCredentials(c.Request().Context(), tenantID)
+	if err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to get Manjo credentials")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to retrieve Manjo credentials",
+		})
+	}
+	return c.JSON(http.StatusOK, creds)
+}
+
+// GetPaymentGateway handles GET /admin/tenants/:tenant_id/payment-gateway
+func (h *TenantConfigHandler) GetPaymentGateway(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
+
+	settings, err := h.configService.GetPaymentGatewaySettings(c.Request().Context(), tenantID)
+	if err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to get payment gateway settings")
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to retrieve payment gateway settings",
+		})
+	}
+	return c.JSON(http.StatusOK, settings)
+}
+
+// UpdatePaymentGateway handles PATCH /admin/tenants/:tenant_id/payment-gateway
+func (h *TenantConfigHandler) UpdatePaymentGateway(c echo.Context) error {
+	tenantID := c.Param("tenant_id")
+	if ok, err := ensureTenantPathMatchesHeader(c, tenantID); !ok || err != nil {
+		return err
+	}
+
+	var req struct {
+		DefaultGateway string `json:"default_gateway"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	if err := h.configService.SetDefaultPaymentGateway(c.Request().Context(), tenantID, req.DefaultGateway); err != nil {
+		return paymentConfigError(c, err, "Failed to update default payment gateway")
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Default payment gateway updated successfully",
+	})
+}
+
+// paymentConfigError answers 400 for validation errors and 500 otherwise,
+// without leaking internal error text.
+func paymentConfigError(c echo.Context, err error, message string) error {
+	var validationErr *services.ValidationError
+	if errors.As(err, &validationErr) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": validationErr.Message})
+	}
+	log.Error().Err(err).Str("tenant_id", c.Param("tenant_id")).Msg(message)
+	return c.JSON(http.StatusInternalServerError, map[string]string{"error": message})
+}
+
 func ensureTenantPathMatchesHeader(c echo.Context, tenantID string) (bool, error) {
+	if tenantID == "" {
+		return false, c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "tenant_id is required",
+		})
+	}
 	requestTenantID := strings.TrimSpace(c.Request().Header.Get("X-Tenant-ID"))
 	if requestTenantID == "" || requestTenantID == tenantID {
 		return true, nil
 	}
 	return false, c.JSON(http.StatusForbidden, map[string]string{
-		"error": "Cannot access Midtrans configuration for another tenant",
+		"error": "Cannot access payment configuration for another tenant",
 	})
 }

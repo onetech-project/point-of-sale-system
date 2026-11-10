@@ -157,11 +157,15 @@ func main() {
 
 	protected.GET("/api/tenant", proxyHandler(tenantServiceURL, "/tenant"))
 
-	// Tenant Midtrans credentials can be managed only by owners for guest ordering.
+	// Tenant payment gateway credentials (Midtrans, Manjo) can be managed only by owners.
 	midtransConfig := protected.Group("/api/v1/admin/tenants")
 	midtransConfig.Use(middleware.RBACMiddleware(middleware.RoleOwner))
 	midtransConfig.GET("/:tenant_id/midtrans-config", proxyWildcard(tenantServiceURL))
 	midtransConfig.PATCH("/:tenant_id/midtrans-config", proxyWildcard(tenantServiceURL))
+	midtransConfig.GET("/:tenant_id/manjo-config", proxyWildcard(tenantServiceURL))
+	midtransConfig.PATCH("/:tenant_id/manjo-config", proxyWildcard(tenantServiceURL))
+	midtransConfig.GET("/:tenant_id/payment-gateway", proxyWildcard(tenantServiceURL))
+	midtransConfig.PATCH("/:tenant_id/payment-gateway", proxyWildcard(tenantServiceURL))
 
 	// Admin tenant configuration routes (owner only)
 	adminTenantConfig := protected.Group("/api/v1/admin/tenants")
@@ -352,6 +356,12 @@ func registerAdminOrderRoutes(protected *echo.Group, orderServiceURL string) {
 	adminOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner, middleware.RoleManager, middleware.RoleCashier))
 	adminOrders.Any("/orders*", proxyWildcard(orderServiceURL))
 	adminOrders.Any("/offline-orders*", proxyWildcard(orderServiceURL))
+
+	// Refunding a guest order payment moves money, so it is owner only.
+	// The specific path takes precedence over the /orders* wildcard above.
+	refundOrders := protected.Group("/api/v1/admin/orders/:id/refund")
+	refundOrders.Use(middleware.RBACMiddleware(middleware.RoleOwner))
+	refundOrders.POST("", proxyWildcard(orderServiceURL))
 
 	// Editing or deleting COMPLETE orders changes financial records, so it is owner only.
 	// The specific path takes precedence over the /offline-orders* wildcard above.
