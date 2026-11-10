@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,7 +26,6 @@ type TenantManjoConfig struct {
 	TenantID     string `json:"tenant_id"`
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
-	PrivateKey   string `json:"private_key"`
 	MerchantID   string `json:"merchant_id"`
 	PartnerID    string `json:"partner_id"`
 	Environment  string `json:"environment"`
@@ -37,9 +37,9 @@ func (c *TenantManjoConfig) Credentials() manjo.Credentials {
 	return manjo.Credentials{
 		ClientID:     c.ClientID,
 		ClientSecret: c.ClientSecret,
-		PrivateKey:   c.PrivateKey,
 		MerchantID:   c.MerchantID,
 		PartnerID:    c.PartnerID,
+		Environment:  c.Environment,
 	}
 }
 
@@ -93,7 +93,9 @@ var (
 
 // GetManjoClient returns the shared Manjo client for an environment
 // ("sandbox" or "production"). Base URLs come from MANJO_SANDBOX_BASE_URL and
-// MANJO_PRODUCTION_BASE_URL. Clients are shared so access tokens stay cached.
+// MANJO_PRODUCTION_BASE_URL; access token requests are signed with the
+// platform key in MANJO_PRIVATE_KEY. Clients are shared so access tokens stay
+// cached.
 func GetManjoClient(environment string) (*manjo.Client, error) {
 	envVar := "MANJO_SANDBOX_BASE_URL"
 	if environment == "production" {
@@ -109,11 +111,46 @@ func GetManjoClient(environment string) (*manjo.Client, error) {
 	if client, ok := manjoClients[baseURL]; ok {
 		return client, nil
 	}
-	opts := []manjo.Option{}
+	privateKey, err := manjoPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	opts := []manjo.Option{manjo.WithPrivateKey(privateKey)}
 	if ip := strings.TrimSpace(os.Getenv("MANJO_MERCHANT_IP")); ip != "" {
 		opts = append(opts, manjo.WithIPAddress(ip))
 	}
 	client := manjo.NewClient(baseURL, opts...)
 	manjoClients[baseURL] = client
 	return client, nil
+}
+
+func manjoPrivateKey() (*rsa.PrivateKey, error) {
+	value := os.Getenv("MANJO_PRIVATE_KEY")
+	if strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("MANJO_PRIVATE_KEY is not set")
+	}
+	return manjo.ParsePrivateKey(value)
+}
+
+// ManjoPublicKeys returns the Manjo public keys that verify the access token
+// requests Manjo sends us before a payment notification, per environment, from
+// MANJO_SANDBOX_PUBLIC_KEY and MANJO_PRODUCTION_PUBLIC_KEY. Unset keys are
+// left out; a key that is set but invalid is an error.
+func ManjoPublicKeys() (map[string]*rsa.PublicKey, error) {
+	keys := map[string]*rsa.PublicKey{}
+	for environment, envVar := range map[string]string{
+		"sandbox":    "MANJO_SANDBOX_PUBLIC_KEY",
+		"production": "MANJO_PRODUCTION_PUBLIC_KEY",
+	} {
+		value := os.Getenv(envVar)
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		key, err := manjo.ParsePublicKey(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", envVar, err)
+		}
+		keys[environment] = key
+	}
+	return keys, nil
 }

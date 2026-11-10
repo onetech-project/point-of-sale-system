@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import paymentService, { ManjoConfig, PaymentEnvironment } from '@/services/payment';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-const NOTIFICATION_URL = `${API_BASE_URL}/api/v1/webhooks/payments/manjo/notification`;
+// Manjo stores this base URL and appends /v1.0/access-token/b2b and
+// /v1.0/qr/qr-mpm-notify itself.
+const CALLBACK_BASE_URL = `${API_BASE_URL}/api/v1/webhooks/payments/manjo`;
 
 interface ManjoConfigFormProps {
   tenantId: string;
@@ -17,8 +19,9 @@ const inputClassName =
 
 /**
  * Manjo QRIS credentials form.
- * Secrets (client secret, private key) are write-only: the API reports whether
- * one is stored, and leaving the field blank keeps the stored value.
+ * The client secret is write-only: the API reports whether one is stored, and
+ * leaving the field blank keeps the stored value. The RSA key pair is the
+ * platform's, so tenants never enter a private key.
  */
 export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoConfigFormProps) {
   const [loading, setLoading] = useState(true);
@@ -29,7 +32,6 @@ export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoCo
   const [partnerId, setPartnerId] = useState('');
   const [environment, setEnvironment] = useState<PaymentEnvironment>('sandbox');
   const [clientSecret, setClientSecret] = useState('');
-  const [privateKey, setPrivateKey] = useState('');
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -44,7 +46,6 @@ export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoCo
       setPartnerId(data.partner_id || '');
       setEnvironment(data.environment || 'sandbox');
       setClientSecret('');
-      setPrivateKey('');
     } catch (error) {
       console.error('Failed to fetch Manjo config:', error);
       setErrorMessage('Failed to load Manjo configuration');
@@ -71,7 +72,6 @@ export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoCo
         partner_id: partnerId.trim(),
         environment,
         ...(clientSecret.trim() ? { client_secret: clientSecret.trim() } : {}),
-        ...(privateKey.trim() ? { private_key: privateKey.trim() } : {}),
       });
       setSuccessMessage('Manjo configuration saved successfully');
       setTimeout(() => setSuccessMessage(''), 5000);
@@ -96,7 +96,6 @@ export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoCo
   }
 
   const hasClientSecret = !!config?.has_client_secret;
-  const hasPrivateKey = !!config?.has_private_key;
 
   return (
     <>
@@ -250,41 +249,15 @@ export default function ManjoConfigForm({ tenantId, onSaved, onCancel }: ManjoCo
             </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="manjo-private-key"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              Private Key {!hasPrivateKey && <span className="text-red-500">*</span>}
-            </label>
-            <textarea
-              id="manjo-private-key"
-              value={privateKey}
-              onChange={e => setPrivateKey(e.target.value)}
-              placeholder={
-                hasPrivateKey
-                  ? 'Leave blank to keep current'
-                  : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
-              }
-              required={!hasPrivateKey}
-              rows={6}
-              spellCheck={false}
-              className={`${inputClassName} font-mono text-xs`}
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              PEM RSA private key used to sign access token requests (SHA256withRSA)
-            </p>
-          </div>
-
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="text-sm font-medium text-blue-900">Setting up Manjo:</h4>
             <ol className="mt-2 text-sm text-blue-800 list-decimal list-inside space-y-1">
               <li>Get your Client ID, Client Secret and Merchant ID from Manjo</li>
-              <li>Share the public key that matches the private key above with Manjo</li>
               <li>
-                Register this payment notification URL at Manjo:
+                Give Manjo this callback base URL (Manjo adds the access token and
+                payment notification paths itself):
                 <code className="block mt-1 break-all rounded bg-white px-2 py-1 text-xs text-blue-900">
-                  {NOTIFICATION_URL}
+                  {CALLBACK_BASE_URL}
                 </code>
               </li>
               <li>Start with Sandbox for testing, switch to Production when ready</li>

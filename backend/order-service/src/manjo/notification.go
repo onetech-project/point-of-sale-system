@@ -40,44 +40,42 @@ func ParseNotification(body []byte) (*Notification, error) {
 
 // VerifyNotificationSignature checks the X-SIGNATURE of a notification:
 //
-//	HMAC_SHA512(key, POST:path:accessToken:lowercase(hex(sha256(minify(body)))):X-TIMESTAMP)
+//	HMAC_SHA512(clientSecret, POST:path:accessToken:lowercase(hex(sha256(minify(body)))):X-TIMESTAMP)
 //
-// The docs (v1.1) say the key is the X-PARTNER-ID value, while the generic
-// formula names the client secret, and the path is either the path Manjo called
-// or Manjo's own /v1.0/qr/qr-mpm-notify. All those combinations are accepted.
-// The access token is the Authorization bearer token, which is optional.
+// accessToken is the bearer token Manjo got from our access token endpoint.
+// The path Manjo signs is either the full path it called or the relative
+// /v1.0/qr/qr-mpm-notify of the docs; both are accepted, keyed by the secret.
 func VerifyNotificationSignature(header http.Header, requestPath string, body []byte, clientSecret string) bool {
-	signature := strings.TrimSpace(header.Get("X-SIGNATURE"))
+	signature := strings.ToLower(strings.TrimSpace(header.Get("X-SIGNATURE")))
 	timestamp := header.Get("X-TIMESTAMP")
-	if signature == "" || timestamp == "" {
+	if signature == "" || timestamp == "" || clientSecret == "" {
 		return false
 	}
-	accessToken := strings.TrimSpace(strings.TrimPrefix(header.Get("Authorization"), "Bearer"))
+	accessToken := BearerToken(header)
 
-	keys := []string{}
-	if clientSecret != "" {
-		keys = append(keys, clientSecret)
-	}
-	if partnerID := header.Get("X-PARTNER-ID"); partnerID != "" {
-		keys = append(keys, partnerID)
-	}
 	paths := []string{requestPath}
 	if requestPath != PathNotify {
 		paths = append(paths, PathNotify)
 	}
-
-	for _, key := range keys {
-		for _, path := range paths {
-			expected, err := SignRequest(key, http.MethodPost, path, accessToken, body, timestamp)
-			if err != nil {
-				return false
-			}
-			if hmac.Equal([]byte(strings.ToLower(signature)), []byte(expected)) {
-				return true
-			}
+	for _, path := range paths {
+		expected, err := SignRequest(clientSecret, http.MethodPost, path, accessToken, body, timestamp)
+		if err != nil {
+			return false
+		}
+		if hmac.Equal([]byte(signature), []byte(expected)) {
+			return true
 		}
 	}
 	return false
+}
+
+// BearerToken returns the token of an "Authorization: Bearer <token>" header.
+func BearerToken(header http.Header) string {
+	value := strings.TrimSpace(header.Get("Authorization"))
+	if len(value) > 7 && strings.EqualFold(value[:7], "Bearer ") {
+		return strings.TrimSpace(value[7:])
+	}
+	return ""
 }
 
 func hmacSHA512Hex(key, message string) string {
@@ -132,8 +130,28 @@ type NotificationAck struct {
 	ResponseMessage string `json:"responseMessage"`
 }
 
+// Notification answers (service code 52).
 var (
 	AckSuccess      = NotificationAck{ResponseCode: "2005200", ResponseMessage: "Successful"}
 	AckInvalidBody  = NotificationAck{ResponseCode: "4005202", ResponseMessage: "Invalid Mandatory Field"}
 	AckUnauthorized = NotificationAck{ResponseCode: "4015200", ResponseMessage: "Unauthorized. Invalid signature"}
+	AckInvalidToken = NotificationAck{ResponseCode: "4015201", ResponseMessage: "Invalid Token (B2B)"}
+	AckConflict     = NotificationAck{ResponseCode: "4095200", ResponseMessage: "Conflict"}
+)
+
+// AccessTokenResponse answers an access token request Manjo sends to the
+// merchant (service code 73).
+type AccessTokenResponse struct {
+	ResponseCode    string `json:"responseCode"`
+	ResponseMessage string `json:"responseMessage"`
+	AccessToken     string `json:"accessToken,omitempty"`
+	TokenType       string `json:"tokenType,omitempty"`
+	ExpiresIn       string `json:"expiresIn,omitempty"`
+}
+
+var (
+	TokenInvalidFormat    = AccessTokenResponse{ResponseCode: "4007301", ResponseMessage: "Invalid Field Format"}
+	TokenInvalidMandatory = AccessTokenResponse{ResponseCode: "4007302", ResponseMessage: "Invalid Mandatory Field"}
+	TokenUnauthorized     = AccessTokenResponse{ResponseCode: "4017300", ResponseMessage: "Unauthorized. Invalid signature"}
+	TokenGeneralError     = AccessTokenResponse{ResponseCode: "5007300", ResponseMessage: "General Error"}
 )
