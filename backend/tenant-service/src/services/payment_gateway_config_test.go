@@ -2,11 +2,7 @@ package services
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"database/sql/driver"
-	"encoding/pem"
 	"errors"
 	"strings"
 	"testing"
@@ -35,14 +31,14 @@ func (prefixEncryptor) DecryptBatch(_ context.Context, c []string) ([]string, er
 var tenantConfigColumns = []string{
 	"tenant_id", "enabled_delivery_types", "service_area", "delivery_fee_config", "auto_calculate_fees",
 	"midtrans_server_key", "midtrans_client_key", "midtrans_merchant_id", "midtrans_environment",
-	"payment_gateway", "manjo_client_id", "manjo_client_secret", "manjo_private_key",
+	"payment_gateway", "manjo_client_id", "manjo_client_secret",
 	"manjo_merchant_id", "manjo_partner_id", "manjo_environment", "created_at", "updated_at",
 }
 
 type storedConfig struct {
 	midtransServerKey, midtransClientKey string
 	gateway                              string
-	manjoClientID, manjoSecret, manjoKey string
+	manjoClientID, manjoSecret           string
 	manjoMerchantID                      string
 }
 
@@ -61,7 +57,7 @@ func expectGetConfig(mock sqlmock.Sqlmock, c storedConfig) {
 		WillReturnRows(sqlmock.NewRows(tenantConfigColumns).AddRow(
 			"tenant-1", "{pickup}", []byte(`{}`), []byte(`{}`), false,
 			enc("midtrans_server_key", c.midtransServerKey), enc("midtrans_client_key", c.midtransClientKey), "", "sandbox",
-			c.gateway, c.manjoClientID, enc("manjo_client_secret", c.manjoSecret), enc("manjo_private_key", c.manjoKey),
+			c.gateway, c.manjoClientID, enc("manjo_client_secret", c.manjoSecret),
 			c.manjoMerchantID, "", "sandbox", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z",
 		))
 }
@@ -75,19 +71,6 @@ func newTestConfigService(t *testing.T) (*TenantConfigService, sqlmock.Sqlmock) 
 	t.Cleanup(func() { db.Close() })
 	repo := repository.NewTenantConfigRepository(db, prefixEncryptor{}, nil)
 	return NewTenantConfigService(repo, db), mock
-}
-
-func testRSAKeyPEM(t *testing.T) string {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("failed to generate key: %v", err)
-	}
-	der, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		t.Fatalf("failed to marshal key: %v", err)
-	}
-	return string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
 }
 
 // anyArgs matches n arbitrary query arguments.
@@ -126,9 +109,9 @@ func TestSetDefaultPaymentGatewaySwitchesToConfiguredManjo(t *testing.T) {
 	svc, mock := newTestConfigService(t)
 	expectGetConfig(mock, storedConfig{
 		midtransServerKey: "srv", midtransClientKey: "cli",
-		manjoClientID: "EP1", manjoSecret: "secret", manjoKey: "key", manjoMerchantID: "MT1",
+		manjoClientID: "EP1", manjoSecret: "secret", manjoMerchantID: "MT1",
 	})
-	args := anyArgs(16)
+	args := anyArgs(15)
 	args[9] = "manjo" // payment_gateway
 	mock.ExpectExec(`UPDATE tenant_configs`).WithArgs(args...).WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -143,13 +126,12 @@ func TestSetDefaultPaymentGatewaySwitchesToConfiguredManjo(t *testing.T) {
 func TestUpdateManjoConfigKeepsStoredSecretsWhenBlank(t *testing.T) {
 	svc, mock := newTestConfigService(t)
 	expectGetConfig(mock, storedConfig{
-		manjoClientID: "EP1", manjoSecret: "old-secret", manjoKey: "old-key", manjoMerchantID: "MT1",
+		manjoClientID: "EP1", manjoSecret: "old-secret", manjoMerchantID: "MT1",
 	})
-	args := anyArgs(16)
+	args := anyArgs(15)
 	args[10] = "EP2"                                              // manjo_client_id
 	args[11] = "enc:tenant_config:manjo_client_secret:old-secret" // re-encrypted stored secret
-	args[12] = "enc:tenant_config:manjo_private_key:old-key"
-	args[13] = "MT2"
+	args[12] = "MT2"
 	mock.ExpectExec(`UPDATE tenant_configs`).WithArgs(args...).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := svc.UpdateManjoConfig(context.Background(), &UpdateManjoConfigRequest{
@@ -169,7 +151,6 @@ func TestUpdateManjoConfigRequiresSecretsOnFirstSave(t *testing.T) {
 
 	err := svc.UpdateManjoConfig(context.Background(), &UpdateManjoConfigRequest{
 		TenantID: "tenant-1", ClientID: "EP1", MerchantID: "MT1", Environment: "sandbox",
-		PrivateKey: testRSAKeyPEM(t),
 	})
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
@@ -177,29 +158,17 @@ func TestUpdateManjoConfigRequiresSecretsOnFirstSave(t *testing.T) {
 	}
 }
 
-func TestUpdateManjoConfigRejectsInvalidPrivateKey(t *testing.T) {
-	svc, _ := newTestConfigService(t)
-	err := svc.UpdateManjoConfig(context.Background(), &UpdateManjoConfigRequest{
-		TenantID: "tenant-1", ClientID: "EP1", MerchantID: "MT1", Environment: "sandbox",
-		ClientSecret: "secret", PrivateKey: "not a key",
-	})
-	var validationErr *ValidationError
-	if !errors.As(err, &validationErr) {
-		t.Fatalf("err = %v, want ValidationError", err)
-	}
-}
-
 func TestGetManjoCredentialsFallsBackToClientIDForPartnerID(t *testing.T) {
 	svc, mock := newTestConfigService(t)
 	expectGetConfig(mock, storedConfig{
-		manjoClientID: "EP1", manjoSecret: "secret", manjoKey: "key", manjoMerchantID: "MT1",
+		manjoClientID: "EP1", manjoSecret: "secret", manjoMerchantID: "MT1",
 	})
 
 	creds, err := svc.GetManjoCredentials(context.Background(), "tenant-1")
 	if err != nil {
 		t.Fatalf("GetManjoCredentials returned error: %v", err)
 	}
-	if creds.PartnerID != "EP1" || creds.ClientSecret != "secret" || creds.PrivateKey != "key" || !creds.IsConfigured {
+	if creds.PartnerID != "EP1" || creds.ClientSecret != "secret" || !creds.IsConfigured {
 		t.Fatalf("unexpected credentials: %+v", creds)
 	}
 }
@@ -207,14 +176,14 @@ func TestGetManjoCredentialsFallsBackToClientIDForPartnerID(t *testing.T) {
 func TestGetManjoConfigNeverReturnsSecrets(t *testing.T) {
 	svc, mock := newTestConfigService(t)
 	expectGetConfig(mock, storedConfig{
-		manjoClientID: "EP1", manjoSecret: "secret", manjoKey: "key", manjoMerchantID: "MT1",
+		manjoClientID: "EP1", manjoSecret: "secret", manjoMerchantID: "MT1",
 	})
 
 	config, err := svc.GetManjoConfig(context.Background(), "tenant-1")
 	if err != nil {
 		t.Fatalf("GetManjoConfig returned error: %v", err)
 	}
-	if !config.HasClientSecret || !config.HasPrivateKey || !config.IsConfigured {
+	if !config.HasClientSecret || !config.IsConfigured {
 		t.Fatalf("unexpected config: %+v", config)
 	}
 }

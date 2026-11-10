@@ -2,10 +2,7 @@ package services
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
 	"database/sql"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"strings"
@@ -310,8 +307,9 @@ func validEnvironment(environment string) bool {
 }
 
 // ManjoConfig is the Manjo configuration shown to tenant owners. The client
-// secret and private key are write-only: they are never returned, only whether
-// one is stored.
+// secret is write-only: it is never returned, only whether one is stored. The
+// RSA key pair is the platform's (order-service MANJO_PRIVATE_KEY), not the
+// tenant's.
 type ManjoConfig struct {
 	TenantID        string `json:"tenant_id"`
 	ClientID        string `json:"client_id"`
@@ -319,12 +317,11 @@ type ManjoConfig struct {
 	PartnerID       string `json:"partner_id"`
 	Environment     string `json:"environment"`
 	HasClientSecret bool   `json:"has_client_secret"`
-	HasPrivateKey   bool   `json:"has_private_key"`
 	IsConfigured    bool   `json:"is_configured"`
 }
 
 // UpdateManjoConfigRequest updates the Manjo configuration. An empty
-// ClientSecret or PrivateKey keeps the stored value.
+// ClientSecret keeps the stored value.
 type UpdateManjoConfigRequest struct {
 	TenantID     string `json:"-"`
 	ClientID     string `json:"client_id"`
@@ -332,7 +329,6 @@ type UpdateManjoConfigRequest struct {
 	PartnerID    string `json:"partner_id"`
 	Environment  string `json:"environment"`
 	ClientSecret string `json:"client_secret"`
-	PrivateKey   string `json:"private_key"`
 }
 
 // ManjoCredentials is the full Manjo configuration, secrets included, for
@@ -341,7 +337,6 @@ type ManjoCredentials struct {
 	TenantID     string `json:"tenant_id"`
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
-	PrivateKey   string `json:"private_key"`
 	MerchantID   string `json:"merchant_id"`
 	PartnerID    string `json:"partner_id"`
 	Environment  string `json:"environment"`
@@ -373,7 +368,6 @@ func (s *TenantConfigService) GetManjoConfig(ctx context.Context, tenantID strin
 		PartnerID:       config.ManjoPartnerID,
 		Environment:     config.ManjoEnvironment,
 		HasClientSecret: config.ManjoClientSecret != "",
-		HasPrivateKey:   config.ManjoPrivateKey != "",
 		IsConfigured:    config.ManjoConfigured(),
 	}, nil
 }
@@ -391,7 +385,6 @@ func (s *TenantConfigService) GetManjoCredentials(ctx context.Context, tenantID 
 		TenantID:     tenantID,
 		ClientID:     config.ManjoClientID,
 		ClientSecret: config.ManjoClientSecret,
-		PrivateKey:   config.ManjoPrivateKey,
 		MerchantID:   config.ManjoMerchantID,
 		PartnerID:    partnerID,
 		Environment:  config.ManjoEnvironment,
@@ -404,18 +397,12 @@ func (s *TenantConfigService) UpdateManjoConfig(ctx context.Context, req *Update
 	req.MerchantID = strings.TrimSpace(req.MerchantID)
 	req.PartnerID = strings.TrimSpace(req.PartnerID)
 	req.ClientSecret = strings.TrimSpace(req.ClientSecret)
-	req.PrivateKey = strings.TrimSpace(req.PrivateKey)
 
 	if !validEnvironment(req.Environment) {
 		return &ValidationError{Message: "invalid environment: must be 'sandbox' or 'production'"}
 	}
 	if req.ClientID == "" || req.MerchantID == "" {
 		return &ValidationError{Message: "client_id and merchant_id are required"}
-	}
-	if req.PrivateKey != "" {
-		if err := validateRSAPrivateKey(req.PrivateKey); err != nil {
-			return &ValidationError{Message: err.Error()}
-		}
 	}
 
 	config, err := s.configRepo.GetByTenantID(ctx, req.TenantID)
@@ -430,11 +417,8 @@ func (s *TenantConfigService) UpdateManjoConfig(ctx context.Context, req *Update
 	if req.ClientSecret != "" {
 		config.ManjoClientSecret = req.ClientSecret
 	}
-	if req.PrivateKey != "" {
-		config.ManjoPrivateKey = req.PrivateKey
-	}
-	if config.ManjoClientSecret == "" || config.ManjoPrivateKey == "" {
-		return &ValidationError{Message: "client_secret and private_key are required"}
+	if config.ManjoClientSecret == "" {
+		return &ValidationError{Message: "client_secret is required"}
 	}
 
 	if config.CreatedAt == "" {
@@ -487,22 +471,4 @@ func (s *TenantConfigService) SetDefaultPaymentGateway(ctx context.Context, tena
 		return s.configRepo.Create(ctx, config)
 	}
 	return s.configRepo.Update(ctx, config)
-}
-
-func validateRSAPrivateKey(pemKey string) error {
-	block, _ := pem.Decode([]byte(pemKey))
-	if block == nil {
-		return errors.New("private_key must be a PEM encoded RSA private key")
-	}
-	if _, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-		return nil
-	}
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return errors.New("private_key must be a PEM encoded RSA private key")
-	}
-	if _, ok := key.(*rsa.PrivateKey); !ok {
-		return errors.New("private_key must be an RSA key")
-	}
-	return nil
 }

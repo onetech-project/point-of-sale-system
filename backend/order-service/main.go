@@ -133,6 +133,14 @@ func main() {
 
 	// Initialize payment service (needs orderService for adding notes)
 	paymentService := services.NewPaymentService(config.GetDB(), paymentRepo, orderRepo, inventoryService, orderService)
+	manjoPublicKeys, err := config.ManjoPublicKeys()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Invalid Manjo public key")
+	}
+	if len(manjoPublicKeys) == 0 {
+		log.Warn().Msg("No Manjo public key set (MANJO_SANDBOX_PUBLIC_KEY / MANJO_PRODUCTION_PUBLIC_KEY): Manjo payment notifications will be rejected")
+	}
+	paymentService.WithManjoInbound(services.NewRedisManjoTokenStore(config.GetRedis()), manjoPublicKeys)
 
 	// Initialize geocoding and delivery fee services
 	// TODO: Initialize Google Maps client properly

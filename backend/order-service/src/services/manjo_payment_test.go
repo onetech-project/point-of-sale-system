@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"io"
 	"net/http"
@@ -39,7 +37,6 @@ func newManjoServer(t *testing.T, handler func(path string, body map[string]inte
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
@@ -56,8 +53,8 @@ func newManjoServer(t *testing.T, handler func(path string, body map[string]inte
 	t.Cleanup(server.Close)
 
 	return staticManjoGateway{
-		creds:  manjo.Credentials{ClientID: "EP1", ClientSecret: "secret", PrivateKey: keyPEM, MerchantID: "MT1"},
-		client: manjo.NewClient(server.URL, manjo.WithHTTPClient(server.Client())),
+		creds:  manjo.Credentials{ClientID: "EP1", ClientSecret: "secret", MerchantID: "MT1"},
+		client: manjo.NewClient(server.URL, manjo.WithHTTPClient(server.Client()), manjo.WithPrivateKey(key)),
 	}
 }
 

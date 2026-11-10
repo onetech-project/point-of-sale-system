@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -97,11 +98,11 @@ func (f *fakeManjo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func newFakeManjo(t *testing.T, handler func(w http.ResponseWriter, path string, body map[string]interface{})) (*fakeManjo, *Client, Credentials) {
 	t.Helper()
 	key := newTestKey(t)
-	creds := Credentials{ClientID: "EP9613058999", ClientSecret: "secret", PrivateKey: key.pem, MerchantID: "MT60169117"}
+	creds := Credentials{ClientID: "EP9613058999", ClientSecret: "secret", MerchantID: "MT60169117"}
 	fake := &fakeManjo{t: t, creds: creds, publicKey: &key.key.PublicKey, handler: handler}
 	server := httptest.NewServer(fake)
 	t.Cleanup(server.Close)
-	return fake, NewClient(server.URL, WithHTTPClient(server.Client())), creds
+	return fake, NewClient(server.URL, WithHTTPClient(server.Client()), WithPrivateKey(key.key)), creds
 }
 
 func TestGenerateSignsRequestsAndReturnsQRContent(t *testing.T) {
@@ -252,29 +253,92 @@ func TestSignRequestMinifiesBody(t *testing.T) {
 func TestVerifyNotificationSignature(t *testing.T) {
 	body := []byte(`{"originalReferenceNo":"A1","originalPartnerReferenceNo":"ORD-1","latestTransactionStatus":"00"}`)
 	timestamp := "2026-01-27T13:13:54+07:00"
+	const requestPath = "/api/v1/webhooks/payments/manjo/v1.0/qr/qr-mpm-notify"
 
 	header := func(signature string) http.Header {
 		h := http.Header{}
+		h.Set("Authorization", "Bearer tok-1")
 		h.Set("X-TIMESTAMP", timestamp)
 		h.Set("X-SIGNATURE", signature)
 		h.Set("X-PARTNER-ID", "EP9613058999")
 		return h
 	}
 
-	withSecret, _ := SignRequest("secret", "POST", "/api/v1/webhooks/payments/manjo/notification", "", body, timestamp)
-	withPartnerID, _ := SignRequest("EP9613058999", "POST", PathNotify, "", body, timestamp)
+	overRequestPath, _ := SignRequest("secret", "POST", requestPath, "tok-1", body, timestamp)
+	overNotifyPath, _ := SignRequest("secret", "POST", PathNotify, "tok-1", body, timestamp)
+	withPartnerID, _ := SignRequest("EP9613058999", "POST", PathNotify, "tok-1", body, timestamp)
+	withoutToken, _ := SignRequest("secret", "POST", PathNotify, "", body, timestamp)
 
-	if !VerifyNotificationSignature(header(withSecret), "/api/v1/webhooks/payments/manjo/notification", body, "secret") {
-		t.Fatal("signature with client secret over the request path was rejected")
+	if !VerifyNotificationSignature(header(overRequestPath), requestPath, body, "secret") {
+		t.Fatal("signature over the request path was rejected")
 	}
-	if !VerifyNotificationSignature(header(withPartnerID), "/api/v1/webhooks/payments/manjo/notification", body, "secret") {
-		t.Fatal("signature with partner ID over Manjo's notify path was rejected")
+	if !VerifyNotificationSignature(header(strings.ToUpper(overNotifyPath)), requestPath, body, "secret") {
+		t.Fatal("upper case signature over the docs' notify path was rejected")
 	}
-	if VerifyNotificationSignature(header(withSecret), "/api/v1/webhooks/payments/manjo/notification", []byte(`{"tampered":true}`), "secret") {
+	if VerifyNotificationSignature(header(withPartnerID), requestPath, body, "secret") {
+		t.Fatal("signature keyed by the X-PARTNER-ID header was accepted")
+	}
+	if VerifyNotificationSignature(header(withoutToken), requestPath, body, "secret") {
+		t.Fatal("signature without the bearer token was accepted")
+	}
+	if VerifyNotificationSignature(header(overRequestPath), requestPath, []byte(`{"tampered":true}`), "secret") {
 		t.Fatal("signature over another body was accepted")
+	}
+	if VerifyNotificationSignature(header(overRequestPath), requestPath, body, "") {
+		t.Fatal("signature was accepted without a client secret")
 	}
 	if VerifyNotificationSignature(header(""), "/x", body, "secret") {
 		t.Fatal("missing signature was accepted")
+	}
+}
+
+func TestVerifyAccessTokenSignature(t *testing.T) {
+	key := newTestKey(t)
+	other := newTestKey(t)
+	timestamp := "2026-11-09T10:00:00+07:00"
+	signature, err := SignAccessToken(key.key, "EP1", timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !VerifyAccessTokenSignature(&key.key.PublicKey, "EP1", timestamp, signature) {
+		t.Fatal("valid signature was rejected")
+	}
+	if VerifyAccessTokenSignature(&other.key.PublicKey, "EP1", timestamp, signature) {
+		t.Fatal("signature was accepted with another public key")
+	}
+	if VerifyAccessTokenSignature(&key.key.PublicKey, "EP2", timestamp, signature) {
+		t.Fatal("signature was accepted for another client key")
+	}
+	if VerifyAccessTokenSignature(&key.key.PublicKey, "EP1", timestamp, "not-hex") {
+		t.Fatal("non-hex signature was accepted")
+	}
+}
+
+func TestParseKeys(t *testing.T) {
+	key := newTestKey(t)
+	pkixDER, err := x509.MarshalPKIXPublicKey(&key.key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkixDER}))
+
+	for name, value := range map[string]string{
+		"pem":         publicPEM,
+		"escaped pem": strings.ReplaceAll(publicPEM, "\n", `\n`),
+		"bare base64": base64.StdEncoding.EncodeToString(pkixDER),
+		"pkcs1 pem":   string(pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: x509.MarshalPKCS1PublicKey(&key.key.PublicKey)})),
+	} {
+		got, err := ParsePublicKey(value)
+		if err != nil || !got.Equal(&key.key.PublicKey) {
+			t.Fatalf("%s: ParsePublicKey = %v", name, err)
+		}
+	}
+	if _, err := ParsePrivateKey(strings.ReplaceAll(key.pem, "\n", `\n`)); err != nil {
+		t.Fatalf("escaped private key: %v", err)
+	}
+	if _, err := ParsePublicKey("not a key"); err == nil {
+		t.Fatal("garbage public key was accepted")
 	}
 }
 

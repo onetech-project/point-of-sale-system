@@ -27,18 +27,16 @@ export interface ManjoConfig {
   partner_id: string;
   environment: PaymentEnvironment;
   has_client_secret: boolean;
-  has_private_key: boolean;
   is_configured: boolean;
 }
 
-/** Empty or omitted client_secret / private_key keep the stored value. */
+/** An empty or omitted client_secret keeps the stored value. */
 export interface UpdateManjoConfigRequest {
   client_id: string;
   merchant_id: string;
   partner_id: string;
   environment: PaymentEnvironment;
   client_secret?: string;
-  private_key?: string;
 }
 
 export interface GatewayStatus {

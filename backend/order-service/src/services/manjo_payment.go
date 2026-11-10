@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -111,13 +112,30 @@ type ManjoNotificationResult int
 const (
 	ManjoNotificationProcessed ManjoNotificationResult = iota
 	ManjoNotificationInvalidBody
+	ManjoNotificationInvalidToken
 	ManjoNotificationInvalidSignature
+	ManjoNotificationDuplicate
 )
 
 // ProcessManjoNotification verifies a Manjo payment notification and applies
-// the payment status. The notification's own status is not trusted (the docs
-// disagree on its codes): the status is confirmed with the query API.
-func (s *PaymentService) ProcessManjoNotification(ctx context.Context, header map[string][]string, requestPath string, body []byte) (ManjoNotificationResult, error) {
+// the payment status, in the order of Manjo's "Flow for Notification": the
+// bearer token we issued, then X-EXTERNAL-ID uniqueness, then the HMAC
+// signature. The notification's own status is not trusted (the docs give two
+// different status tables): the payment is confirmed with the query API.
+func (s *PaymentService) ProcessManjoNotification(ctx context.Context, header http.Header, requestPath string, body []byte) (ManjoNotificationResult, error) {
+	holder, err := s.manjoTokenHolder(ctx, header)
+	if err != nil {
+		return ManjoNotificationProcessed, fmt.Errorf("failed to check Manjo access token: %w", err)
+	}
+	if holder == nil {
+		return ManjoNotificationInvalidToken, errors.New("missing, unknown or expired access token")
+	}
+
+	externalID := strings.TrimSpace(header.Get("X-EXTERNAL-ID"))
+	if externalID == "" || strings.TrimSpace(header.Get("X-TIMESTAMP")) == "" || strings.TrimSpace(header.Get("X-SIGNATURE")) == "" {
+		return ManjoNotificationInvalidBody, errors.New("missing mandatory header")
+	}
+
 	notification, err := manjo.ParseNotification(body)
 	if err != nil || notification.OriginalPartnerReferenceNo == "" {
 		return ManjoNotificationInvalidBody, fmt.Errorf("invalid Manjo notification body")
@@ -147,6 +165,25 @@ func (s *PaymentService) ProcessManjoNotification(ctx context.Context, header ma
 	if err != nil {
 		return ManjoNotificationProcessed, fmt.Errorf("failed to get Manjo configuration: %w", err)
 	}
+	// The token belongs to one tenant's client ID: it cannot notify another
+	// tenant's orders.
+	if holder.ClientID != creds.ClientID || (creds.Environment != "" && holder.Environment != creds.Environment) {
+		log.Warn().
+			Str("tenant_id", order.TenantID).
+			Str("order_reference", order.OrderReference).
+			Str("token_client_id", holder.ClientID).
+			Msg("Manjo notification token was issued to another client")
+		return ManjoNotificationInvalidToken, errors.New("access token does not belong to the order's tenant")
+	}
+
+	fresh, err := s.claimManjoExternalID(ctx, holder.ClientID, externalID)
+	if err != nil {
+		return ManjoNotificationProcessed, fmt.Errorf("failed to check X-EXTERNAL-ID: %w", err)
+	}
+	if !fresh {
+		return ManjoNotificationDuplicate, fmt.Errorf("X-EXTERNAL-ID %s already used today", externalID)
+	}
+
 	if !manjo.VerifyNotificationSignature(header, requestPath, body, creds.ClientSecret) {
 		log.Warn().
 			Str("tenant_id", order.TenantID).

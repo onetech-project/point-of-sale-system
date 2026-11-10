@@ -51,7 +51,6 @@ type TenantConfig struct {
 	PaymentGateway       string                 `json:"payment_gateway"`
 	ManjoClientID        string                 `json:"manjo_client_id,omitempty"`
 	ManjoClientSecret    string                 `json:"manjo_client_secret,omitempty"`
-	ManjoPrivateKey      string                 `json:"manjo_private_key,omitempty"`
 	ManjoMerchantID      string                 `json:"manjo_merchant_id,omitempty"`
 	ManjoPartnerID       string                 `json:"manjo_partner_id,omitempty"`
 	ManjoEnvironment     string                 `json:"manjo_environment"`
@@ -74,7 +73,6 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 			COALESCE(payment_gateway, 'midtrans') as payment_gateway,
 			COALESCE(manjo_client_id, '') as manjo_client_id,
 			COALESCE(manjo_client_secret, '') as manjo_client_secret,
-			COALESCE(manjo_private_key, '') as manjo_private_key,
 			COALESCE(manjo_merchant_id, '') as manjo_merchant_id,
 			COALESCE(manjo_partner_id, '') as manjo_partner_id,
 			COALESCE(manjo_environment, 'sandbox') as manjo_environment,
@@ -87,7 +85,7 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 	var config TenantConfig
 	var serviceArea, deliveryFeeConfig []byte
 	var encryptedServerKey, encryptedClientKey string
-	var encryptedManjoSecret, encryptedManjoPrivateKey string
+	var encryptedManjoSecret string
 
 	err := r.db.QueryRowContext(ctx, query, tenantID).Scan(
 		&config.TenantID,
@@ -102,7 +100,6 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 		&config.PaymentGateway,
 		&config.ManjoClientID,
 		&encryptedManjoSecret,
-		&encryptedManjoPrivateKey,
 		&config.ManjoMerchantID,
 		&config.ManjoPartnerID,
 		&config.ManjoEnvironment,
@@ -144,9 +141,6 @@ func (r *TenantConfigRepository) GetByTenantID(ctx context.Context, tenantID str
 	}
 
 	if config.ManjoClientSecret, err = r.decrypt(ctx, encryptedManjoSecret, "manjo_client_secret"); err != nil {
-		return nil, err
-	}
-	if config.ManjoPrivateKey, err = r.decrypt(ctx, encryptedManjoPrivateKey, "manjo_private_key"); err != nil {
 		return nil, err
 	}
 
@@ -210,11 +204,10 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 			payment_gateway,
 			manjo_client_id,
 			manjo_client_secret,
-			manjo_private_key,
 			manjo_merchant_id,
 			manjo_partner_id,
 			manjo_environment
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 
 	_, err = r.db.ExecContext(
@@ -232,7 +225,6 @@ func (r *TenantConfigRepository) Create(ctx context.Context, config *TenantConfi
 		paymentGatewayOrDefault(config.PaymentGateway),
 		config.ManjoClientID,
 		manjo.secret,
-		manjo.privateKey,
 		config.ManjoMerchantID,
 		config.ManjoPartnerID,
 		environmentOrDefault(config.ManjoEnvironment),
@@ -293,10 +285,9 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 			payment_gateway = $10,
 			manjo_client_id = $11,
 			manjo_client_secret = $12,
-			manjo_private_key = $13,
-			manjo_merchant_id = $14,
-			manjo_partner_id = $15,
-			manjo_environment = $16,
+			manjo_merchant_id = $13,
+			manjo_partner_id = $14,
+			manjo_environment = $15,
 			updated_at = NOW()
 		WHERE tenant_id = $1
 	`
@@ -316,7 +307,6 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 		paymentGatewayOrDefault(config.PaymentGateway),
 		config.ManjoClientID,
 		manjo.secret,
-		manjo.privateKey,
 		config.ManjoMerchantID,
 		config.ManjoPartnerID,
 		environmentOrDefault(config.ManjoEnvironment),
@@ -345,7 +335,6 @@ func (r *TenantConfigRepository) Update(ctx context.Context, config *TenantConfi
 			"payment_gateway":      paymentGatewayOrDefault(config.PaymentGateway),
 			"manjo_client_id":      config.ManjoClientID,
 			"manjo_client_secret":  manjo.secret,
-			"manjo_private_key":    manjo.privateKey,
 			"manjo_merchant_id":    config.ManjoMerchantID,
 			"manjo_partner_id":     config.ManjoPartnerID,
 			"manjo_environment":    environmentOrDefault(config.ManjoEnvironment),
@@ -392,17 +381,13 @@ func environmentOrDefault(environment string) string {
 }
 
 type encryptedManjoSecrets struct {
-	secret     string
-	privateKey string
+	secret string
 }
 
 func (r *TenantConfigRepository) encryptManjoSecrets(ctx context.Context, config *TenantConfig) (encryptedManjoSecrets, error) {
 	var out encryptedManjoSecrets
 	var err error
 	if out.secret, err = r.encrypt(ctx, config.ManjoClientSecret, "manjo_client_secret"); err != nil {
-		return out, err
-	}
-	if out.privateKey, err = r.encrypt(ctx, config.ManjoPrivateKey, "manjo_private_key"); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -435,7 +420,7 @@ func (r *TenantConfigRepository) decrypt(ctx context.Context, ciphertext, column
 // reports whether guest ordering can take payments.
 const (
 	MidtransConfiguredSQL = `(COALESCE(tc.midtrans_server_key, '') <> '' AND COALESCE(tc.midtrans_client_key, '') <> '')`
-	ManjoConfiguredSQL    = `(COALESCE(tc.manjo_client_id, '') <> '' AND COALESCE(tc.manjo_client_secret, '') <> '' AND COALESCE(tc.manjo_private_key, '') <> '' AND COALESCE(tc.manjo_merchant_id, '') <> '')`
+	ManjoConfiguredSQL    = `(COALESCE(tc.manjo_client_id, '') <> '' AND COALESCE(tc.manjo_client_secret, '') <> '' AND COALESCE(tc.manjo_merchant_id, '') <> '')`
 	PaymentGatewaySQL     = `COALESCE(tc.payment_gateway, 'midtrans')`
 	// PaymentConfiguredSQL is true when the tenant's default gateway has credentials.
 	PaymentConfiguredSQL = `(CASE WHEN ` + PaymentGatewaySQL + ` = 'manjo' THEN ` + ManjoConfiguredSQL + ` ELSE ` + MidtransConfiguredSQL + ` END)`
@@ -448,5 +433,5 @@ func (c *TenantConfig) MidtransConfigured() bool {
 
 // ManjoConfigured reports whether the Manjo credentials are complete.
 func (c *TenantConfig) ManjoConfigured() bool {
-	return c.ManjoClientID != "" && c.ManjoClientSecret != "" && c.ManjoPrivateKey != "" && c.ManjoMerchantID != ""
+	return c.ManjoClientID != "" && c.ManjoClientSecret != "" && c.ManjoMerchantID != ""
 }

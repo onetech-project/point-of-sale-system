@@ -12,9 +12,10 @@ import (
 	"github.com/point-of-sale-system/order-service/src/services"
 )
 
-// manjoNotificationPath is the route Manjo posts payment notifications to.
-// Register <public API URL> + this path as the notification URL at Manjo.
-const manjoNotificationPath = "/api/v1/webhooks/payments/manjo/notification"
+// ManjoBasePath is the base URL to register at Manjo, after the public API
+// URL. Manjo appends its own paths: it asks /v1.0/access-token/b2b for a token,
+// then posts payment notifications to /v1.0/qr/qr-mpm-notify.
+const ManjoBasePath = "/api/v1/webhooks/payments/manjo"
 
 // PaymentWebhookHandler handles Midtrans payment webhook notifications
 type PaymentWebhookHandler struct {
@@ -104,12 +105,34 @@ func (h *PaymentWebhookHandler) RegisterRoutes(e *echo.Echo) {
 	// Signature verification is handled in the service layer
 	// Route matches API gateway path: /api/v1/webhooks/payments/midtrans/notification
 	e.POST("/api/v1/webhooks/payments/midtrans/notification", h.HandleMidtransNotification)
-	e.POST(manjoNotificationPath, h.HandleManjoNotification)
+	e.POST(ManjoBasePath+manjo.PathAccessToken, h.HandleManjoAccessToken)
+	e.POST(ManjoBasePath+manjo.PathNotify, h.HandleManjoNotification)
 }
 
-// HandleManjoNotification handles POST /api/v1/webhooks/payments/manjo/notification.
-// The signature is checked against the raw body, then the payment status is
-// confirmed with Manjo's query API before the order is updated.
+// HandleManjoAccessToken handles Manjo's POST <base>/v1.0/access-token/b2b,
+// the token request Manjo makes before sending a notification.
+func (h *PaymentWebhookHandler) HandleManjoAccessToken(c echo.Context) error {
+	body, err := io.ReadAll(io.LimitReader(c.Request().Body, 64<<10))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, manjo.TokenInvalidMandatory)
+	}
+	status, resp := h.paymentService.IssueManjoAccessToken(c.Request().Context(), c.Request().Header, body)
+	if status != http.StatusOK {
+		log.Warn().
+			Int("status", status).
+			Str("response_code", resp.ResponseCode).
+			Str("client_key", c.Request().Header.Get("X-CLIENT-KEY")).
+			Str("remote_addr", c.RealIP()).
+			Msg("Rejected Manjo access token request")
+	}
+	c.Response().Header().Set("X-TIMESTAMP", c.Request().Header.Get("X-TIMESTAMP"))
+	c.Response().Header().Set("X-CLIENT-KEY", c.Request().Header.Get("X-CLIENT-KEY"))
+	return c.JSON(status, resp)
+}
+
+// HandleManjoNotification handles Manjo's POST <base>/v1.0/qr/qr-mpm-notify.
+// The bearer token, X-EXTERNAL-ID and signature are checked, then the payment
+// status is confirmed with Manjo's query API before the order is updated.
 func (h *PaymentWebhookHandler) HandleManjoNotification(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -126,8 +149,14 @@ func (h *PaymentWebhookHandler) HandleManjoNotification(c echo.Context) error {
 
 	result, err := h.paymentService.ProcessManjoNotification(ctx, c.Request().Header, c.Request().URL.Path, body)
 	switch result {
+	case services.ManjoNotificationInvalidToken:
+		log.Warn().Err(err).Msg("Rejected Manjo notification")
+		return c.JSON(http.StatusUnauthorized, manjo.AckInvalidToken)
 	case services.ManjoNotificationInvalidSignature:
 		return c.JSON(http.StatusUnauthorized, manjo.AckUnauthorized)
+	case services.ManjoNotificationDuplicate:
+		log.Warn().Err(err).Msg("Rejected Manjo notification")
+		return c.JSON(http.StatusConflict, manjo.AckConflict)
 	case services.ManjoNotificationInvalidBody:
 		log.Warn().Err(err).Msg("Rejected Manjo notification")
 		return c.JSON(http.StatusBadRequest, manjo.AckInvalidBody)

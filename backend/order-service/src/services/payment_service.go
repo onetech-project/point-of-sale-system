@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/sha512"
 	"database/sql"
 	"encoding/hex"
@@ -36,6 +37,9 @@ type PaymentService struct {
 	orderService     *OrderService
 	manjo            manjoGateway
 	syncThrottle     *syncThrottle
+	manjoTokens      manjoTokenStore
+	manjoPublicKeys  map[string]*rsa.PublicKey
+	now              func() time.Time
 }
 
 // NewPaymentService creates a new payment service

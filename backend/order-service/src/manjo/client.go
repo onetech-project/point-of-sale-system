@@ -12,10 +12,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -41,13 +39,14 @@ const (
 	timestampLayout = "2006-01-02T15:04:05-07:00"
 )
 
-// Credentials are one tenant's Manjo credentials.
+// Credentials are one tenant's Manjo credentials. The RSA key that signs
+// access token requests is the platform's, held by the Client.
 type Credentials struct {
 	ClientID     string // X-CLIENT-KEY for the access token
-	ClientSecret string // HMAC-SHA512 key for transactional request signatures
-	PrivateKey   string // PEM RSA key for the access token SHA256withRSA signature
+	ClientSecret string // HMAC-SHA512 key for request and notification signatures
 	MerchantID   string // merchantId in request bodies
 	PartnerID    string // X-PARTNER-ID; ClientID when empty
+	Environment  string // "sandbox" or "production"
 }
 
 func (c Credentials) partnerID() string {
@@ -63,6 +62,7 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	ipAddress  string
+	privateKey *rsa.PrivateKey
 	now        func() time.Time
 	location   *time.Location
 
@@ -91,6 +91,12 @@ func WithClock(now func() time.Time) Option {
 // WithIPAddress sets the X-IP-ADDRESS header value (merchant server IP).
 func WithIPAddress(ip string) Option {
 	return func(c *Client) { c.ipAddress = ip }
+}
+
+// WithPrivateKey sets the platform RSA key that signs access token requests.
+// Manjo holds the matching public key.
+func WithPrivateKey(key *rsa.PrivateKey) Option {
+	return func(c *Client) { c.privateKey = key }
 }
 
 // NewClient returns a client for the Manjo API at baseURL, e.g. https://api.manjo.co.id.
@@ -179,8 +185,11 @@ func (c *Client) accessToken(ctx context.Context, creds Credentials) (string, er
 		return cached.token, nil
 	}
 
+	if c.privateKey == nil {
+		return "", errors.New("manjo: no private key configured for access token requests")
+	}
 	timestamp := c.timestamp()
-	signature, err := SignAccessToken(creds.PrivateKey, creds.ClientID, timestamp)
+	signature, err := SignAccessToken(c.privateKey, creds.ClientID, timestamp)
 	if err != nil {
 		return "", err
 	}
@@ -227,11 +236,7 @@ func (c *Client) dropToken(clientID string) {
 
 // SignAccessToken signs clientID + "|" + timestamp with SHA256withRSA and hex
 // encodes the signature, as the access token API requires.
-func SignAccessToken(privateKeyPEM, clientID, timestamp string) (string, error) {
-	key, err := parseRSAPrivateKey(privateKeyPEM)
-	if err != nil {
-		return "", err
-	}
+func SignAccessToken(key *rsa.PrivateKey, clientID, timestamp string) (string, error) {
 	digest := sha256.Sum256([]byte(clientID + "|" + timestamp))
 	signature, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
 	if err != nil {
@@ -240,23 +245,16 @@ func SignAccessToken(privateKeyPEM, clientID, timestamp string) (string, error) 
 	return hex.EncodeToString(signature), nil
 }
 
-func parseRSAPrivateKey(pemKey string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(pemKey))
-	if block == nil {
-		return nil, errors.New("manjo: private key is not PEM encoded")
+// VerifyAccessTokenSignature checks the hex X-SIGNATURE of an access token
+// request Manjo sends to the merchant: SHA256withRSA over clientKey + "|" +
+// timestamp, verified with Manjo's public key.
+func VerifyAccessTokenSignature(key *rsa.PublicKey, clientKey, timestamp, signatureHex string) bool {
+	signature, err := hex.DecodeString(strings.TrimSpace(signatureHex))
+	if err != nil || len(signature) == 0 {
+		return false
 	}
-	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
-	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("manjo: parse private key: %w", err)
-	}
-	key, ok := parsed.(*rsa.PrivateKey)
-	if !ok {
-		return nil, errors.New("manjo: private key is not an RSA key")
-	}
-	return key, nil
+	digest := sha256.Sum256([]byte(clientKey + "|" + timestamp))
+	return rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], signature) == nil
 }
 
 // ---------------------------------------------------------------------------
@@ -526,6 +524,11 @@ func (c *Client) do(req *http.Request, out interface{}) (int, error) {
 
 func (c *Client) timestamp() string {
 	return c.now().In(c.location).Format(timestampLayout)
+}
+
+// ParseTimestamp parses an X-TIMESTAMP header (yyyy-MM-ddTHH:mm:ssTZD).
+func ParseTimestamp(value string) (time.Time, error) {
+	return time.Parse(time.RFC3339, strings.TrimSpace(value))
 }
 
 // Location is the Manjo timezone (WIB).
