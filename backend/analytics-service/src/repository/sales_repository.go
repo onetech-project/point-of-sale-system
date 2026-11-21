@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pos/analytics-service/src/models"
@@ -34,14 +35,18 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 
 	query := fmt.Sprintf(`
 		SELECT 
-			COALESCE(SUM(total_amount), 0) as total_revenue,
+			COALESCE(SUM(go.total_amount), 0) as total_revenue,
 			COUNT(*) as total_orders,
-			COALESCE(AVG(total_amount), 0) as average_order_value
-		FROM guest_orders
-		WHERE tenant_id = $1 
-			AND %s
+			COALESCE(AVG(go.total_amount), 0) as average_order_value,
+			COALESCE(SUM(ip.gross_profit), 0) as gross_profit,
+			COALESCE(SUM(ip.cost_of_goods), 0) as cost_of_goods,
+			COALESCE(SUM(ip.uncosted_revenue), 0) as uncosted_revenue
+		FROM guest_orders go
+		LEFT JOIN (%s) ip ON ip.order_id = go.id
+		WHERE go.tenant_id = $1 
+			AND go.%s
 			AND %s BETWEEN $2 AND $3
-	`, revenueStatusFilter, revenueAt(""))
+	`, itemProfitAggregates, revenueStatusFilter, revenueAt("go."))
 
 	metrics := &models.SalesMetrics{
 		StartDate: start,
@@ -52,6 +57,9 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		&metrics.TotalRevenue,
 		&metrics.TotalOrders,
 		&metrics.AverageOrderValue,
+		&metrics.GrossProfit,
+		&metrics.CostOfGoodsSold,
+		&metrics.UncostedRevenue,
 	)
 	if err != nil {
 		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to get current sales metrics")
@@ -76,10 +84,14 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 	prevStart := start.Add(-duration)
 	prevEnd := start.Add(-time.Microsecond) // End just before current period starts
 
+	var prevCostOfGoods, prevUncostedRevenue float64
 	err = r.db.QueryRowContext(ctx, query, tenantID, prevStart, prevEnd).Scan(
 		&metrics.PreviousRevenue,
 		&metrics.PreviousOrders,
 		&metrics.PreviousAOV,
+		&metrics.PreviousGrossProfit,
+		&prevCostOfGoods,
+		&prevUncostedRevenue,
 	)
 	if err != nil {
 		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("Failed to get previous sales metrics, using zero values")
@@ -103,6 +115,19 @@ func (r *SalesRepository) GetSalesMetrics(ctx context.Context, tenantID string, 
 		metrics.AOVChange = ((metrics.AverageOrderValue - metrics.PreviousAOV) / metrics.PreviousAOV) * 100
 	} else if metrics.AverageOrderValue > 0 {
 		metrics.AOVChange = 100
+	}
+
+	// Margin is measured against the item revenue that has a recorded cost, so items without
+	// cost data don't dilute it
+	if costedRevenue := metrics.GrossProfit + metrics.CostOfGoodsSold; costedRevenue > 0 {
+		metrics.GrossMargin = (metrics.GrossProfit / costedRevenue) * 100
+	}
+
+	// Profit can be negative, so the change is measured against the size of the previous profit
+	if metrics.PreviousGrossProfit != 0 {
+		metrics.ProfitChange = ((metrics.GrossProfit - metrics.PreviousGrossProfit) / math.Abs(metrics.PreviousGrossProfit)) * 100
+	} else if metrics.GrossProfit > 0 {
+		metrics.ProfitChange = 100
 	}
 
 	// US5: Calculate offline order metrics (T101-T102)
@@ -274,7 +299,7 @@ func (r *SalesRepository) GetCategoryBreakdown(ctx context.Context, tenantID str
 
 // GetSalesTrend returns time series data for sales revenue and order count
 // Uses generate_series to ensure complete date ranges even for dates with no sales
-func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, start, end time.Time, granularity string) ([]models.TimeSeriesData, []models.TimeSeriesData, error) {
+func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, start, end time.Time, granularity string) ([]models.TimeSeriesData, []models.TimeSeriesData, []models.TimeSeriesData, error) {
 	// Determine the date truncation and interval based on granularity
 	var dateTrunc, interval string
 	switch granularity {
@@ -311,34 +336,37 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 		SELECT 
 			ds.date,
 			COALESCE(SUM(go.total_amount), 0) as revenue,
-			COUNT(go.id) as orders
+			COUNT(go.id) as orders,
+			COALESCE(SUM(ip.gross_profit), 0) as profit
 		FROM date_series ds
 		LEFT JOIN guest_orders go ON 
 			date_trunc($4, %[3]s)::date = ds.date
 			AND go.tenant_id = $1
 			AND go.%[4]s
 			AND %[5]s BETWEEN $2::timestamptz AND $3::timestamptz
+		LEFT JOIN (%[6]s) ip ON ip.order_id = go.id
 		GROUP BY ds.date
 		ORDER BY ds.date ASC
 	`, localTimestamp("$2::timestamptz", r.timezone), localTimestamp("$3::timestamptz", r.timezone),
-		localTimestamp(revenueAt("go."), r.timezone), revenueStatusFilter, revenueAt("go."))
+		localTimestamp(revenueAt("go."), r.timezone), revenueStatusFilter, revenueAt("go."), itemProfitAggregates)
 
 	rows, err := r.db.QueryContext(ctx, query, tenantID, start, end, dateTrunc, interval)
 	if err != nil {
 		log.Error().Err(err).Str("tenant_id", tenantID).Str("granularity", granularity).Msg("Failed to get sales trend")
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
 	var revenueData []models.TimeSeriesData
 	var ordersData []models.TimeSeriesData
+	var profitData []models.TimeSeriesData
 
 	for rows.Next() {
 		var date time.Time
-		var revenue float64
+		var revenue, profit float64
 		var orders int
 
-		if err := rows.Scan(&date, &revenue, &orders); err != nil {
+		if err := rows.Scan(&date, &revenue, &orders, &profit); err != nil {
 			log.Error().Err(err).Msg("Failed to scan sales trend row")
 			continue
 		}
@@ -373,7 +401,13 @@ func (r *SalesRepository) GetSalesTrend(ctx context.Context, tenantID string, st
 			Label: label,
 			Value: float64(orders),
 		})
+
+		profitData = append(profitData, models.TimeSeriesData{
+			Date:  dateStr,
+			Label: label,
+			Value: profit,
+		})
 	}
 
-	return revenueData, ordersData, nil
+	return revenueData, ordersData, profitData, nil
 }

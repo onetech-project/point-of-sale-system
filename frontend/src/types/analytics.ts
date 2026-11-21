@@ -28,6 +28,14 @@ export interface SalesMetrics {
   orders_change: number; // Percentage
   aov_change: number; // Percentage
 
+  // Gross profit from the cost recorded on each order item (delivery fee excluded)
+  gross_profit: number;
+  cost_of_goods_sold: number;
+  gross_margin: number; // Percentage of costed item revenue
+  profit_change: number; // Percentage
+  previous_gross_profit: number;
+  uncosted_revenue: number; // Item revenue with no recorded cost, left out of profit
+
   // US5: Offline Order Metrics (T107)
   offline_order_count: number;
   offline_revenue: number;
@@ -186,6 +194,7 @@ export interface SalesTrendResponse {
   end_date: string; // ISO 8601 date
   revenue_data: TimeSeriesDataPoint[];
   orders_data: TimeSeriesDataPoint[];
+  profit_data?: TimeSeriesDataPoint[];
 }
 
 // Inventory & Product Tasks Types

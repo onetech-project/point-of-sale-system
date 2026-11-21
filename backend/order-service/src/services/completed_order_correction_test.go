@@ -360,10 +360,11 @@ func TestUpdateCompletedOfflineOrderSwapsStockAndAuditsBalance(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	// Items are replaced
-	mock.ExpectExec(`DELETE FROM order_items`).WithArgs(testOrderID, testTenantID).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`DELETE FROM order_items`).WithArgs(testOrderID, testTenantID).
+		WillReturnRows(sqlmock.NewRows([]string{"product_id", "unit_cost"}).AddRow(testProduct, 9000))
+	// The product keeps the cost it was originally sold at
 	mock.ExpectExec(`INSERT INTO order_items`).
-		WithArgs(testOrderID, testProduct, "Kopi", 3, 15000, 45000).
+		WithArgs(testOrderID, testProduct, "Kopi", 3, 15000, 45000, int64(9000)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`SELECT delivery_fee FROM guest_orders`).WithArgs(testOrderID, testTenantID).
 		WillReturnRows(sqlmock.NewRows([]string{"delivery_fee"}).AddRow(0))

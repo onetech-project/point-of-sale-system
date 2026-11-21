@@ -489,28 +489,34 @@ func (r *OfflineOrderRepository) UpdateOfflineOrder(ctx context.Context, tx *sql
 // T075: Implement UpdateOrderItems method
 // Deletes existing items and inserts new ones within a transaction
 func (r *OfflineOrderRepository) UpdateOrderItems(ctx context.Context, tx *sql.Tx, orderID string, tenantID string, items []models.OrderItemInput) (int, int, error) {
-	// Delete existing order items
+	// Delete existing order items, keeping the cost each product was sold at
 	deleteQuery := `
 		DELETE FROM order_items 
 		WHERE order_id = $1 
 		AND order_id IN (SELECT id FROM guest_orders WHERE tenant_id = $2)
+		RETURNING product_id, unit_cost
 	`
 	executor := r.getExecutor(tx)
-	_, err := executor.ExecContext(ctx, deleteQuery, orderID, tenantID)
+	soldCosts, err := deleteOrderItemsReturningCosts(ctx, executor, deleteQuery, orderID, tenantID)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to delete existing order items: %w", err)
+		return 0, 0, err
 	}
 
-	// Insert new order items and calculate totals
+	// Insert new order items and calculate totals. Products that were already on the order keep
+	// their recorded cost; newly added products take the product's current cost.
 	insertQuery := `
 		INSERT INTO order_items (
-			order_id, product_id, product_name, quantity, unit_price, total_price
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			order_id, product_id, product_name, quantity, unit_price, total_price, unit_cost
+		) VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::integer, (SELECT ROUND(cost_price)::integer FROM products WHERE id = $2)))
 	`
 
 	subtotalAmount := 0
 	for _, item := range items {
 		totalPrice := item.Quantity * item.UnitPrice
+		var unitCost *int64
+		if cost, ok := soldCosts[item.ProductID]; ok {
+			unitCost = &cost
+		}
 		_, err := executor.ExecContext(
 			ctx,
 			insertQuery,
@@ -520,6 +526,7 @@ func (r *OfflineOrderRepository) UpdateOrderItems(ctx context.Context, tx *sql.T
 			item.Quantity,
 			item.UnitPrice,
 			totalPrice,
+			unitCost,
 		)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to insert order item: %w", err)
@@ -549,6 +556,35 @@ func (r *OfflineOrderRepository) UpdateOrderItems(ctx context.Context, tx *sql.T
 	}
 
 	return subtotalAmount, totalAmount, nil
+}
+
+// deleteOrderItemsReturningCosts runs a DELETE ... RETURNING product_id, unit_cost and returns
+// the recorded cost per product. Items without a product or without a recorded cost are skipped.
+func deleteOrderItemsReturningCosts(ctx context.Context, executor interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}, query string, args ...interface{}) (map[string]int64, error) {
+	rows, err := executor.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete existing order items: %w", err)
+	}
+	defer rows.Close()
+
+	costs := make(map[string]int64)
+	for rows.Next() {
+		var productID sql.NullString
+		var unitCost sql.NullInt64
+		if err := rows.Scan(&productID, &unitCost); err != nil {
+			return nil, fmt.Errorf("failed to read deleted order item: %w", err)
+		}
+		if productID.Valid && unitCost.Valid {
+			costs[productID.String] = unitCost.Int64
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to delete existing order items: %w", err)
+	}
+
+	return costs, nil
 }
 
 // ListOfflineOrdersFilters holds filter parameters for listing offline orders

@@ -12,6 +12,19 @@ func revenueAt(alias string) string {
 	return fmt.Sprintf("COALESCE(%[1]spaid_at, %[1]scompleted_at, %[1]screated_at)", alias)
 }
 
+// itemProfitAggregates sums, per order, the gross profit and cost of goods sold of the items that
+// have a recorded unit cost, plus the revenue of items without one. Profit only comes from the
+// transaction snapshot in order_items, never from the product master. The delivery fee is not
+// part of an item, so it is excluded from profit.
+const itemProfitAggregates = `
+	SELECT
+		order_id,
+		SUM(total_price - quantity * unit_cost) FILTER (WHERE unit_cost IS NOT NULL) AS gross_profit,
+		SUM(quantity * unit_cost) FILTER (WHERE unit_cost IS NOT NULL) AS cost_of_goods,
+		SUM(total_price) FILTER (WHERE unit_cost IS NULL) AS uncosted_revenue
+	FROM order_items
+	GROUP BY order_id`
+
 // localDate converts a TIMESTAMPTZ expression to the calendar date in the given IANA timezone
 func localDate(expr, timezone string) string {
 	return fmt.Sprintf("(%s AT TIME ZONE '%s')::date", expr, timezone)

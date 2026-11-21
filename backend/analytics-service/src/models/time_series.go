@@ -15,6 +15,7 @@ type SalesTrendResponse struct {
 	EndDate     string           `json:"end_date"`     // ISO 8601 date
 	RevenueData []TimeSeriesData `json:"revenue_data"` // Revenue time series
 	OrdersData  []TimeSeriesData `json:"orders_data"`  // Order count time series
+	ProfitData  []TimeSeriesData `json:"profit_data"`  // Gross profit time series
 }
 
 // TimeSeriesRequest represents query parameters for time series data

@@ -7,6 +7,7 @@ export interface MetricCardProps {
   value: string | number;
   change?: number; // Percentage change (positive or negative)
   changeLabel?: string; // e.g., "vs last month"
+  footnote?: React.ReactNode; // Extra context shown under the change, e.g. a margin
   icon?: React.ReactNode;
   loading?: boolean;
 }
@@ -16,6 +17,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   value,
   change,
   changeLabel,
+  footnote,
   icon,
   loading = false,
 }) => {
@@ -89,6 +91,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
               )}
             </div>
           )}
+
+          {footnote && <div className="mt-1 text-sm text-gray-500">{footnote}</div>}
         </div>
 
         {icon && (

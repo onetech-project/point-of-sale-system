@@ -305,7 +305,7 @@ export default function AnalyticsDashboardPage() {
               <DashboardErrorBoundary sectionName="Sales Metrics">
                 <div
                   id="onboarding-business-metrics"
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 scroll-mt-32"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-6 scroll-mt-32"
                 >
                   <MetricCard
                     title="Total Revenue"
@@ -325,6 +325,43 @@ export default function AnalyticsDashboardPage() {
                           strokeLinejoin="round"
                           strokeWidth={2}
                           d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Gross Profit"
+                    value={salesData ? formatCurrency(salesData.metrics.gross_profit, true) : '—'}
+                    change={salesData?.metrics.profit_change}
+                    changeLabel="vs previous period"
+                    footnote={
+                      salesData && (
+                        <>
+                          <span>{formatNumber(salesData.metrics.gross_margin, 1)}% margin</span>
+                          {salesData.metrics.uncosted_revenue > 0 && (
+                            <span
+                              className="block text-amber-600"
+                              title="Items sold without a recorded cost price are left out of profit"
+                            >
+                              {formatCurrency(salesData.metrics.uncosted_revenue, true)} sales without cost data
+                            </span>
+                          )}
+                        </>
+                      )
+                    }
+                    loading={loading}
+                    icon={
+                      <svg
+                        className="w-6 h-6 text-primary-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
                         />
                       </svg>
                     }
@@ -415,6 +452,7 @@ export default function AnalyticsDashboardPage() {
                   <SalesChart
                     revenueData={trendData?.revenue_data || []}
                     ordersData={trendData?.orders_data || []}
+                    profitData={trendData?.profit_data || []}
                     loading={trendLoading}
                     height={400}
                   />
