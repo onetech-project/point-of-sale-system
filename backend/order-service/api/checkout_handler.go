@@ -519,8 +519,8 @@ func (h *CheckoutHandler) insertOrder(ctx context.Context, tx *sql.Tx, order *mo
 func (h *CheckoutHandler) insertOrderItem(ctx context.Context, tx *sql.Tx, item *models.OrderItem) error {
 	query := `
 		INSERT INTO order_items (
-			order_id, product_id, product_name, quantity, unit_price, total_price
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			order_id, product_id, product_name, quantity, unit_price, total_price, unit_cost
+		) VALUES ($1, $2, $3, $4, $5, $6, (SELECT ROUND(cost_price)::integer FROM products WHERE id = $2))
 	`
 
 	_, err := tx.ExecContext(

@@ -7,10 +7,18 @@ import { TimeSeriesDataPoint } from '@/types/analytics';
 import { formatCurrency } from '@/utils/format';
 
 export type ChartType = 'line' | 'bar';
+type Metric = 'revenue' | 'profit' | 'orders';
+
+const METRIC_OPTIONS: { value: Metric; label: string; axisLabel: string; color: string }[] = [
+  { value: 'revenue', label: 'Revenue', axisLabel: 'Revenue (IDR)', color: '#3b82f6' },
+  { value: 'profit', label: 'Profit', axisLabel: 'Gross Profit (IDR)', color: '#8b5cf6' },
+  { value: 'orders', label: 'Orders', axisLabel: 'Number of Orders', color: '#10b981' },
+];
 
 export interface SalesChartProps {
   revenueData: TimeSeriesDataPoint[];
   ordersData: TimeSeriesDataPoint[];
+  profitData?: TimeSeriesDataPoint[];
   loading?: boolean;
   height?: number;
 }
@@ -18,13 +26,16 @@ export interface SalesChartProps {
 export const SalesChart: React.FC<SalesChartProps> = ({
   revenueData,
   ordersData,
+  profitData = [],
   loading = false,
   height = 400,
 }) => {
   const [chartType, setChartType] = useState<ChartType>('line');
-  const [metric, setMetric] = useState<'revenue' | 'orders'>('revenue');
+  const [metric, setMetric] = useState<Metric>('revenue');
 
-  const currentData = metric === 'revenue' ? revenueData : ordersData;
+  const currentData = { revenue: revenueData, profit: profitData, orders: ordersData }[metric];
+  const isCurrency = metric !== 'orders';
+  const selectedOption = METRIC_OPTIONS.find(option => option.value === metric)!;
   const ChartComponent = chartType === 'line' ? LineChart : BarChart;
 
   return (
@@ -36,26 +47,19 @@ export const SalesChart: React.FC<SalesChartProps> = ({
         <div className="flex items-center gap-3">
           {/* Metric Selector */}
           <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setMetric('revenue')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                metric === 'revenue'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Revenue
-            </button>
-            <button
-              onClick={() => setMetric('orders')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                metric === 'orders'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Orders
-            </button>
+            {METRIC_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setMetric(option.value)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  metric === option.value
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
 
           {/* Chart Type Selector */}
@@ -105,10 +109,10 @@ export const SalesChart: React.FC<SalesChartProps> = ({
         data={currentData}
         dataKey="value"
         xAxisKey="label"
-        yAxisLabel={metric === 'revenue' ? 'Revenue (IDR)' : 'Number of Orders'}
-        color={metric === 'revenue' ? '#3b82f6' : '#10b981'}
+        yAxisLabel={selectedOption.axisLabel}
+        color={selectedOption.color}
         height={height}
-        formatter={metric === 'revenue' ? formatCurrency : undefined}
+        formatter={isCurrency ? formatCurrency : undefined}
         loading={loading}
       />
 
@@ -118,7 +122,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-xs text-gray-500 mb-1">Total</p>
             <p className="text-lg font-semibold text-gray-900">
-              {metric === 'revenue'
+              {isCurrency
                 ? formatCurrency(currentData.reduce((sum, d) => sum + d.value, 0))
                 : currentData.reduce((sum, d) => sum + d.value, 0).toLocaleString()}
             </p>
@@ -126,7 +130,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-xs text-gray-500 mb-1">Average</p>
             <p className="text-lg font-semibold text-gray-900">
-              {metric === 'revenue'
+              {isCurrency
                 ? formatCurrency(currentData.reduce((sum, d) => sum + d.value, 0) / currentData.length)
                 : (currentData.reduce((sum, d) => sum + d.value, 0) / currentData.length).toFixed(1)}
             </p>
@@ -134,7 +138,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-xs text-gray-500 mb-1">Peak</p>
             <p className="text-lg font-semibold text-gray-900">
-              {metric === 'revenue'
+              {isCurrency
                 ? formatCurrency(Math.max(...currentData.map((d) => d.value)))
                 : Math.max(...currentData.map((d) => d.value)).toLocaleString()}
             </p>

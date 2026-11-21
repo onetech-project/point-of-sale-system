@@ -269,7 +269,7 @@ func (s *AnalyticsService) GetSalesTrend(ctx context.Context, tenantID string, s
 	log.Debug().Str("cache_key", cacheKey).Msg("Sales trend cache miss")
 
 	// Fetch from repository
-	revenueData, ordersData, err := s.salesRepo.GetSalesTrend(ctx, tenantID, startDate, endDate, granularity)
+	revenueData, ordersData, profitData, err := s.salesRepo.GetSalesTrend(ctx, tenantID, startDate, endDate, granularity)
 	if err != nil {
 		return nil, err
 	}
@@ -280,6 +280,7 @@ func (s *AnalyticsService) GetSalesTrend(ctx context.Context, tenantID string, s
 		EndDate:     endDate.Format("2006-01-02"),
 		RevenueData: revenueData,
 		OrdersData:  ordersData,
+		ProfitData:  profitData,
 	}
 
 	// Determine TTL: use historical TTL for past data, current TTL for recent data

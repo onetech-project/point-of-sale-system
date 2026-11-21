@@ -152,6 +152,12 @@ beforeEach(() => {
       revenue_change: 0,
       orders_change: 0,
       aov_change: 0,
+      gross_profit: 40000,
+      cost_of_goods_sold: 60000,
+      gross_margin: 40,
+      profit_change: 0,
+      previous_gross_profit: 0,
+      uncosted_revenue: 0,
       offline_order_count: 1,
       offline_revenue: 100000,
       offline_percentage: 33,
@@ -178,6 +184,7 @@ beforeEach(() => {
     end_date: '2026-05-21',
     revenue_data: [],
     orders_data: [],
+    profit_data: [],
   });
 });
 
